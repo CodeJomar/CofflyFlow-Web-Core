@@ -6,7 +6,7 @@ import { Spinner } from "@/shared/components/ui/spinner"
 
 const buttonVariants = cva(
   // Base: Píldora (rounded-full), centrado, foco neutro y estado disabled con cursor de bloqueo visible
-  "inline-flex items-center justify-center gap-2 whitespace-nowrap rounded-full text-sm font-bold transition-all cursor-pointer focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-slate-800 disabled:bg-slate-100 disabled:text-slate-400 disabled:border-transparent disabled:shadow-none disabled:cursor-not-allowed",
+  "inline-flex items-center justify-center gap-2 whitespace-nowrap rounded-full text-sm font-bold transition-all cursor-pointer focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-slate-800 disabled:bg-slate-100 dark:disabled:bg-stone-800/60 disabled:text-slate-400 dark:disabled:text-stone-500 disabled:border-transparent dark:disabled:border-stone-800/40 disabled:shadow-none disabled:cursor-not-allowed",
   {
     variants: {
       variant: {
