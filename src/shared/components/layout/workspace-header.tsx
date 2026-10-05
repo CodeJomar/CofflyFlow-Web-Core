@@ -43,7 +43,7 @@ export function WorkspaceHeader({
   // Rol compartido por todo el workspace (controla el acceso al dashboard)
   const { rol: selectedRole, setRol } = useWorkspaceLayout()
   const setSelectedRole = (value: unknown) => {
-    if (value === "dueno" || value === "empleado") setRol(value)
+    if (value === "dueno" || value === "empleado" || value === "administrador") setRol(value)
   }
 
   // Integración real de modo claro / oscuro
@@ -135,6 +135,12 @@ export function WorkspaceHeader({
                 className="h-7 rounded-full px-3.5 text-xs font-semibold data-[state=active]:bg-[#4C0107] data-[state=active]:text-white transition-all shadow-none cursor-pointer dark:text-slate-300"
               >
                 Dueño
+              </TabsTrigger>
+              <TabsTrigger
+                value="administrador"
+                className="h-7 rounded-full px-3.5 text-xs font-semibold data-[state=active]:bg-[#4C0107] data-[state=active]:text-white transition-all shadow-none cursor-pointer dark:text-slate-300"
+              >
+                Administrador
               </TabsTrigger>
             </TabsList>
           </Tabs>

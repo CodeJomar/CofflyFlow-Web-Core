@@ -479,7 +479,7 @@ function AccesoRestringido({ rol }: { rol: string }) {
       <div className="flex flex-col gap-1">
         <h1 className="text-lg font-bold text-slate-900 dark:text-stone-100">Acceso restringido</h1>
         <p className="max-w-sm text-sm text-slate-500 dark:text-stone-400">
-          Las métricas del dashboard solo están disponibles para el Dueño. Tu rol actual es{" "}
+          Las métricas del dashboard solo están disponibles para el Dueño y el Administrador. Tu rol actual es{" "}
           <span className="font-semibold text-slate-700 dark:text-stone-200">{rol}</span>.
         </p>
       </div>

@@ -44,16 +44,18 @@ export const PERMISO = {
 
 export type Permiso = (typeof PERMISO)[keyof typeof PERMISO];
 
-export type RolUsuario = 'dueno' | 'empleado';
+export type RolUsuario = 'dueno' | 'empleado' | 'administrador';
 
 export const ROL_LABELS: Record<RolUsuario, string> = {
   dueno: 'Dueño',
   empleado: 'Empleado',
+  administrador: 'Administrador',
 };
 
 // TODO: reemplazar por los permisos reales del usuario autenticado.
 export const PERMISOS_POR_ROL: Record<RolUsuario, readonly Permiso[]> = {
   dueno: Object.values(PERMISO),
+  administrador: Object.values(PERMISO),
   empleado: [
     PERMISO.READ_POS,
     PERMISO.CREATE_ORDER,

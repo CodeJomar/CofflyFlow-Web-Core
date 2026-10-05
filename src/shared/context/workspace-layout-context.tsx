@@ -11,7 +11,7 @@ interface WorkspaceLayoutContextProps {
   setIsDrawerOpen: React.Dispatch<React.SetStateAction<boolean>>
   toggleSidebar: () => void
   isMobile: boolean
-  // Rol activo del usuario en el workspace (Dueño / Empleado)
+  // Rol activo del usuario en el workspace (Dueño / Empleado / Administrador)
   rol: RolUsuario
   setRol: React.Dispatch<React.SetStateAction<RolUsuario>>
 }
