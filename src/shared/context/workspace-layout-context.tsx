@@ -2,6 +2,7 @@
 
 import * as React from "react"
 import { useIsMobile } from "@/shared/hooks/use-mobile"
+import type { RolUsuario } from "@/shared/constants/permisos"
 
 interface WorkspaceLayoutContextProps {
   isCollapsed: boolean
@@ -10,6 +11,9 @@ interface WorkspaceLayoutContextProps {
   setIsDrawerOpen: React.Dispatch<React.SetStateAction<boolean>>
   toggleSidebar: () => void
   isMobile: boolean
+  // Rol activo del usuario en el workspace (Dueño / Empleado)
+  rol: RolUsuario
+  setRol: React.Dispatch<React.SetStateAction<RolUsuario>>
 }
 
 const WorkspaceLayoutContext = React.createContext<WorkspaceLayoutContextProps | undefined>(undefined)
@@ -17,6 +21,7 @@ const WorkspaceLayoutContext = React.createContext<WorkspaceLayoutContextProps |
 export function WorkspaceLayoutProvider({ children }: { children: React.ReactNode }) {
   const [isCollapsed, setIsCollapsed] = React.useState(false)
   const [isDrawerOpen, setIsDrawerOpen] = React.useState(false)
+  const [rol, setRol] = React.useState<RolUsuario>("dueno")
   const isMobile = useIsMobile()
 
   const toggleSidebar = React.useCallback(() => {
@@ -36,6 +41,8 @@ export function WorkspaceLayoutProvider({ children }: { children: React.ReactNod
         setIsDrawerOpen,
         toggleSidebar,
         isMobile: !!isMobile,
+        rol,
+        setRol,
       }}
     >
       {children}

@@ -42,6 +42,31 @@ export const PERMISO = {
   READ_DASHBOARD: 70,
 } as const;
 
+export type Permiso = (typeof PERMISO)[keyof typeof PERMISO];
+
+export type RolUsuario = 'dueno' | 'empleado';
+
+export const ROL_LABELS: Record<RolUsuario, string> = {
+  dueno: 'Dueño',
+  empleado: 'Empleado',
+};
+
+// TODO: reemplazar por los permisos reales del usuario autenticado.
+export const PERMISOS_POR_ROL: Record<RolUsuario, readonly Permiso[]> = {
+  dueno: Object.values(PERMISO),
+  empleado: [
+    PERMISO.READ_POS,
+    PERMISO.CREATE_ORDER,
+    PERMISO.UPDATE_ORDER,
+    PERMISO.READ_MENU,
+    PERMISO.READ_TABLES,
+    PERMISO.READ_KDS,
+  ],
+};
+
+export const tienePermiso = (rol: RolUsuario, permiso: Permiso): boolean =>
+  PERMISOS_POR_ROL[rol].includes(permiso);
+
 export type AccionPermiso = 'LISTAR' | 'CREAR' | 'EDITAR' | 'ELIMINAR';
 
 export const ACCION_OFFSET: Record<AccionPermiso, number> = {

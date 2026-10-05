@@ -26,6 +26,7 @@ import { Switch } from "@/shared/components/ui/switch"
 import { Button } from "@/shared/components/ui/button"
 import { Separator } from "@/shared/components/ui/separator"
 import { cn } from "@/shared/utils/cn"
+import { useWorkspaceLayout } from "@/shared/context/workspace-layout-context"
 
 interface WorkspaceHeaderProps {
   isCollapsed: boolean
@@ -39,7 +40,11 @@ export function WorkspaceHeader({
   const pathname = usePathname()
   const router = useRouter()
 
-  const [selectedRole, setSelectedRole] = React.useState("dueno")
+  // Rol compartido por todo el workspace (controla el acceso al dashboard)
+  const { rol: selectedRole, setRol } = useWorkspaceLayout()
+  const setSelectedRole = (value: unknown) => {
+    if (value === "dueno" || value === "empleado") setRol(value)
+  }
 
   // Integración real de modo claro / oscuro
   const { theme, setTheme } = useTheme()
