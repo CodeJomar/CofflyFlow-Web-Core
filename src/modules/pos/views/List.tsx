@@ -32,8 +32,8 @@ import CobroForm, { ComandaDespachadaModal, PersonalizarProductoModal } from "./
 import { useCarrito, useCatalogoPos, useComandaCocina } from "../hooks"
 import {
   AREA_MESA_CONFIG,
-  CATEGORIA_CONFIG,
   ESTADO_MESA_CONFIG,
+  getCategoriaConfig,
   opcionClass,
   panelClass,
 } from "../components"
@@ -77,6 +77,12 @@ function PosContenido({ puedeCobrar }: { puedeCobrar: boolean }) {
   } = useCatalogoPos()
 
   const { items, agregar, cambiarCantidad, quitar, vaciar, totales, cantidades } = useCarrito()
+
+  // RF-10: productos marcados como Agotado desde el Menú (no se pueden sumar más unidades)
+  const productosAgotados = React.useMemo(
+    () => new Set((catalogo?.productos ?? []).filter((p) => !p.disponible).map((p) => p.id)),
+    [catalogo]
+  )
   const { despachar, isSending: enviandoComanda, comandaEnviada, limpiar: limpiarComanda } = useComandaCocina()
 
   // Vista activa: "catalogo" o "mesas" (RF-04)
@@ -416,6 +422,7 @@ function PosContenido({ puedeCobrar }: { puedeCobrar: boolean }) {
           onAbrirMapaMesas={() => setVistaActiva("mesas")}
           onMesaChange={(id) => setMesaSeleccionadaId(id || null)}
           onCambiarCantidad={cambiarCantidad}
+          productosAgotados={productosAgotados}
           onQuitar={quitar}
           onVaciar={vaciar}
           puedeCobrar={puedeCobrar}
@@ -493,7 +500,7 @@ function CategoriaChips({
       aria-label="Filtrar por categoría"
     >
       {opciones.map((opcion) => {
-        const Icono = CATEGORIA_CONFIG[opcion.id].icon
+        const Icono = getCategoriaConfig(opcion.id).icon
         const esActiva = activa === opcion.id
         return (
           <button
@@ -539,7 +546,7 @@ function ProductoCard({
   onAgregar: (producto: ProductoPos) => void
   onPersonalizar: (producto: ProductoPos) => void
 }) {
-  const config = CATEGORIA_CONFIG[producto.categoriaId]
+  const config = getCategoriaConfig(producto.categoriaId)
   const Icono = config.icon
   const agotado = !producto.disponible
   const enTope = cantidad >= MAX_CANTIDAD_ITEM
@@ -641,6 +648,7 @@ function TicketPanel({
   onAbrirMapaMesas,
   onMesaChange,
   onCambiarCantidad,
+  productosAgotados,
   onQuitar,
   onVaciar,
   puedeCobrar,
@@ -659,6 +667,7 @@ function TicketPanel({
   onAbrirMapaMesas: () => void
   onMesaChange: (mesaId: string) => void
   onCambiarCantidad: (uid: string, delta: number) => void
+  productosAgotados: ReadonlySet<string>
   onQuitar: (uid: string) => void
   onVaciar: () => void
   puedeCobrar: boolean
@@ -797,6 +806,7 @@ function TicketPanel({
               <TicketItem
                 key={item.uid}
                 item={item}
+                agotado={productosAgotados.has(item.producto.id)}
                 onCambiarCantidad={onCambiarCantidad}
                 onQuitar={onQuitar}
               />
@@ -884,10 +894,12 @@ function TicketPanel({
 
 function TicketItem({
   item,
+  agotado,
   onCambiarCantidad,
   onQuitar,
 }: {
   item: ItemCarrito
+  agotado: boolean
   onCambiarCantidad: (uid: string, delta: number) => void
   onQuitar: (uid: string) => void
 }) {
@@ -906,6 +918,11 @@ function TicketItem({
           <span className="text-xs tabular-nums text-slate-500 dark:text-stone-400">
             {formatToCurrency(precioUnitario)} c/u
           </span>
+          {agotado && (
+            <span className="text-[11px] font-semibold text-red-600 dark:text-red-400">
+              Agotado: no se pueden agregar más unidades
+            </span>
+          )}
         </div>
 
         {/* Selector de cantidad */}
@@ -927,7 +944,7 @@ function TicketItem({
           <button
             type="button"
             onClick={() => onCambiarCantidad(item.uid, 1)}
-            disabled={cantidad >= MAX_CANTIDAD_ITEM}
+            disabled={agotado || cantidad >= MAX_CANTIDAD_ITEM}
             aria-label={`Agregar una unidad de ${producto.nombre}`}
             className={botonCantidad}
           >

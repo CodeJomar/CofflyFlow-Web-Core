@@ -6,6 +6,7 @@ import {
   despacharComandaCocina,
   getCatalogoPos,
   registrarVenta,
+  suscribirseCambiosCatalogo,
 } from "../actions/pos.actions"
 import {
   IGV_TASA,
@@ -61,6 +62,19 @@ export function useCatalogoPos() {
       vigente = false
     }
   }, [reloadKey])
+
+  // RF-09 / RF-10: aplica al instante los cambios hechos desde el Menú
+  // (productos marcados como Agotado, precios o categorías nuevas)
+  React.useEffect(
+    () =>
+      suscribirseCambiosCatalogo(({ categorias, productos }) => {
+        setCatalogo((prev) => (prev ? { ...prev, categorias, productos } : prev))
+        setCategoria((actual) =>
+          actual === "todos" || categorias.some((c) => c.id === actual) ? actual : "todos"
+        )
+      }),
+    []
+  )
 
   const productosFiltrados = React.useMemo(() => {
     if (!catalogo) return []

@@ -60,7 +60,7 @@ function KdsContent() {
       <div className="flex flex-col gap-1 sm:flex-row sm:items-end sm:justify-between">
         <div className="flex flex-col gap-0.5">
           <h1 className="text-2xl font-bold text-slate-900 tracking-tight dark:text-stone-100">
-            KDS — Comandas en Cocina
+            KDS - Comandas en Cocina
           </h1>
           <p className="text-sm text-slate-500 dark:text-stone-400">
             Gestión de órdenes en tiempo real para preparación.

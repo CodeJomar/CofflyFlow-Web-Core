@@ -65,7 +65,8 @@ export interface ModificadoresProducto {
 }
 
 // Identificadores de categoría del catálogo ("todos" es un filtro, no una categoría real)
-export type CategoriaId = "calientes" | "frias" | "panaderia" | "salados" | "postres"
+// Son dinámicos: el Dueño puede crearlos desde el Menú (RF-09)
+export type CategoriaId = string
 export type FiltroCategoria = CategoriaId | "todos"
 
 export interface CategoriaPos {

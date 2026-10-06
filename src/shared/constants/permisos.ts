@@ -13,11 +13,13 @@ export const PERMISO = {
   UPDATE_ORDER: 12,
   CANCEL_ORDER: 13,
 
-  // Módulo: Menú / Catálogo (20-23)
+  // Módulo: Menú / Catálogo (20-24)
   READ_MENU: 20,
   CREATE_PRODUCT: 21,
   UPDATE_PRODUCT: 22,
   DELETE_PRODUCT: 23,
+  // RF-10: acción específica para marcar productos como Agotado / Disponible
+  TOGGLE_STOCK: 24,
 
   // Módulo: Mesas (30-33)
   READ_TABLES: 30,
@@ -61,6 +63,7 @@ export const PERMISOS_POR_ROL: Record<RolUsuario, readonly Permiso[]> = {
     PERMISO.CREATE_ORDER,
     PERMISO.UPDATE_ORDER,
     PERMISO.READ_MENU,
+    PERMISO.TOGGLE_STOCK,
     PERMISO.READ_TABLES,
     PERMISO.READ_KDS,
   ],

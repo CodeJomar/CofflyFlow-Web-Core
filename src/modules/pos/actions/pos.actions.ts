@@ -86,6 +86,7 @@ const CATALOGO: CatalogoPos = {
     { id: "panaderia", nombre: "Panadería" },
     { id: "salados", nombre: "Salados" },
     { id: "postres", nombre: "Postres" },
+    { id: "piqueos", nombre: "Piqueos" },
   ],
   productos: [
     {
@@ -241,6 +242,33 @@ const CATALOGO: CatalogoPos = {
       disponible: true,
       permitePersonalizacion: false,
     },
+    {
+      id: "p18",
+      nombre: "Tequeños de Queso",
+      descripcion: "6 unidades con salsa de guacamole",
+      precio: 14,
+      categoriaId: "piqueos",
+      disponible: true,
+      permitePersonalizacion: false,
+    },
+    {
+      id: "p19",
+      nombre: "Empanada de Carne",
+      descripcion: "Masa hojaldrada y relleno jugoso",
+      precio: 7.5,
+      categoriaId: "piqueos",
+      disponible: true,
+      permitePersonalizacion: false,
+    },
+    {
+      id: "p20",
+      nombre: "Papas Nativas",
+      descripcion: "Crocantes, con ají de la casa",
+      precio: 12,
+      categoriaId: "piqueos",
+      disponible: true,
+      permitePersonalizacion: false,
+    },
   ],
   mesas: MESAS_INICIALES,
 }
@@ -254,6 +282,38 @@ const redondear = (valor: number) => Math.round(valor * 100) / 100
 export async function getCatalogoPos(): Promise<CatalogoPos> {
   await new Promise((resolve) => setTimeout(resolve, 350))
   return CATALOGO
+}
+
+/* -------------------------------------------------------------------------- */
+/*          RF-09 / RF-10: Sincronización en vivo del catálogo (Menú → POS)    */
+/* -------------------------------------------------------------------------- */
+
+// TODO: reemplazar por WebSockets / SSE del backend. Mientras tanto, BroadcastChannel
+// propaga los cambios del Menú a todos los terminales POS abiertos en el navegador.
+const CANAL_CATALOGO = "coffly-flow:catalogo"
+
+export interface CambioCatalogo {
+  categorias: CatalogoPos["categorias"]
+  productos: CatalogoPos["productos"]
+}
+
+export function notificarCambioCatalogo() {
+  if (typeof BroadcastChannel === "undefined") return
+  const canal = new BroadcastChannel(CANAL_CATALOGO)
+  canal.postMessage({ categorias: CATALOGO.categorias, productos: CATALOGO.productos } satisfies CambioCatalogo)
+  canal.close()
+}
+
+export function suscribirseCambiosCatalogo(callback: (cambio: CambioCatalogo) => void): () => void {
+  if (typeof BroadcastChannel === "undefined") return () => {}
+  const canal = new BroadcastChannel(CANAL_CATALOGO)
+  canal.onmessage = (event: MessageEvent<CambioCatalogo>) => {
+    // Mantiene alineada la copia en memoria de esta pestaña
+    CATALOGO.categorias = event.data.categorias
+    CATALOGO.productos = event.data.productos
+    callback(event.data)
+  }
+  return () => canal.close()
 }
 
 /**

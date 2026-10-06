@@ -8,9 +8,11 @@ import {
   CupSoda,
   GlassWater,
   LayoutGrid,
+  Popcorn,
   Sandwich,
   Smartphone,
   Sun,
+  Tag,
   type LucideIcon,
 } from "lucide-react"
 import type { AreaMesa, EstadoMesa, FiltroCategoria, MetodoPago } from "../schema"
@@ -45,7 +47,19 @@ export const CATEGORIA_CONFIG: Record<FiltroCategoria, { icon: LucideIcon; class
     icon: CakeSlice,
     className: "bg-pink-100 text-pink-800 dark:bg-pink-500/15 dark:text-pink-300",
   },
+  piqueos: {
+    icon: Popcorn,
+    className: "bg-violet-100 text-violet-800 dark:bg-violet-500/15 dark:text-violet-300",
+  },
 }
+
+// Estilo neutro para las categorías que el Dueño crea desde el Menú (RF-09)
+const CATEGORIA_GENERICA = {
+  icon: Tag,
+  className: "bg-slate-100 text-slate-700 dark:bg-stone-800 dark:text-stone-200",
+}
+
+export const getCategoriaConfig = (id: FiltroCategoria) => CATEGORIA_CONFIG[id] ?? CATEGORIA_GENERICA
 
 export const METODO_PAGO_ICONS: Record<MetodoPago, LucideIcon> = {
   efectivo: Banknote,
