@@ -23,13 +23,13 @@ export const METODO_PAGO_LABELS: Record<MetodoPago, string> = {
 /*                 RF-04: Selección de Mesas y Áreas Físicas                  */
 /* -------------------------------------------------------------------------- */
 
-export const areaMesaSchema = z.enum(["salon", "terraza", "barra"])
-export type AreaMesa = z.infer<typeof areaMesaSchema>
+// Identificador del área de atención. Son dinámicas: el Dueño las administra
+// desde Local y Equipo → Gestión de Mesas (RF-12)
+export type AreaMesa = string
 
-export const AREA_MESA_LABELS: Record<AreaMesa, string> = {
-  salon: "Salón",
-  terraza: "Terraza",
-  barra: "Barra",
+export interface AreaPos {
+  id: AreaMesa
+  nombre: string
 }
 
 export const estadoMesaSchema = z.enum(["libre", "ocupada", "por_cobrar"])
@@ -95,6 +95,7 @@ export interface ItemCarrito {
 export interface CatalogoPos {
   categorias: CategoriaPos[]
   productos: ProductoPos[]
+  areas: AreaPos[]
   mesas: MesaPos[]
 }
 

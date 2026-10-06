@@ -137,9 +137,9 @@ export function AppSidebar({ isCollapsed = false, className }: AppSidebarProps) 
 
               <Tooltip>
                 <TooltipTrigger render={
-                  <div className="w-full flex justify-center cursor-pointer">
-                    <SidebarNavItem icon={<Store />} />
-                  </div>
+                  <Link href="/local-equipo/personal" className="w-full flex justify-center cursor-pointer">
+                    <SidebarNavItem icon={<Store />} isActive={pathname.startsWith("/local-equipo")} />
+                  </Link>
                 } />
                 <TooltipContent side="right">Local y Equipo</TooltipContent>
               </Tooltip>
@@ -182,10 +182,26 @@ export function AppSidebar({ isCollapsed = false, className }: AppSidebarProps) 
               <SidebarNavGroup
                 title="Local y Equipo"
                 icon={<Store />}
+                defaultOpen={pathname.startsWith("/local-equipo")}
                 items={[
-                  { title: "Gestión de Empleados", icon: <Users /> },
-                  { title: "Roles y Permisos", icon: <ShieldCheck /> },
-                  { title: "Gestión de Mesas", icon: <Grid2X2 /> },
+                  {
+                    title: "Gestión de Empleados",
+                    icon: <Users />,
+                    href: "/local-equipo/personal",
+                    isActive: pathname === "/local-equipo/personal",
+                  },
+                  {
+                    title: "Roles y Permisos",
+                    icon: <ShieldCheck />,
+                    href: "/local-equipo/roles-permisos",
+                    isActive: pathname === "/local-equipo/roles-permisos",
+                  },
+                  {
+                    title: "Gestión de Mesas",
+                    icon: <Grid2X2 />,
+                    href: "/local-equipo/mesas",
+                    isActive: pathname === "/local-equipo/mesas",
+                  },
                 ]}
               />
 

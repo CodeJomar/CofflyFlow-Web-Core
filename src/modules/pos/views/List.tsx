@@ -31,14 +31,13 @@ import { PERMISO, ROL_LABELS, tienePermiso } from "@/shared/constants/permisos"
 import CobroForm, { ComandaDespachadaModal, PersonalizarProductoModal } from "./Form"
 import { useCarrito, useCatalogoPos, useComandaCocina } from "../hooks"
 import {
-  AREA_MESA_CONFIG,
+  getAreaIcon,
   ESTADO_MESA_CONFIG,
   getCategoriaConfig,
   opcionClass,
   panelClass,
 } from "../components"
 import {
-  AREA_MESA_LABELS,
   ESTADO_MESA_LABELS,
   MAX_CANTIDAD_ITEM,
   TIPO_PEDIDO_LABELS,
@@ -87,7 +86,16 @@ function PosContenido({ puedeCobrar }: { puedeCobrar: boolean }) {
 
   // Vista activa: "catalogo" o "mesas" (RF-04)
   const [vistaActiva, setVistaActiva] = React.useState<"catalogo" | "mesas">("catalogo")
-  const [areaFiltroMesas, setAreaFiltroMesas] = React.useState<AreaMesa | "todas">("todas")
+  const [areaFiltroSeleccionada, setAreaFiltroMesas] = React.useState<AreaMesa | "todas">("todas")
+
+  // RF-12: las áreas se administran desde Local y Equipo; si el área filtrada se elimina, se muestran todas
+  const nombresArea = React.useMemo(
+    () => new Map((catalogo?.areas ?? []).map((a) => [a.id, a.nombre])),
+    [catalogo]
+  )
+  const nombreArea = React.useCallback((id: AreaMesa) => nombresArea.get(id) ?? "Sin área", [nombresArea])
+  const areaFiltroMesas =
+    areaFiltroSeleccionada !== "todas" && nombresArea.has(areaFiltroSeleccionada) ? areaFiltroSeleccionada : "todas"
 
   // Estado del pedido
   const [tipoPedido, setTipoPedido] = React.useState<TipoPedido>("mesa")
@@ -325,9 +333,8 @@ function PosContenido({ puedeCobrar }: { puedeCobrar: boolean }) {
               >
                 Todas las áreas
               </button>
-              {(["salon", "terraza", "barra"] as AreaMesa[]).map((area) => {
-                const conf = AREA_MESA_CONFIG[area]
-                const Icono = conf.icon
+              {(catalogo?.areas ?? []).map(({ id: area, nombre }) => {
+                const Icono = getAreaIcon(area)
                 const activa = areaFiltroMesas === area
                 return (
                   <button
@@ -340,7 +347,7 @@ function PosContenido({ puedeCobrar }: { puedeCobrar: boolean }) {
                     )}
                   >
                     <Icono className="size-3.5" />
-                    {conf.label}
+                    {nombre}
                   </button>
                 )
               })}
@@ -354,8 +361,7 @@ function PosContenido({ puedeCobrar }: { puedeCobrar: boolean }) {
                   .map((m) => {
                     const esSeleccionada = mesaSeleccionada?.id === m.id
                     const estadoConf = ESTADO_MESA_CONFIG[m.estado]
-                    const areaConf = AREA_MESA_CONFIG[m.area]
-                    const IconoArea = areaConf.icon
+                    const IconoArea = getAreaIcon(m.area)
 
                     return (
                       <button
@@ -387,7 +393,7 @@ function PosContenido({ puedeCobrar }: { puedeCobrar: boolean }) {
 
                         <div className="flex items-center gap-1.5 text-xs text-slate-500 dark:text-stone-400">
                           <IconoArea className="size-3.5" />
-                          <span>{areaConf.label}</span>
+                          <span>{nombreArea(m.area)}</span>
                           <span>·</span>
                           <span>{m.capacidad} pers.</span>
                         </div>
@@ -416,6 +422,7 @@ function PosContenido({ puedeCobrar }: { puedeCobrar: boolean }) {
           items={items}
           totales={totales}
           mesas={catalogo?.mesas ?? []}
+          nombreArea={nombreArea}
           tipoPedido={tipoPedido}
           onTipoPedidoChange={setTipoPedido}
           mesaSeleccionada={mesaSeleccionada}
@@ -642,6 +649,7 @@ function TicketPanel({
   items,
   totales,
   mesas,
+  nombreArea,
   tipoPedido,
   onTipoPedidoChange,
   mesaSeleccionada,
@@ -661,6 +669,7 @@ function TicketPanel({
   items: ItemCarrito[]
   totales: TotalesCarrito
   mesas: MesaPos[]
+  nombreArea: (area: AreaMesa) => string
   tipoPedido: TipoPedido
   onTipoPedidoChange: (tipo: TipoPedido) => void
   mesaSeleccionada: MesaPos | null
@@ -764,7 +773,7 @@ function TicketPanel({
               </option>
               {mesas.map((m) => (
                 <option key={m.id} value={m.id}>
-                  {m.nombre} ({AREA_MESA_LABELS[m.area]}) - {ESTADO_MESA_LABELS[m.estado]}
+                  {m.nombre} ({nombreArea(m.area)}) - {ESTADO_MESA_LABELS[m.estado]}
                 </option>
               ))}
             </select>
@@ -773,7 +782,7 @@ function TicketPanel({
           {mesaSeleccionada && (
             <div className="flex items-center justify-between pt-1 text-xs">
               <span className="text-slate-500 dark:text-stone-400">
-                Área: <strong>{AREA_MESA_LABELS[mesaSeleccionada.area]}</strong> · {mesaSeleccionada.capacidad} personas
+                Área: <strong>{nombreArea(mesaSeleccionada.area)}</strong> · {mesaSeleccionada.capacidad} personas
               </span>
               <span
                 className={cn(

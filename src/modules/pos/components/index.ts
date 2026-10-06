@@ -8,6 +8,7 @@ import {
   CupSoda,
   GlassWater,
   LayoutGrid,
+  MapPin,
   Popcorn,
   Sandwich,
   Smartphone,
@@ -107,11 +108,14 @@ export const ESTADO_MESA_CONFIG: Record<
   },
 }
 
-export const AREA_MESA_CONFIG: Record<AreaMesa, { label: string; icon: LucideIcon }> = {
-  salon: { label: "Salón", icon: Armchair },
-  terraza: { label: "Terraza", icon: Sun },
-  barra: { label: "Barra", icon: GlassWater },
+// Ícono por área conocida; las áreas creadas por el Dueño usan uno genérico (RF-12)
+const AREA_MESA_ICONS: Record<string, LucideIcon> = {
+  salon: Armchair,
+  terraza: Sun,
+  barra: GlassWater,
 }
+
+export const getAreaIcon = (area: AreaMesa): LucideIcon => AREA_MESA_ICONS[area] ?? MapPin
 
 /* -------------------------------------------------------------------------- */
 /*                 RF-05: Modificadores estándar de cafetería                 */

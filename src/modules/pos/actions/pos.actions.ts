@@ -270,6 +270,11 @@ const CATALOGO: CatalogoPos = {
       permitePersonalizacion: false,
     },
   ],
+  areas: [
+    { id: "salon", nombre: "Salón" },
+    { id: "terraza", nombre: "Terraza" },
+    { id: "barra", nombre: "Barra" },
+  ],
   mesas: MESAS_INICIALES,
 }
 
@@ -285,22 +290,24 @@ export async function getCatalogoPos(): Promise<CatalogoPos> {
 }
 
 /* -------------------------------------------------------------------------- */
-/*          RF-09 / RF-10: Sincronización en vivo del catálogo (Menú → POS)    */
+/*   RF-09 / RF-10 / RF-12: Sincronización en vivo (Menú y Local → POS)       */
 /* -------------------------------------------------------------------------- */
 
 // TODO: reemplazar por WebSockets / SSE del backend. Mientras tanto, BroadcastChannel
-// propaga los cambios del Menú a todos los terminales POS abiertos en el navegador.
+// propaga los cambios del Menú y del plano de mesas a todos los terminales POS abiertos.
 const CANAL_CATALOGO = "coffly-flow:catalogo"
 
-export interface CambioCatalogo {
-  categorias: CatalogoPos["categorias"]
-  productos: CatalogoPos["productos"]
-}
+export type CambioCatalogo = Pick<CatalogoPos, "categorias" | "productos" | "areas" | "mesas">
 
 export function notificarCambioCatalogo() {
   if (typeof BroadcastChannel === "undefined") return
   const canal = new BroadcastChannel(CANAL_CATALOGO)
-  canal.postMessage({ categorias: CATALOGO.categorias, productos: CATALOGO.productos } satisfies CambioCatalogo)
+  canal.postMessage({
+    categorias: CATALOGO.categorias,
+    productos: CATALOGO.productos,
+    areas: CATALOGO.areas,
+    mesas: CATALOGO.mesas,
+  } satisfies CambioCatalogo)
   canal.close()
 }
 
@@ -308,10 +315,25 @@ export function suscribirseCambiosCatalogo(callback: (cambio: CambioCatalogo) =>
   if (typeof BroadcastChannel === "undefined") return () => {}
   const canal = new BroadcastChannel(CANAL_CATALOGO)
   canal.onmessage = (event: MessageEvent<CambioCatalogo>) => {
+    const { categorias, productos, areas, mesas } = event.data
+
+    // El plano (nombre, área, capacidad) viene del emisor, pero el estado operativo
+    // de cada mesa (ocupada, mozo, consumo) se conserva el de este terminal
+    const operativas = new Map(CATALOGO.mesas.map((m) => [m.id, m]))
+    const mesasSincronizadas = mesas.map((m) => {
+      const local = operativas.get(m.id)
+      return local
+        ? { ...m, estado: local.estado, mozo: local.mozo, totalActual: local.totalActual, tiempoOcupada: local.tiempoOcupada }
+        : m
+    })
+
     // Mantiene alineada la copia en memoria de esta pestaña
-    CATALOGO.categorias = event.data.categorias
-    CATALOGO.productos = event.data.productos
-    callback(event.data)
+    CATALOGO.categorias = categorias
+    CATALOGO.productos = productos
+    CATALOGO.areas = areas
+    CATALOGO.mesas = mesasSincronizadas
+
+    callback({ categorias, productos, areas, mesas: mesasSincronizadas })
   }
   return () => canal.close()
 }

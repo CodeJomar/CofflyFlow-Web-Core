@@ -73,6 +73,14 @@ export function WorkspaceHeader({
     if (pathname.includes("/menu")) {
       return { parent: "Menú", href: "/menu", current: "Catálogo" }
     }
+    if (pathname.includes("/local-equipo")) {
+      const current = pathname.includes("/mesas")
+        ? "Gestión de Mesas"
+        : pathname.includes("/roles-permisos")
+          ? "Roles y Permisos"
+          : "Gestión de Empleados"
+      return { parent: "Local y Equipo", href: "/local-equipo/personal", current }
+    }
     return { parent: "Workspace", href: "/dashboard", current: "General" }
   }
 

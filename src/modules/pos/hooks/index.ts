@@ -63,12 +63,12 @@ export function useCatalogoPos() {
     }
   }, [reloadKey])
 
-  // RF-09 / RF-10: aplica al instante los cambios hechos desde el Menú
-  // (productos marcados como Agotado, precios o categorías nuevas)
+  // RF-09 / RF-10 / RF-12: aplica al instante los cambios hechos desde el Menú
+  // (productos agotados, precios, categorías) y desde Local y Equipo (mesas y áreas)
   React.useEffect(
     () =>
-      suscribirseCambiosCatalogo(({ categorias, productos }) => {
-        setCatalogo((prev) => (prev ? { ...prev, categorias, productos } : prev))
+      suscribirseCambiosCatalogo(({ categorias, productos, areas, mesas }) => {
+        setCatalogo((prev) => (prev ? { ...prev, categorias, productos, areas, mesas } : prev))
         setCategoria((actual) =>
           actual === "todos" || categorias.some((c) => c.id === actual) ? actual : "todos"
         )
