@@ -81,6 +81,10 @@ export function WorkspaceHeader({
           : "Gestión de Empleados"
       return { parent: "Local y Equipo", href: "/local-equipo/personal", current }
     }
+    if (pathname.includes("/transacciones")) {
+      const current = pathname.includes("/pedidos") ? "Historial de Pedidos" : "Gestión de Cajas"
+      return { parent: "Transacciones", href: "/transacciones/cajas", current }
+    }
     return { parent: "Workspace", href: "/dashboard", current: "General" }
   }
 

@@ -1,3 +1,6 @@
+import TransaccionesView from "@/modules/transacciones/views/List"
+
 export default function PedidosPage() {
-  return null;
+  return <TransaccionesView pestanaPorDefecto="historial" />
 }
+

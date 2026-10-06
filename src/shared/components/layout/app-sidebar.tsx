@@ -146,9 +146,9 @@ export function AppSidebar({ isCollapsed = false, className }: AppSidebarProps) 
 
               <Tooltip>
                 <TooltipTrigger render={
-                  <div className="w-full flex justify-center cursor-pointer">
-                    <SidebarNavItem icon={<FileText />} />
-                  </div>
+                  <Link href="/transacciones/cajas" className="w-full flex justify-center cursor-pointer">
+                    <SidebarNavItem icon={<FileText />} isActive={pathname.startsWith("/transacciones")} />
+                  </Link>
                 } />
                 <TooltipContent side="right">Transacciones</TooltipContent>
               </Tooltip>
@@ -208,9 +208,20 @@ export function AppSidebar({ isCollapsed = false, className }: AppSidebarProps) 
               <SidebarNavGroup
                 title="Transacciones"
                 icon={<FileText />}
+                defaultOpen={pathname.startsWith("/transacciones")}
                 items={[
-                  { title: "Gestión de cajas", icon: <Coins /> },
-                  { title: "Historial de Pedidos", icon: <Clock /> },
+                  {
+                    title: "Gestión de cajas",
+                    icon: <Coins />,
+                    href: "/transacciones/cajas",
+                    isActive: pathname === "/transacciones/cajas",
+                  },
+                  {
+                    title: "Historial de Pedidos",
+                    icon: <Clock />,
+                    href: "/transacciones/pedidos",
+                    isActive: pathname === "/transacciones/pedidos",
+                  },
                 ]}
               />
             </>
