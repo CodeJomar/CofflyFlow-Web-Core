@@ -29,6 +29,12 @@ COPY . .
 ENV NEXT_TELEMETRY_DISABLED=1
 ENV NODE_ENV=production
 
+# URL de la API NestJS para los rewrites de /api (se hornea en el build)
+ARG API_INTERNAL_URL=http://api-core:4000
+ENV API_INTERNAL_URL=$API_INTERNAL_URL
+# La API se consume por el mismo origen (/api)
+ENV NEXT_PUBLIC_API_URL=/api
+
 # Compilación de producción
 RUN npm run build
 

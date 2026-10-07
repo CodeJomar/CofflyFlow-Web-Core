@@ -29,14 +29,20 @@ import { cn } from "@/shared/utils/cn"
 interface AppSidebarProps {
   isCollapsed?: boolean
   className?: string
+  /** Usuario autenticado (lo provee el layout del workspace). */
+  userName?: string
+  userRole?: string
+  userInitials?: string
 }
 
-export function AppSidebar({ isCollapsed = false, className }: AppSidebarProps) {
+export function AppSidebar({
+  isCollapsed = false,
+  className,
+  userName = "Usuario",
+  userRole = "",
+  userInitials = "US",
+}: AppSidebarProps) {
   const pathname = usePathname()
-
-  const userName = "Jomar Peralta"
-  const userRole = "Administrador"
-  const userInitials = "JP"
 
   return (
     <div

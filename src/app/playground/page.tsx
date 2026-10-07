@@ -12,6 +12,7 @@ import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/shared/components/ui
 import { UserProfile } from "@/shared/components/composed/user-profile";
 import { FloatingSelect } from "@/shared/components/composed/floating-select";
 import { SelectContent, SelectItem } from "@/shared/components/ui/select";
+import { OverlaysDemo } from "./overlays-demo";
 
 export default function PlaygroundPage() {
   return (
@@ -244,6 +245,11 @@ export default function PlaygroundPage() {
             />
 
           </div>
+        </section>
+
+        <section className="space-y-4">
+          <h2 className="text-xl font-semibold text-slate-800">7. Overlays (Toast y Confirm)</h2>
+          <OverlaysDemo />
         </section>
 
       </div>

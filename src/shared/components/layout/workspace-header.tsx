@@ -30,11 +30,14 @@ import { cn } from "@/shared/utils/cn"
 interface WorkspaceHeaderProps {
   isCollapsed: boolean
   onToggleCollapse: () => void
+  /** Cierra la sesión; si no se provee, solo navega al login. */
+  onLogout?: () => void
 }
 
 export function WorkspaceHeader({
   isCollapsed,
   onToggleCollapse,
+  onLogout,
 }: WorkspaceHeaderProps) {
   const pathname = usePathname()
   const router = useRouter()
@@ -74,6 +77,7 @@ export function WorkspaceHeader({
   const { parent, href, current } = getRouteInfo()
 
   const handleLogout = () => {
+    if (onLogout) return onLogout()
     router.push("/login")
   }
 

@@ -4,12 +4,23 @@ import * as React from "react"
 import { cn } from "@/shared/utils/cn"
 import { AppSidebar } from "@/shared/components/layout/app-sidebar"
 import { WorkspaceHeader } from "@/shared/components/layout/workspace-header"
+import { SessionProvider, useSession, useLogout, etiquetaRol, iniciales } from "@/modules/auth"
 
 export default function WorkspaceLayout({
   children,
 }: {
   children: React.ReactNode
 }) {
+  return (
+    <SessionProvider>
+      <WorkspaceShell>{children}</WorkspaceShell>
+    </SessionProvider>
+  )
+}
+
+function WorkspaceShell({ children }: { children: React.ReactNode }) {
+  const usuario = useSession()
+  const { logout } = useLogout()
   const [isCollapsed, setIsCollapsed] = React.useState(false)
   const [isMobileOpen, setIsMobileOpen] = React.useState(false)
 
@@ -61,7 +72,12 @@ export default function WorkspaceLayout({
           )}
         >
           <div className="flex-1 w-full overflow-hidden flex flex-col">
-            <AppSidebar isCollapsed={isCollapsed && !isMobileOpen} />
+            <AppSidebar
+              isCollapsed={isCollapsed && !isMobileOpen}
+              userName={usuario.nombre}
+              userRole={etiquetaRol(usuario)}
+              userInitials={iniciales(usuario.nombre)}
+            />
           </div>
         </aside>
 
@@ -70,6 +86,7 @@ export default function WorkspaceLayout({
           <WorkspaceHeader
             isCollapsed={isCollapsed}
             onToggleCollapse={handleToggleSidebar}
+            onLogout={logout}
           />
 
           <div className="flex-1 overflow-y-auto no-scrollbar pt-4">

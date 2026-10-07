@@ -1,6 +1,8 @@
 import type { Metadata } from "next";
 import { Inter, Hanken_Grotesk } from "next/font/google";
 import { ThemeProvider } from "@/shared/providers/theme-provider"
+import { Toaster } from "@/shared/components/ui/toast"
+import { ConfirmProvider } from "@/shared/providers/confirm-provider"
 import "./globals.css";
 
 // Inter: Fuente global por defecto
@@ -39,7 +41,9 @@ export default function RootLayout({
           enableSystem={false}
           disableTransitionOnChange
         >
-          {children}
+          <Toaster limit={3} timeout={5000}>
+            <ConfirmProvider>{children}</ConfirmProvider>
+          </Toaster>
         </ThemeProvider>
       </body>
     </html>

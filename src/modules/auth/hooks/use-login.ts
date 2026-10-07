@@ -1,0 +1,62 @@
+"use client"
+
+import * as React from "react"
+import { useRouter } from "next/navigation"
+import { useForm } from "react-hook-form"
+import { zodResolver } from "@hookform/resolvers/zod"
+
+import { toastResponse } from "@/shared/utils/toast-response"
+import { loginAction } from "../actions/auth.actions"
+import { loginSchema, type LoginValues } from "../schema"
+
+/** Solo se aceptan rutas internas como destino (evita redirecciones abiertas). */
+function destinoSeguro(siguiente?: string): string {
+  return siguiente && siguiente.startsWith("/") && !siguiente.startsWith("//") && !siguiente.startsWith("/login")
+    ? siguiente
+    : "/dashboard"
+}
+
+export function useLogin(siguiente?: string) {
+  const router = useRouter()
+  // Segundos restantes del bloqueo temporal (429); el botón se habilita al llegar a 0.
+  const [bloqueoSegundos, setBloqueoSegundos] = React.useState(0)
+
+  const form = useForm<LoginValues>({
+    resolver: zodResolver(loginSchema),
+    defaultValues: { email: "", password: "" },
+  })
+
+  const bloqueoActivo = bloqueoSegundos > 0
+  React.useEffect(() => {
+    if (!bloqueoActivo) return
+    const intervalo = setInterval(() => setBloqueoSegundos((s) => s - 1), 1000)
+    return () => clearInterval(intervalo)
+  }, [bloqueoActivo])
+
+  const submit = form.handleSubmit(async ({ email, password }) => {
+    // Mientras se envía, el botón queda deshabilitado (impide también el envío con Enter).
+    const res = await toastResponse(loginAction(email, password), {
+      loading: "Iniciando sesión...",
+      success: (r) => `Bienvenido, ${r.data?.usuario.nombre ?? "de nuevo"}`,
+      error: (r) => (r.httpStatusCode === 429 ? "Acceso bloqueado temporalmente" : "No se pudo iniciar sesión"),
+      errorDescription: (r) => {
+        const restantes = r.intentosRestantes
+        const aviso =
+          r.httpStatusCode === 401 && restantes !== undefined
+            ? ` Te quedan ${restantes} intento${restantes === 1 ? "" : "s"}.`
+            : ""
+        return r.getMessage() + aviso
+      },
+    })
+
+    if (res.isOk()) {
+      router.replace(destinoSeguro(siguiente))
+      return
+    }
+
+    if (res.httpStatusCode === 429) setBloqueoSegundos(res.retryAfterSegundos ?? 60)
+    else form.resetField("password")
+  })
+
+  return { form, submit, bloqueoSegundos }
+}
