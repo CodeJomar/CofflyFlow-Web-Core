@@ -169,14 +169,7 @@ function PosContenido({ puedeCobrar }: { puedeCobrar: boolean }) {
     <div className="flex flex-col gap-6 pb-2">
       {/* Header del módulo con selector de vistas: Catálogo / Mapa de Mesas */}
       <div className="flex flex-col gap-4 sm:flex-row sm:items-end sm:justify-between">
-        <div className="flex flex-col gap-1">
-          <h1 className="text-2xl font-bold tracking-tight text-slate-900 dark:text-stone-100">
-            Punto de Venta (POS)
-          </h1>
-          <p className="text-sm text-slate-500 dark:text-stone-400">
-            Catálogo interactivo, mapa de áreas físicas y despacho de comandas.
-          </p>
-        </div>
+        
 
         {/* Pestañas de Vista: Catálogo / Mesas (RF-04) */}
         <div className="flex items-center gap-1 rounded-full bg-[#EDE5E6]/60 p-1 dark:bg-stone-800">

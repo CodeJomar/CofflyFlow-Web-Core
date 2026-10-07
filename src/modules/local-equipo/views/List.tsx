@@ -2,7 +2,6 @@
 
 import * as React from "react"
 import Link from "next/link"
-import { usePathname } from "next/navigation"
 import {
   CalendarDays,
   Check,
@@ -17,7 +16,6 @@ import {
   RefreshCw,
   Search,
   SearchX,
-  ShieldCheck,
   Trash2,
   UserCheck,
   UserMinus,
@@ -70,55 +68,30 @@ const botonIcono =
 const formatearFecha = (iso: string) => formatDateStrict(`${iso}T00:00:00`)
 
 /* -------------------------------------------------------------------------- */
-/*                         Encabezado y navegación                            */
+/*                                Encabezado                                  */
 /* -------------------------------------------------------------------------- */
 
-const SECCIONES = [
-  { href: "/local-equipo/personal", label: "Gestión de Empleados", icon: Users },
-  { href: "/local-equipo/roles-permisos", label: "Roles y Permisos", icon: ShieldCheck },
-  { href: "/local-equipo/mesas", label: "Gestión de Mesas", icon: Grid2X2 },
-] as const
-
+// La navegación entre secciones la resuelve la barra lateral (Local y Equipo)
 function EncabezadoLocal({
   titulo,
   descripcion,
   acciones,
 }: {
-  titulo: string
-  descripcion: string
+  titulo?: string
+  descripcion?: string
   acciones?: React.ReactNode
 }) {
-  const pathname = usePathname()
+  if (!titulo && !acciones) return null
 
   return (
-    <div className="flex flex-col gap-4">
-      <nav aria-label="Secciones de Local y Equipo" className="-mx-1 flex gap-2 overflow-x-auto px-1 pb-1 no-scrollbar">
-        {SECCIONES.map(({ href, label, icon: Icono }) => {
-          const activa = pathname === href
-          return (
-            <Link
-              key={href}
-              href={href}
-              aria-current={activa ? "page" : undefined}
-              className={cn(
-                "inline-flex h-9 shrink-0 items-center gap-1.5 rounded-full border px-3.5 text-xs font-semibold whitespace-nowrap transition-colors",
-                opcionClass(activa)
-              )}
-            >
-              <Icono className="size-3.5" />
-              {label}
-            </Link>
-          )
-        })}
-      </nav>
-
-      <div className="flex flex-col gap-4 sm:flex-row sm:items-end sm:justify-between">
+    <div className="flex flex-col gap-4 sm:flex-row sm:items-end sm:justify-between">
+      {titulo && (
         <div className="flex flex-col gap-1">
           <h1 className="text-2xl font-bold tracking-tight text-slate-900 dark:text-stone-100">{titulo}</h1>
-          <p className="text-sm text-slate-500 dark:text-stone-400">{descripcion}</p>
+          {descripcion && <p className="text-sm text-slate-500 dark:text-stone-400">{descripcion}</p>}
         </div>
-        {acciones && <div className="flex flex-wrap items-center gap-2">{acciones}</div>}
-      </div>
+      )}
+      {acciones && <div className="flex flex-wrap items-center gap-2 sm:ml-auto">{acciones}</div>}
     </div>
   )
 }
@@ -188,8 +161,6 @@ export function PersonalView() {
   return (
     <div className="flex flex-col gap-6 pb-2">
       <EncabezadoLocal
-        titulo="Gestión de Empleados"
-        descripcion="Registra al equipo, actualiza sus datos y asígnales su rol operativo."
         acciones={
           puedeRegistrar && (
             <Button
@@ -459,8 +430,6 @@ export function RolesPermisosView() {
   return (
     <div className="flex flex-col gap-6 pb-2">
       <EncabezadoLocal
-        titulo="Roles y Permisos"
-        descripcion="Cada empleado se vincula a un rol operativo que define su nivel de acceso al sistema."
         acciones={
           <Link
             href="/local-equipo/personal"
@@ -603,8 +572,6 @@ export function MesasView() {
   return (
     <div className="flex flex-col gap-6 pb-2">
       <EncabezadoLocal
-        titulo="Gestión de Mesas"
-        descripcion="Configura el plano del local: mesas, capacidad y áreas de atención."
         acciones={
           <>
             {puedeEditar && (

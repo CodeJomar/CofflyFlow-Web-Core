@@ -191,16 +191,7 @@ function TransaccionesContenido({
   return (
     <div className="flex flex-col gap-6 pb-6">
       {/* Encabezado del Módulo y Switch de Pestañas Funcionales */}
-      <div className="flex flex-col gap-4 sm:flex-row sm:items-end sm:justify-between">
-        <div className="flex flex-col gap-1">
-          <h1 className={cn("text-2xl font-bold tracking-tight", textoTitulo)}>
-            Transacciones y Cajas
-          </h1>
-          <p className={cn("text-sm", textoSecundario)}>
-            Apertura y cierre de turnos, liquidación de mesas y auditoría inmutable de comandas.
-          </p>
-        </div>
-
+      <div className="flex flex-col gap-4 sm:flex-row sm:items-end sm:justify-end">
         {/* Pestañas: RF-13 (Cajas), RF-14 (Cuentas por Mesa), RF-15 (Historial) */}
         <div className="flex items-center gap-1 overflow-x-auto rounded-full bg-[#EDE5E6]/60 p-1 dark:bg-stone-800 no-scrollbar">
           <button
