@@ -6,6 +6,7 @@ import type {
   VentaPorTramo,
 } from "../schema"
 import { formatToCurrency } from "@/shared/utils/formatters"
+import { OneQuery } from "@/dtos/core/oneQuery.dto"
 
 // TODO: reemplazar por la consulta real al backend cuando esté disponible.
 // Por ahora el dashboard trabaja solo en front con datos de ejemplo.
@@ -102,9 +103,17 @@ function simularActividad() {
 const variacion = (actual: number, anterior: number) =>
   anterior ? redondear(((actual - anterior) / anterior) * 100) : null
 
-export async function getDashboardResumen(periodo: PeriodoDashboard): Promise<DashboardResumen> {
+export async function getDashboardResumen(periodo: PeriodoDashboard): Promise<OneQuery<DashboardResumen>> {
   // Simula la latencia de red para poder visualizar el estado de carga
   await new Promise((resolve) => setTimeout(resolve, 350))
+  try {
+    return OneQuery.ok(calcularResumen(periodo))
+  } catch {
+    return OneQuery.error("No se pudo cargar el resumen del dashboard.")
+  }
+}
+
+function calcularResumen(periodo: PeriodoDashboard): DashboardResumen {
 
   simularActividad()
 

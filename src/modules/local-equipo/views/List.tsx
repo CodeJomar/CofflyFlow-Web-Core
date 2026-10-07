@@ -6,8 +6,6 @@ import { usePathname } from "next/navigation"
 import {
   CalendarDays,
   Check,
-  CircleAlert,
-  CircleCheck,
   Grid2X2,
   IdCard,
   Lock,
@@ -28,14 +26,20 @@ import {
   X,
 } from "lucide-react"
 
+import { useEntityDelete } from "@/shared/hooks"
+import { Badge } from "@/shared/components/ui/badge"
 import { Button } from "@/shared/components/ui/button"
+import { Empty, EmptyContent, EmptyDescription, EmptyHeader, EmptyTitle } from "@/shared/components/ui/empty"
 import { Input } from "@/shared/components/ui/input"
 import { Skeleton } from "@/shared/components/ui/skeleton"
+import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/shared/components/ui/table"
+import { toast } from "@/shared/components/ui/toast"
 import { cn } from "@/shared/utils/cn"
 import { formatDateStrict } from "@/shared/utils/formatters"
 import { useWorkspaceLayout } from "@/shared/context/workspace-layout-context"
 import { PERMISO, PERMISOS_POR_ROL, ROL_LABELS, tienePermiso } from "@/shared/constants/permisos"
 
+import { eliminarMesa } from "../actions/local-equipo.actions"
 import { usePersonal, usePlanoMesas } from "../hooks"
 import {
   ESTADO_EMPLEADO_CONFIG,
@@ -179,7 +183,7 @@ export function PersonalView() {
 
   if (!puedeVer) return <AccesoRestringido rol={ROL_LABELS[rol]} seccion="la gestión de personal" />
 
-  const { empleados, empleadosFiltrados, resumen, isLoading, error, recargar } = personal
+  const { empleadosFiltrados, resumen, cargado, error, recargar } = personal
 
   return (
     <div className="flex flex-col gap-6 pb-2">
@@ -192,7 +196,7 @@ export function PersonalView() {
               type="button"
               size="sm"
               onClick={() => setModal({ modo: "registrar" })}
-              disabled={!empleados}
+              disabled={!cargado}
               leftIcon={<UserPlus className="size-4" />}
               className={botonPrimario}
             >
@@ -204,7 +208,7 @@ export function PersonalView() {
 
       {error ? (
         <ErrorState message={error} onRetry={recargar} />
-      ) : !empleados || isLoading ? (
+      ) : !cargado ? (
         <ListadoSkeleton />
       ) : (
         <>
@@ -285,18 +289,16 @@ export function PersonalView() {
         </>
       )}
 
-      {personal.aviso && <Aviso {...personal.aviso} onCerrar={personal.cerrarAviso} />}
-
       {(modal?.modo === "registrar" || modal?.modo === "editar") && (
         <EmpleadoForm
           empleado={modal.modo === "editar" ? modal.empleado : undefined}
-          onGuardar={personal.guardarEmpleado}
+          onGuardado={personal.empleadoGuardado}
           onClose={cerrarModal}
         />
       )}
 
       {modal?.modo === "baja" && (
-        <BajaEmpleadoForm empleado={modal.empleado} onConfirmar={personal.darDeBaja} onClose={cerrarModal} />
+        <BajaEmpleadoForm empleado={modal.empleado} onDadoDeBaja={personal.empleadoDadoDeBaja} onClose={cerrarModal} />
       )}
     </div>
   )
@@ -355,13 +357,13 @@ function EmpleadoCard({
             {empleado.nombres} {empleado.apellidos}
           </h3>
           <div className="flex flex-wrap items-center gap-1.5">
-            <span className={cn("inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-[11px] font-semibold", rolConfig.className)}>
+            <Badge variant="estado" className={cn("px-2 text-[11px]", rolConfig.className)}>
               <IconoRol className="size-3" />
               {rolInfo.nombre}
-            </span>
-            <span className={cn("rounded-full px-2 py-0.5 text-[11px] font-semibold", estado.className)}>
+            </Badge>
+            <Badge variant="estado" className={cn("px-2 text-[11px]", estado.className)}>
               {estado.label}
-            </span>
+            </Badge>
           </div>
         </div>
       </div>
@@ -443,6 +445,8 @@ function DatoEmpleado({ icon: Icono, label, valor }: { icon: typeof IdCard; labe
 /*                 RF-11: Roles operativos y sus permisos                     */
 /* -------------------------------------------------------------------------- */
 
+const NIVELES_ACCESO = ["dueno", "administrador", "empleado"] as const
+
 export function RolesPermisosView() {
   const { rol } = useWorkspaceLayout()
   const puedeVer = tienePermiso(rol, PERMISO.READ_STAFF)
@@ -450,7 +454,7 @@ export function RolesPermisosView() {
 
   if (!puedeVer) return <AccesoRestringido rol={ROL_LABELS[rol]} seccion="los roles y permisos" />
 
-  const { empleados, activosPorRol, isLoading, error, recargar } = personal
+  const { activosPorRol, cargado, error, recargar } = personal
 
   return (
     <div className="flex flex-col gap-6 pb-2">
@@ -469,7 +473,7 @@ export function RolesPermisosView() {
 
       {error ? (
         <ErrorState message={error} onRetry={recargar} />
-      ) : !empleados || isLoading ? (
+      ) : !cargado ? (
         <ListadoSkeleton />
       ) : (
         <>
@@ -495,9 +499,12 @@ export function RolesPermisosView() {
                     <h2 className="text-sm font-semibold text-slate-900 dark:text-stone-100">{info.nombre}</h2>
                     <p className="text-xs text-slate-500 dark:text-stone-400">{info.descripcion}</p>
                   </div>
-                  <span className="mt-auto self-start rounded-full bg-slate-100 px-2.5 py-0.5 text-[11px] font-semibold text-slate-700 dark:bg-stone-800 dark:text-stone-200">
+                  <Badge
+                    variant="estado"
+                    className="mt-auto bg-slate-100 text-[11px] text-slate-700 dark:bg-stone-800 dark:text-stone-200"
+                  >
                     Acceso: {ROL_LABELS[info.acceso]}
-                  </span>
+                  </Badge>
                 </li>
               )
             })}
@@ -512,50 +519,48 @@ export function RolesPermisosView() {
               </p>
             </div>
 
-            <div className="overflow-x-auto">
-              <table className="w-full min-w-[520px] text-sm">
-                <thead>
-                  <tr className="border-b border-slate-200 text-left text-xs uppercase tracking-wider text-slate-500 dark:border-stone-800 dark:text-stone-400">
-                    <th className="pb-2 font-semibold">Permiso</th>
-                    {(["dueno", "administrador", "empleado"] as const).map((nivel) => (
-                      <th key={nivel} className="pb-2 text-center font-semibold">
-                        {ROL_LABELS[nivel]}
-                      </th>
-                    ))}
-                  </tr>
-                </thead>
-                {MODULOS_PERMISOS.map(({ modulo, permisos }) => (
-                  <tbody key={modulo} className="divide-y divide-slate-100 dark:divide-stone-800">
-                    <tr>
-                      <th
-                        colSpan={4}
-                        scope="colgroup"
-                        className="pt-4 pb-1 text-left text-xs font-semibold text-[#4C0107] dark:text-[#E7B7BC]"
-                      >
-                        {modulo}
-                      </th>
-                    </tr>
-                    {permisos.map(({ label, permiso }) => (
-                      <tr key={permiso} className="text-slate-700 dark:text-stone-300">
-                        <td className="py-2">{label}</td>
-                        {(["dueno", "administrador", "empleado"] as const).map((nivel) => {
-                          const tiene = PERMISOS_POR_ROL[nivel].includes(permiso)
-                          return (
-                            <td key={nivel} className="py-2 text-center">
-                              {tiene ? (
-                                <Check className="mx-auto size-4 text-emerald-600 dark:text-emerald-400" aria-label="Permitido" />
-                              ) : (
-                                <X className="mx-auto size-4 text-slate-300 dark:text-stone-600" aria-label="No permitido" />
-                              )}
-                            </td>
-                          )
-                        })}
-                      </tr>
-                    ))}
-                  </tbody>
-                ))}
-              </table>
-            </div>
+            <Table className="min-w-[520px]">
+              <TableHeader>
+                <TableRow className="border-slate-200 hover:bg-transparent">
+                  <TableHead className="h-auto px-0 pb-2">Permiso</TableHead>
+                  {NIVELES_ACCESO.map((nivel) => (
+                    <TableHead key={nivel} className="h-auto px-0 pb-2 text-center">
+                      {ROL_LABELS[nivel]}
+                    </TableHead>
+                  ))}
+                </TableRow>
+              </TableHeader>
+              {MODULOS_PERMISOS.map(({ modulo, permisos }) => (
+                <TableBody key={modulo}>
+                  <TableRow className="border-0 hover:bg-transparent">
+                    <TableHead
+                      colSpan={NIVELES_ACCESO.length + 1}
+                      scope="colgroup"
+                      className="h-auto px-0 pt-4 pb-1 text-xs font-semibold tracking-normal text-[#4C0107] normal-case dark:text-[#E7B7BC]"
+                    >
+                      {modulo}
+                    </TableHead>
+                  </TableRow>
+                  {permisos.map(({ label, permiso }) => (
+                    <TableRow key={permiso} className="text-slate-700 hover:bg-transparent dark:text-stone-300">
+                      <TableCell className="px-0 py-2">{label}</TableCell>
+                      {NIVELES_ACCESO.map((nivel) => {
+                        const tiene = PERMISOS_POR_ROL[nivel].includes(permiso)
+                        return (
+                          <TableCell key={nivel} className="px-0 py-2 text-center">
+                            {tiene ? (
+                              <Check className="mx-auto size-4 text-emerald-600 dark:text-emerald-400" aria-label="Permitido" />
+                            ) : (
+                              <X className="mx-auto size-4 text-slate-300 dark:text-stone-600" aria-label="No permitido" />
+                            )}
+                          </TableCell>
+                        )
+                      })}
+                    </TableRow>
+                  ))}
+                </TableBody>
+              ))}
+            </Table>
           </section>
         </>
       )}
@@ -579,6 +584,16 @@ export function MesasView() {
   const mesas = usePlanoMesas()
   const [modal, setModal] = React.useState<ModalMesas>(null)
   const cerrarModal = React.useCallback(() => setModal(null), [])
+
+  // Eliminación con el hook genérico de shared
+  const { entityToDelete: mesaEnEliminacion, confirmDelete: confirmarEliminarMesa } = useEntityDelete<string>({
+    actionDelete: eliminarMesa,
+    onSuccess: (id) => {
+      const eliminada = mesas.plano?.mesas.find((m) => m.id === id)
+      if (eliminada) mesas.mesaEliminada(eliminada)
+    },
+    onError: (mensaje) => toast.add({ type: "error", title: "No se pudo eliminar la mesa.", description: mensaje }),
+  })
 
   if (!puedeVer) return <AccesoRestringido rol={ROL_LABELS[rol]} seccion="el plano de mesas" />
 
@@ -667,10 +682,10 @@ export function MesasView() {
           </div>
 
           {mesasFiltradas.length === 0 ? (
-            <div className="flex flex-col items-center justify-center gap-3 rounded-2xl border-2 border-dashed border-slate-200 p-10 text-center dark:border-stone-700">
+            <Empty>
               <Grid2X2 className="size-8 text-slate-400 dark:text-stone-500" />
-              <p className="text-sm text-slate-600 dark:text-stone-300">No hay mesas registradas en esta área.</p>
-            </div>
+              <EmptyDescription>No hay mesas registradas en esta área.</EmptyDescription>
+            </Empty>
           ) : (
             <ul className="grid grid-cols-2 gap-3 sm:grid-cols-3 xl:grid-cols-4 2xl:grid-cols-5">
               {mesasFiltradas.map((mesa) => (
@@ -681,7 +696,8 @@ export function MesasView() {
                     puedeEditar={puedeEditar}
                     puedeEliminar={puedeEliminar}
                     onEditar={(m) => setModal({ modo: "editar", mesa: m })}
-                    onEliminar={mesas.borrarMesa}
+                    eliminando={mesaEnEliminacion === mesa.id}
+                    onEliminar={(m) => confirmarEliminarMesa(m.id)}
                   />
                 </li>
               ))}
@@ -690,14 +706,12 @@ export function MesasView() {
         </>
       )}
 
-      {mesas.aviso && <Aviso {...mesas.aviso} onCerrar={mesas.cerrarAviso} />}
-
       {(modal?.modo === "registrar" || modal?.modo === "editar") && plano && (
         <MesaForm
           mesa={modal.modo === "editar" ? modal.mesa : undefined}
           areas={plano.areas}
           areaPorDefecto={mesas.areaFiltro !== "todas" ? mesas.areaFiltro : undefined}
-          onGuardar={mesas.guardarMesa}
+          onGuardada={mesas.mesaGuardada}
           onClose={cerrarModal}
         />
       )}
@@ -707,7 +721,7 @@ export function MesasView() {
           areas={plano.areas}
           mesasPorArea={mesasPorArea}
           onGuardar={mesas.guardarArea}
-          onEliminar={mesas.borrarArea}
+          onEliminada={mesas.areaEliminada}
           onClose={cerrarModal}
         />
       )}
@@ -720,6 +734,7 @@ function MesaCard({
   area,
   puedeEditar,
   puedeEliminar,
+  eliminando,
   onEditar,
   onEliminar,
 }: {
@@ -727,19 +742,21 @@ function MesaCard({
   area: string
   puedeEditar: boolean
   puedeEliminar: boolean
+  eliminando: boolean
   onEditar: (mesa: Mesa) => void
-  onEliminar: (mesa: Mesa) => Promise<void>
+  onEliminar: (mesa: Mesa) => Promise<unknown>
 }) {
   const estado = ESTADO_MESA_CONFIG[mesa.estado]
   const [confirmando, setConfirmando] = React.useState(false)
-  const [eliminando, setEliminando] = React.useState(false)
   const enUso = mesa.estado !== "libre"
 
   return (
     <article className="flex h-full flex-col gap-3 rounded-2xl border border-slate-100 bg-white p-4 dark:border-stone-800 dark:bg-stone-900">
       <div className="flex items-start justify-between gap-2">
         <h3 className="truncate text-base font-bold text-slate-900 dark:text-stone-100">{mesa.nombre}</h3>
-        <span className={cn("shrink-0 rounded-full px-2 py-0.5 text-[11px] font-semibold", estado.badge)}>{estado.label}</span>
+        <Badge variant="estado" className={cn("shrink-0 px-2 text-[11px]", estado.badge)}>
+          {estado.label}
+        </Badge>
       </div>
 
       <div className="flex flex-col gap-1 text-xs text-slate-500 dark:text-stone-400">
@@ -761,9 +778,7 @@ function MesaCard({
                   type="button"
                   disabled={eliminando}
                   onClick={async () => {
-                    setEliminando(true)
                     await onEliminar(mesa)
-                    setEliminando(false)
                     setConfirmando(false)
                   }}
                   className="h-8 cursor-pointer rounded-full bg-red-600 px-3 text-xs font-semibold text-white transition-colors hover:bg-red-700 disabled:opacity-60 dark:bg-red-500 dark:hover:bg-red-400"
@@ -814,73 +829,58 @@ function MesaCard({
 /*                                 Auxiliares                                 */
 /* -------------------------------------------------------------------------- */
 
-function Aviso({ tipo, mensaje, onCerrar }: { tipo: "ok" | "error"; mensaje: string; onCerrar: () => void }) {
-  return (
-    <div
-      role={tipo === "error" ? "alert" : "status"}
-      className={cn(
-        "fixed bottom-6 left-1/2 z-40 flex w-[calc(100%-2rem)] max-w-md -translate-x-1/2 items-start gap-3 rounded-2xl border bg-white p-3 text-sm text-slate-800 shadow-lg animate-in fade-in-0 slide-in-from-bottom-2 dark:bg-stone-900 dark:text-stone-100",
-        tipo === "ok" ? "border-emerald-200 dark:border-emerald-500/30" : "border-red-200 dark:border-red-500/30"
-      )}
-    >
-      {tipo === "ok" ? (
-        <CircleCheck className="mt-0.5 size-4 shrink-0 text-emerald-600 dark:text-emerald-400" />
-      ) : (
-        <CircleAlert className="mt-0.5 size-4 shrink-0 text-red-600 dark:text-red-400" />
-      )}
-      <p className="flex-1">{mensaje}</p>
-      <button
-        type="button"
-        onClick={onCerrar}
-        aria-label="Cerrar aviso"
-        className="cursor-pointer text-slate-400 hover:text-slate-700 dark:text-stone-500 dark:hover:text-stone-200"
-      >
-        <X className="size-4" />
-      </button>
-    </div>
-  )
-}
-
 function SinResultados({ texto, onLimpiar }: { texto: string; onLimpiar: () => void }) {
   return (
-    <div className="flex flex-col items-center justify-center gap-3 rounded-2xl border-2 border-dashed border-slate-200 p-10 text-center dark:border-stone-700">
+    <Empty>
       <SearchX className="size-8 text-slate-400 dark:text-stone-500" />
-      <p className="text-sm text-slate-600 dark:text-stone-300">{texto}</p>
-      <Button type="button" variant="outline" size="sm" onClick={onLimpiar} className="rounded-full dark:border-stone-700 dark:text-stone-200 dark:hover:bg-stone-800">
-        Limpiar filtros
-      </Button>
-    </div>
+      <EmptyDescription>{texto}</EmptyDescription>
+      <EmptyContent>
+        <Button
+          type="button"
+          variant="outline"
+          size="sm"
+          onClick={onLimpiar}
+          className="rounded-full dark:border-stone-700 dark:text-stone-200 dark:hover:bg-stone-800"
+        >
+          Limpiar filtros
+        </Button>
+      </EmptyContent>
+    </Empty>
   )
 }
 
 function AccesoRestringido({ rol, seccion }: { rol: string; seccion: string }) {
   return (
-    <div className="flex flex-col items-center justify-center gap-3 rounded-2xl border-2 border-dashed border-slate-200 p-10 text-center dark:border-stone-700">
+    <Empty>
       <Lock className="size-8 text-[#4C0107] dark:text-[#E7B7BC]" />
-      <h1 className="text-lg font-bold text-slate-900 dark:text-stone-100">Acceso restringido</h1>
-      <p className="max-w-sm text-sm text-slate-500 dark:text-stone-400">
-        Tu rol actual (<span className="font-semibold text-slate-700 dark:text-stone-200">{rol}</span>) no tiene acceso a{" "}
-        {seccion}.
-      </p>
-    </div>
+      <EmptyHeader>
+        <EmptyTitle>Acceso restringido</EmptyTitle>
+        <EmptyDescription>
+          Tu rol actual (<span className="font-semibold text-slate-700 dark:text-stone-200">{rol}</span>) no tiene
+          acceso a {seccion}.
+        </EmptyDescription>
+      </EmptyHeader>
+    </Empty>
   )
 }
 
 function ErrorState({ message, onRetry }: { message: string; onRetry: () => void }) {
   return (
-    <div className="flex flex-col items-center justify-center gap-3 rounded-2xl border-2 border-dashed border-slate-200 p-10 text-center dark:border-stone-700">
-      <p className="text-sm text-slate-600 dark:text-stone-300">{message}</p>
-      <Button
-        type="button"
-        variant="outline"
-        size="sm"
-        onClick={onRetry}
-        leftIcon={<RefreshCw className="size-4" />}
-        className="rounded-full dark:border-stone-700 dark:text-stone-200 dark:hover:bg-stone-800"
-      >
-        Reintentar
-      </Button>
-    </div>
+    <Empty>
+      <EmptyDescription>{message}</EmptyDescription>
+      <EmptyContent>
+        <Button
+          type="button"
+          variant="outline"
+          size="sm"
+          onClick={onRetry}
+          leftIcon={<RefreshCw className="size-4" />}
+          className="rounded-full dark:border-stone-700 dark:text-stone-200 dark:hover:bg-stone-800"
+        >
+          Reintentar
+        </Button>
+      </EmptyContent>
+    </Empty>
   )
 }
 

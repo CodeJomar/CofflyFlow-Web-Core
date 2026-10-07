@@ -31,10 +31,14 @@ export function useDashboard({
     const esVigente = () => requestId === requestIdRef.current
 
     return getDashboardResumen(p)
-      .then((resumen) => {
+      .then((respuesta) => {
         if (!esVigente()) return
-        setData(resumen)
-        setError(null)
+        if (respuesta.isOk()) {
+          setData(respuesta.data)
+          setError(null)
+        } else {
+          setError(respuesta.getMessage())
+        }
       })
       .catch(() => {
         if (esVigente()) setError("No se pudo cargar el resumen del dashboard.")

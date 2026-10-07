@@ -1,6 +1,7 @@
 "use client"
 
 import * as React from "react"
+import { normalizarTexto as normalizar } from "@/shared/utils/formatters"
 import {
   actualizarEstadoMesa,
   despacharComandaCocina,
@@ -25,10 +26,6 @@ import {
 } from "../schema"
 
 const redondear = (valor: number) => Math.round(valor * 100) / 100
-
-// Normaliza texto para búsquedas sin tildes ni mayúsculas
-const normalizar = (texto: string) =>
-  texto.normalize("NFD").replace(/[\u0300-\u036f]/g, "").toLowerCase().trim()
 
 /* -------------------------------------------------------------------------- */
 /*                                  Catálogo                                  */

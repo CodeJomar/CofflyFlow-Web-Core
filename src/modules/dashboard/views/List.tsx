@@ -21,7 +21,10 @@ import {
   ChartTooltip,
   ChartTooltipContent,
 } from "@/shared/components/ui/chart"
+import { Badge } from "@/shared/components/ui/badge"
+import { Empty, EmptyContent, EmptyDescription, EmptyHeader, EmptyMedia, EmptyTitle } from "@/shared/components/ui/empty"
 import { Skeleton } from "@/shared/components/ui/skeleton"
+import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/shared/components/ui/table"
 import { Tabs, TabsList, TabsTrigger } from "@/shared/components/ui/tabs"
 import { Button } from "@/shared/components/ui/button"
 import { cn } from "@/shared/utils/cn"
@@ -265,16 +268,16 @@ function CajaResumen({ caja }: { caja: EstadoCaja }) {
         title="Estado de caja"
         subtitle={`Apertura ${caja.apertura} · ${caja.responsable}`}
         action={
-          <span
+          <Badge
+            variant="estado"
             className={cn(
-              "rounded-full px-2.5 py-0.5 text-xs font-semibold",
               caja.abierta
                 ? "bg-emerald-100 text-emerald-800 dark:bg-emerald-500/15 dark:text-emerald-300"
                 : "bg-slate-100 text-slate-700 dark:bg-stone-800 dark:text-stone-300"
             )}
           >
             {caja.abierta ? "Abierta" : "Cerrada"}
-          </span>
+          </Badge>
         }
       />
 
@@ -329,44 +332,43 @@ function PedidosRecientes({ pedidos, className }: { pedidos: PedidoReciente[]; c
         }
       />
 
-      <div className="overflow-x-auto">
-        <table className="w-full min-w-[520px] text-sm">
-          <thead>
-            <tr className="border-b border-slate-200 text-left text-xs uppercase tracking-wider text-slate-500 dark:border-stone-800 dark:text-stone-400">
-              <th className="pb-2 font-semibold">Pedido</th>
-              <th className="pb-2 font-semibold">Mesa</th>
-              <th className="pb-2 font-semibold">Cliente</th>
-              <th className="pb-2 font-semibold">Estado</th>
-              <th className="pb-2 text-right font-semibold">Total</th>
-            </tr>
-          </thead>
-          <tbody className="divide-y divide-slate-100 dark:divide-stone-800">
-            {pedidos.map((pedido) => {
-              const estado = ESTADO_PEDIDO_CONFIG[pedido.estado]
-              return (
-                <tr key={pedido.id} className="text-slate-700 dark:text-stone-300">
-                  <td className="py-3">
-                    <div className="flex flex-col">
-                      <span className="font-semibold text-slate-900 dark:text-stone-100">{pedido.codigo}</span>
-                      <span className="text-xs text-slate-500 dark:text-stone-500">{pedido.hora}</span>
-                    </div>
-                  </td>
-                  <td className="py-3">{pedido.mesa}</td>
-                  <td className="py-3">{pedido.cliente}</td>
-                  <td className="py-3">
-                    <span className={cn("rounded-full px-2.5 py-0.5 text-xs font-semibold whitespace-nowrap", estado.className)}>
-                      {estado.label}
-                    </span>
-                  </td>
-                  <td className="py-3 text-right font-semibold tabular-nums text-slate-900 dark:text-stone-100">
-                    {formatToCurrency(pedido.total)}
-                  </td>
-                </tr>
-              )
-            })}
-          </tbody>
-        </table>
-      </div>
+      <Table className="min-w-[520px]">
+        <TableHeader>
+          <TableRow className="border-slate-200 hover:bg-transparent">
+            <TableHead className="h-auto px-0 pb-2">Pedido</TableHead>
+            <TableHead className="h-auto px-0 pb-2">Mesa</TableHead>
+            <TableHead className="h-auto px-0 pb-2">Cliente</TableHead>
+            <TableHead className="h-auto px-0 pb-2">Estado</TableHead>
+            <TableHead className="h-auto px-0 pb-2 text-right">Total</TableHead>
+          </TableRow>
+        </TableHeader>
+        <TableBody>
+          {pedidos.map((pedido) => {
+            const estado = ESTADO_PEDIDO_CONFIG[pedido.estado]
+            return (
+              <TableRow
+                key={pedido.id}
+                className="text-slate-700 hover:bg-transparent dark:text-stone-300"
+              >
+                <TableCell className="px-0 py-3">
+                  <div className="flex flex-col">
+                    <span className="font-semibold text-slate-900 dark:text-stone-100">{pedido.codigo}</span>
+                    <span className="text-xs text-slate-500 dark:text-stone-500">{pedido.hora}</span>
+                  </div>
+                </TableCell>
+                <TableCell className="px-0 py-3">{pedido.mesa}</TableCell>
+                <TableCell className="px-0 py-3">{pedido.cliente}</TableCell>
+                <TableCell className="px-0 py-3">
+                  <Badge variant="estado" className={estado.className}>{estado.label}</Badge>
+                </TableCell>
+                <TableCell className="px-0 py-3 text-right font-semibold tabular-nums text-slate-900 dark:text-stone-100">
+                  {formatToCurrency(pedido.total)}
+                </TableCell>
+              </TableRow>
+            )
+          })}
+        </TableBody>
+      </Table>
     </section>
   )
 }
@@ -472,35 +474,38 @@ function IndicadorEnVivo({
 
 function AccesoRestringido({ rol }: { rol: string }) {
   return (
-    <div className="flex flex-col items-center justify-center gap-3 rounded-2xl border-2 border-dashed border-slate-200 p-10 text-center dark:border-stone-700">
-      <span className="flex size-12 items-center justify-center rounded-full bg-[#EDE5E6] text-[#4C0107] dark:bg-stone-800 dark:text-[#E7B7BC]">
-        <ShieldAlert className="size-6" />
-      </span>
-      <div className="flex flex-col gap-1">
-        <h1 className="text-lg font-bold text-slate-900 dark:text-stone-100">Acceso restringido</h1>
-        <p className="max-w-sm text-sm text-slate-500 dark:text-stone-400">
+    <Empty>
+      <EmptyMedia variant="icon">
+        <ShieldAlert />
+      </EmptyMedia>
+      <EmptyHeader>
+        <EmptyTitle>Acceso restringido</EmptyTitle>
+        <EmptyDescription>
           Las métricas del dashboard solo están disponibles para el Dueño y el Administrador. Tu rol actual es{" "}
           <span className="font-semibold text-slate-700 dark:text-stone-200">{rol}</span>.
-        </p>
-      </div>
-    </div>
+        </EmptyDescription>
+      </EmptyHeader>
+    </Empty>
   )
 }
 
 function ErrorState({ message, onRetry }: { message: string; onRetry: () => void }) {
   return (
-    <div className="flex flex-col items-center justify-center gap-3 rounded-2xl border-2 border-dashed border-slate-200 p-10 text-center dark:border-stone-700">
-      <p className="text-sm text-slate-600 dark:text-stone-300">{message}</p>
-      <Button
-        type="button"
-        variant="outline"
-        size="sm"
-        onClick={onRetry}
-        className="rounded-full dark:border-stone-700 dark:text-stone-200 dark:hover:bg-stone-800"
-      >
-        <RefreshCw className="mr-1 size-4" /> Reintentar
-      </Button>
-    </div>
+    <Empty>
+      <EmptyDescription>{message}</EmptyDescription>
+      <EmptyContent>
+        <Button
+          type="button"
+          variant="outline"
+          size="sm"
+          onClick={onRetry}
+          leftIcon={<RefreshCw className="size-4" />}
+          className="rounded-full dark:border-stone-700 dark:text-stone-200 dark:hover:bg-stone-800"
+        >
+          Reintentar
+        </Button>
+      </EmptyContent>
+    </Empty>
   )
 }
 

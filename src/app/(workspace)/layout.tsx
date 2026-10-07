@@ -5,6 +5,7 @@ import { cn } from "@/shared/utils/cn"
 import { AppSidebar } from "@/shared/components/layout/app-sidebar"
 import { WorkspaceHeader } from "@/shared/components/layout/workspace-header"
 import { WorkspaceLayoutProvider } from "@/shared/context/workspace-layout-context"
+import { Toaster } from "@/shared/components/ui/toast"
 
 export default function WorkspaceLayout({
   children,
@@ -81,6 +82,9 @@ export default function WorkspaceLayout({
 
         </div>
       </div>
+
+      {/* Notificaciones globales del workspace (shared/components/ui/toast) */}
+      <Toaster limit={3} timeout={3500} />
     </WorkspaceLayoutProvider>
   )
 }

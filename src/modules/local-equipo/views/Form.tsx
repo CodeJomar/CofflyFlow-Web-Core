@@ -5,12 +5,30 @@ import { Controller, useForm } from "react-hook-form"
 import { zodResolver } from "@hookform/resolvers/zod"
 import { Check, Pencil, Plus, Trash2, X } from "lucide-react"
 
+import type { OneQuery } from "@/dtos/core/oneQuery.dto"
+import { useEntityDelete, useEntityForm } from "@/shared/hooks"
 import { Button } from "@/shared/components/ui/button"
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from "@/shared/components/ui/dialog"
 import { Input } from "@/shared/components/ui/input"
 import { Textarea } from "@/shared/components/ui/textarea"
 import { ROL_LABELS } from "@/shared/constants/permisos"
 import { cn } from "@/shared/utils/cn"
 
+import {
+  actualizarEmpleado,
+  actualizarMesa,
+  darDeBajaEmpleado,
+  eliminarArea,
+  registrarEmpleado,
+  registrarMesa,
+} from "../actions/local-equipo.actions"
 import { ROL_OPERATIVO_CONFIG, getAreaIcon, opcionClass } from "../components"
 import {
   CAPACIDAD_MAXIMA_MESA,
@@ -41,18 +59,17 @@ const botonPrimario =
   "h-10 rounded-full bg-[#4C0107] px-5 text-white hover:bg-[#4C0107]/90 dark:bg-stone-100 dark:text-stone-900 dark:hover:bg-stone-200"
 const botonSecundario = "h-10 rounded-full px-5 dark:border-stone-700 dark:text-stone-200 dark:hover:bg-stone-800"
 
-const mensajeError = (e: unknown, porDefecto: string) => (e instanceof Error ? e.message : porDefecto)
-
 /* -------------------------------------------------------------------------- */
 /*                               Modal base                                   */
 /* -------------------------------------------------------------------------- */
 
+// Envoltorio fino sobre Dialog de shared con el encabezado estándar de la app
 function ModalBase({
   titulo,
   descripcion,
   onClose,
   bloqueado = false,
-  ancho = "max-w-lg",
+  ancho,
   children,
 }: {
   titulo: string
@@ -62,65 +79,21 @@ function ModalBase({
   ancho?: string
   children: React.ReactNode
 }) {
-  const dialogRef = React.useRef<HTMLDivElement>(null)
-  const tituloId = React.useId()
-
-  const cerrar = React.useCallback(() => {
-    if (!bloqueado) onClose()
-  }, [bloqueado, onClose])
-
-  // Foco inicial dentro del modal (solo al abrir)
-  React.useEffect(() => {
-    dialogRef.current?.focus()
-  }, [])
-
-  // Cierre con Escape
-  React.useEffect(() => {
-    const onKeyDown = (e: KeyboardEvent) => {
-      if (e.key === "Escape") cerrar()
-    }
-    window.addEventListener("keydown", onKeyDown)
-    return () => window.removeEventListener("keydown", onKeyDown)
-  }, [cerrar])
-
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
-      <div
-        role="presentation"
-        onClick={cerrar}
-        className="absolute inset-0 bg-black/40 backdrop-blur-xs dark:bg-black/70"
-      />
-      <div
-        ref={dialogRef}
-        role="dialog"
-        aria-modal="true"
-        aria-labelledby={tituloId}
-        tabIndex={-1}
-        className={cn(
-          "relative flex max-h-[calc(100vh-2rem)] w-full flex-col overflow-hidden rounded-3xl border border-slate-100 bg-white shadow-2xl outline-none animate-in fade-in-0 zoom-in-95 duration-150 dark:border-stone-800 dark:bg-stone-900",
-          ancho
-        )}
-      >
-        <div className="flex items-start justify-between gap-3 border-b border-slate-100 p-5 dark:border-stone-800">
-          <div className="flex flex-col gap-0.5">
-            <h2 id={tituloId} className="text-lg font-bold text-slate-900 dark:text-stone-100">
-              {titulo}
-            </h2>
-            {descripcion && <p className="text-xs text-slate-500 dark:text-stone-400">{descripcion}</p>}
-          </div>
-          <button
-            type="button"
-            onClick={cerrar}
-            disabled={bloqueado}
-            aria-label="Cerrar"
-            className="flex size-9 shrink-0 cursor-pointer items-center justify-center rounded-full text-slate-500 transition-colors hover:bg-slate-100 hover:text-slate-900 disabled:opacity-50 dark:text-stone-400 dark:hover:bg-stone-800 dark:hover:text-stone-100"
-          >
-            <X className="size-4" />
-          </button>
-        </div>
+    <Dialog
+      open
+      onOpenChange={(abierto) => {
+        if (!abierto && !bloqueado) onClose()
+      }}
+    >
+      <DialogContent className={ancho}>
+        <DialogHeader>
+          <DialogTitle>{titulo}</DialogTitle>
+          {descripcion && <DialogDescription>{descripcion}</DialogDescription>}
+        </DialogHeader>
         {children}
-      </div>
-    </div>
+      </DialogContent>
+    </Dialog>
   )
 }
 
@@ -174,14 +147,14 @@ function AccionesFormulario({
   textoEnviar: string
 }) {
   return (
-    <div className="flex items-center justify-end gap-2 border-t border-slate-100 p-4 dark:border-stone-800">
+    <DialogFooter>
       <Button type="button" variant="outline" size="sm" onClick={onCancelar} disabled={enviando} className={botonSecundario}>
         Cancelar
       </Button>
       <Button type="submit" size="sm" loading={enviando} className={botonPrimario}>
         {textoEnviar}
       </Button>
-    </div>
+    </DialogFooter>
   )
 }
 
@@ -192,19 +165,37 @@ function AccionesFormulario({
 interface EmpleadoFormProps {
   // Empleado a editar; si no se envía, el formulario registra uno nuevo
   empleado?: Empleado
-  onGuardar: (input: EmpleadoInput, id?: string) => Promise<unknown>
+  onGuardado: (empleado: Pick<Empleado, "nombres" | "apellidos">, esNuevo: boolean) => void
   onClose: () => void
 }
 
-export default function EmpleadoForm({ empleado, onGuardar, onClose }: EmpleadoFormProps) {
+export default function EmpleadoForm({ empleado, onGuardado, onClose }: EmpleadoFormProps) {
   const esEdicion = Boolean(empleado)
   const [errorGuardado, setErrorGuardado] = React.useState<string | null>(null)
+
+  const { submit, isSubmitting } = useEntityForm<Empleado, EmpleadoFormValues, EmpleadoInput, EmpleadoInput, Empleado>({
+    id: empleado?.id,
+    actionCreate: registrarEmpleado,
+    actionUpdate: actualizarEmpleado,
+    mapEntityToForm: empleadoToFormValues,
+    mapFormToCreatePayload: (values) => values,
+    mapFormToUpdatePayload: (values) => values,
+    onCreated: (creado) => {
+      onGuardado(creado, true)
+      onClose()
+    },
+    onUpdated: (values) => {
+      onGuardado(values, false)
+      onClose()
+    },
+    onSaveError: setErrorGuardado,
+  })
 
   const {
     register,
     handleSubmit,
     control,
-    formState: { errors, isSubmitting },
+    formState: { errors },
   } = useForm<EmpleadoFormValues>({
     resolver: zodResolver(empleadoFormSchema),
     defaultValues: empleadoToFormValues(empleado),
@@ -212,12 +203,7 @@ export default function EmpleadoForm({ empleado, onGuardar, onClose }: EmpleadoF
 
   const onSubmit = async (values: EmpleadoFormValues) => {
     setErrorGuardado(null)
-    try {
-      await onGuardar(values, empleado?.id)
-      onClose()
-    } catch (e) {
-      setErrorGuardado(mensajeError(e, "No se pudo guardar al empleado."))
-    }
+    await submit(values)
   }
 
   return (
@@ -226,7 +212,7 @@ export default function EmpleadoForm({ empleado, onGuardar, onClose }: EmpleadoF
       descripcion="Los datos y el rol operativo definen a qué módulos podrá acceder."
       onClose={onClose}
       bloqueado={isSubmitting}
-      ancho="max-w-2xl"
+      ancho="sm:max-w-2xl"
     >
       <form onSubmit={handleSubmit(onSubmit)} className="flex min-h-0 flex-1 flex-col" noValidate>
         <div className="flex flex-col gap-5 overflow-y-auto p-5">
@@ -363,19 +349,29 @@ export default function EmpleadoForm({ empleado, onGuardar, onClose }: EmpleadoF
 
 export function BajaEmpleadoForm({
   empleado,
-  onConfirmar,
+  onDadoDeBaja,
   onClose,
 }: {
   empleado: Empleado
-  onConfirmar: (empleado: Empleado, motivo: string) => Promise<void>
+  onDadoDeBaja: (empleado: Empleado) => void
   onClose: () => void
 }) {
   const [errorGuardado, setErrorGuardado] = React.useState<string | null>(null)
 
+  // La baja es lógica: se usa el hook de eliminación de shared con el id y el motivo
+  const { isDeleting, confirmDelete } = useEntityDelete<{ id: string; motivo: string }>({
+    actionDelete: darDeBajaEmpleado,
+    onSuccess: () => {
+      onDadoDeBaja(empleado)
+      onClose()
+    },
+    onError: setErrorGuardado,
+  })
+
   const {
     register,
     handleSubmit,
-    formState: { errors, isSubmitting },
+    formState: { errors },
   } = useForm<BajaEmpleadoValues>({
     resolver: zodResolver(bajaEmpleadoSchema),
     defaultValues: { motivo: "" },
@@ -383,12 +379,7 @@ export function BajaEmpleadoForm({
 
   const onSubmit = async ({ motivo }: BajaEmpleadoValues) => {
     setErrorGuardado(null)
-    try {
-      await onConfirmar(empleado, motivo)
-      onClose()
-    } catch (e) {
-      setErrorGuardado(mensajeError(e, "No se pudo dar de baja al empleado."))
-    }
+    await confirmDelete({ id: empleado.id, motivo })
   }
 
   return (
@@ -396,8 +387,8 @@ export function BajaEmpleadoForm({
       titulo="Dar de baja"
       descripcion={`${empleado.nombres} ${empleado.apellidos} · ${ROLES_OPERATIVOS[empleado.rol].nombre}`}
       onClose={onClose}
-      bloqueado={isSubmitting}
-      ancho="max-w-md"
+      bloqueado={isDeleting}
+      ancho="sm:max-w-md"
     >
       <form onSubmit={handleSubmit(onSubmit)} className="flex min-h-0 flex-1 flex-col" noValidate>
         <div className="flex flex-col gap-4 overflow-y-auto p-5">
@@ -418,13 +409,13 @@ export function BajaEmpleadoForm({
           <ErrorGuardado mensaje={errorGuardado} />
         </div>
 
-        <div className="flex items-center justify-end gap-2 border-t border-slate-100 p-4 dark:border-stone-800">
+        <DialogFooter>
           <Button
             type="button"
             variant="outline"
             size="sm"
             onClick={onClose}
-            disabled={isSubmitting}
+            disabled={isDeleting}
             className={botonSecundario}
           >
             Cancelar
@@ -432,12 +423,12 @@ export function BajaEmpleadoForm({
           <Button
             type="submit"
             size="sm"
-            loading={isSubmitting}
+            loading={isDeleting}
             className="h-10 rounded-full bg-red-600 px-5 text-white hover:bg-red-700 dark:bg-red-500 dark:hover:bg-red-400"
           >
             Confirmar baja
           </Button>
-        </div>
+        </DialogFooter>
       </form>
     </ModalBase>
   )
@@ -451,24 +442,42 @@ export function MesaForm({
   mesa,
   areas,
   areaPorDefecto,
-  onGuardar,
+  onGuardada,
   onClose,
 }: {
   // Mesa a editar; si no se envía, se registra una nueva
   mesa?: Mesa
   areas: Area[]
   areaPorDefecto?: string
-  onGuardar: (input: MesaInput, id?: string) => Promise<unknown>
+  onGuardada: (mesa: Mesa, esNueva: boolean) => void
   onClose: () => void
 }) {
   const esEdicion = Boolean(mesa)
   const [errorGuardado, setErrorGuardado] = React.useState<string | null>(null)
 
+  const { submit, isSubmitting } = useEntityForm<Mesa, MesaFormValues, MesaInput, MesaInput, Mesa>({
+    id: mesa?.id,
+    actionCreate: registrarMesa,
+    actionUpdate: actualizarMesa,
+    mapEntityToForm: (entidad) => mesaToFormValues(entidad),
+    mapFormToCreatePayload: mesaFormToInput,
+    mapFormToUpdatePayload: (values) => mesaFormToInput(values),
+    onCreated: (creada) => {
+      onGuardada(creada, true)
+      onClose()
+    },
+    onUpdated: (values) => {
+      if (mesa) onGuardada({ ...mesa, ...mesaFormToInput(values) }, false)
+      onClose()
+    },
+    onSaveError: setErrorGuardado,
+  })
+
   const {
     register,
     handleSubmit,
     control,
-    formState: { errors, isSubmitting },
+    formState: { errors },
   } = useForm<MesaFormValues>({
     resolver: zodResolver(mesaFormSchema),
     defaultValues: mesaToFormValues(mesa, areaPorDefecto ?? areas[0]?.id),
@@ -476,12 +485,7 @@ export function MesaForm({
 
   const onSubmit = async (values: MesaFormValues) => {
     setErrorGuardado(null)
-    try {
-      await onGuardar(mesaFormToInput(values), mesa?.id)
-      onClose()
-    } catch (e) {
-      setErrorGuardado(mensajeError(e, "No se pudo guardar la mesa."))
-    }
+    await submit(values)
   }
 
   return (
@@ -573,17 +577,26 @@ export function AreasForm({
   areas,
   mesasPorArea,
   onGuardar,
-  onEliminar,
+  onEliminada,
   onClose,
 }: {
   areas: Area[]
   mesasPorArea: ReadonlyMap<string, number>
-  onGuardar: (nombre: string, id?: string) => Promise<unknown>
-  onEliminar: (area: Area) => Promise<void>
+  onGuardar: (nombre: string, id?: string) => Promise<OneQuery<Area>>
+  onEliminada: (area: Area) => void
   onClose: () => void
 }) {
   const [editandoId, setEditandoId] = React.useState<string | null>(null)
   const [errorAccion, setErrorAccion] = React.useState<string | null>(null)
+
+  const { entityToDelete, confirmDelete } = useEntityDelete<string>({
+    actionDelete: eliminarArea,
+    onSuccess: (id) => {
+      const eliminada = areas.find((a) => a.id === id)
+      if (eliminada) onEliminada(eliminada)
+    },
+    onError: setErrorAccion,
+  })
 
   const {
     register,
@@ -597,12 +610,9 @@ export function AreasForm({
 
   const onCrear = async ({ nombre }: AreaFormValues) => {
     setErrorAccion(null)
-    try {
-      await onGuardar(nombre)
-      reset({ nombre: "" })
-    } catch (e) {
-      setErrorAccion(mensajeError(e, "No se pudo crear el área."))
-    }
+    const respuesta = await onGuardar(nombre)
+    if (respuesta.isOk()) reset({ nombre: "" })
+    else setErrorAccion(respuesta.getMessage())
   }
 
   return (
@@ -632,7 +642,7 @@ export function AreasForm({
               size="sm"
               loading={isSubmitting}
               leftIcon={<Plus className="size-4" />}
-              className="h-10 shrink-0 rounded-full bg-[#4C0107] px-4 text-white hover:bg-[#4C0107]/90 dark:bg-stone-100 dark:text-stone-900 dark:hover:bg-stone-200"
+              className={cn(botonPrimario, "shrink-0 px-4")}
             >
               Agregar
             </Button>
@@ -652,6 +662,7 @@ export function AreasForm({
               area={area}
               totalMesas={mesasPorArea.get(area.id) ?? 0}
               editando={editandoId === area.id}
+              eliminando={entityToDelete === area.id}
               onEditar={() => {
                 setErrorAccion(null)
                 setEditandoId(area.id)
@@ -659,20 +670,13 @@ export function AreasForm({
               onCancelarEdicion={() => setEditandoId(null)}
               onGuardar={async (nombre) => {
                 setErrorAccion(null)
-                try {
-                  await onGuardar(nombre, area.id)
-                  setEditandoId(null)
-                } catch (e) {
-                  setErrorAccion(mensajeError(e, "No se pudo renombrar el área."))
-                }
+                const respuesta = await onGuardar(nombre, area.id)
+                if (respuesta.isOk()) setEditandoId(null)
+                else setErrorAccion(respuesta.getMessage())
               }}
               onEliminar={async () => {
                 setErrorAccion(null)
-                try {
-                  await onEliminar(area)
-                } catch (e) {
-                  setErrorAccion(mensajeError(e, "No se pudo eliminar el área."))
-                }
+                await confirmDelete(area.id)
               }}
             />
           ))}
@@ -686,6 +690,7 @@ function AreaFila({
   area,
   totalMesas,
   editando,
+  eliminando,
   onEditar,
   onCancelarEdicion,
   onGuardar,
@@ -694,13 +699,13 @@ function AreaFila({
   area: Area
   totalMesas: number
   editando: boolean
+  eliminando: boolean
   onEditar: () => void
   onCancelarEdicion: () => void
   onGuardar: (nombre: string) => Promise<void>
   onEliminar: () => Promise<void>
 }) {
   const [confirmando, setConfirmando] = React.useState(false)
-  const [eliminando, setEliminando] = React.useState(false)
   const enUso = totalMesas > 0
   const inputId = React.useId()
 
@@ -772,9 +777,7 @@ function AreaFila({
             type="button"
             disabled={eliminando}
             onClick={async () => {
-              setEliminando(true)
               await onEliminar()
-              setEliminando(false)
               setConfirmando(false)
             }}
             className="h-8 cursor-pointer rounded-full bg-red-600 px-3 text-xs font-semibold text-white transition-colors hover:bg-red-700 disabled:opacity-60 dark:bg-red-500 dark:hover:bg-red-400"

@@ -13,7 +13,7 @@ const buttonVariants = cva(
         // Principal
         default: "bg-[#4C0107] text-white hover:bg-[#4C0107]/90 dark:bg-white dark:text-black dark:hover:bg-slate-200 shadow-sm hover:shadow-md",
         outline: "border-2 border-[#4C0107] text-[#4C0107] bg-transparent hover:bg-[#4C0107] hover:text-white dark:border-stone-700 dark:text-stone-100 dark:hover:bg-stone-800 dark:hover:text-white",
-        ghost: "bg-[#EDE5E6] text-[#4C0107] hover:bg-[#d8cdd0] dark:text-stone-100 dark:hover:bg-stone-800",
+        ghost: "bg-[#EDE5E6] text-[#4C0107] hover:bg-[#d8cdd0] dark:bg-stone-800 dark:text-stone-100 dark:hover:bg-stone-700",
 
         // Danger (Errores, Cancelaciones)
         danger: "bg-red-500 text-white hover:bg-red-600 shadow-sm",
@@ -41,6 +41,9 @@ const buttonVariants = cva(
         md: "h-12 px-6 text-md",
         lg: "h-14 px-8 text-base",
         icon: "h-12 w-12",
+        // Tamaños compactos usados por dialog, toast, sheet, combobox y demás primitivas
+        "icon-sm": "size-8 [&_svg:not([class*='size-'])]:size-4",
+        "icon-xs": "size-6 [&_svg:not([class*='size-'])]:size-3.5",
       },
     },
     defaultVariants: {

@@ -1,3 +1,6 @@
+import { CheckStatus } from "@/dtos/core/checkStatus.dto"
+import { DataQuery } from "@/dtos/core/dataQuery.dto"
+import { OneQuery } from "@/dtos/core/oneQuery.dto"
 import { getCatalogoPos, notificarCambioCatalogo } from "@/modules/pos/actions/pos.actions"
 import {
   slugArea,
@@ -12,6 +15,7 @@ import {
 // TODO: reemplazar por las llamadas reales al backend cuando estén disponibles.
 // Por ahora el personal vive en memoria y el plano de mesas usa el mismo catálogo del POS,
 // notificando a los terminales abiertos en cada cambio (RF-12).
+// Las funciones exportadas devuelven los DTOs de dtos/core para integrarse con los hooks de shared.
 
 const esperar = (ms: number) => new Promise((resolve) => setTimeout(resolve, ms))
 
@@ -125,12 +129,12 @@ function validarEmpleadoUnico(input: EmpleadoInput, id?: string) {
   }
 }
 
-export async function getEmpleados(): Promise<Empleado[]> {
+async function getEmpleadosInterno(): Promise<Empleado[]> {
   await esperar(350)
   return EMPLEADOS.map(copiarEmpleado)
 }
 
-export async function registrarEmpleado(input: EmpleadoInput): Promise<Empleado> {
+async function registrarEmpleadoInterno(input: EmpleadoInput): Promise<Empleado> {
   await esperar(300)
   validarEmpleadoUnico(input)
   const nuevo: Empleado = { id: `e${Date.now().toString(36)}`, ...input, estado: "activo" }
@@ -138,7 +142,7 @@ export async function registrarEmpleado(input: EmpleadoInput): Promise<Empleado>
   return copiarEmpleado(nuevo)
 }
 
-export async function actualizarEmpleado(id: string, input: EmpleadoInput): Promise<Empleado> {
+async function actualizarEmpleadoInterno(id: string, input: EmpleadoInput): Promise<Empleado> {
   await esperar(300)
   const index = obtenerIndiceEmpleado(id)
   validarEmpleadoUnico(input, id)
@@ -146,7 +150,7 @@ export async function actualizarEmpleado(id: string, input: EmpleadoInput): Prom
   return copiarEmpleado(EMPLEADOS[index])
 }
 
-export async function darDeBajaEmpleado(id: string, motivo: string): Promise<Empleado> {
+async function darDeBajaEmpleadoInterno(id: string, motivo: string): Promise<Empleado> {
   await esperar(300)
   const index = obtenerIndiceEmpleado(id)
   if (EMPLEADOS[index].estado === "baja") throw new Error("El empleado ya se encuentra de baja.")
@@ -161,7 +165,7 @@ export async function darDeBajaEmpleado(id: string, motivo: string): Promise<Emp
   return copiarEmpleado(EMPLEADOS[index])
 }
 
-export async function reactivarEmpleado(id: string): Promise<Empleado> {
+async function reactivarEmpleadoInterno(id: string): Promise<Empleado> {
   await esperar(300)
   const index = obtenerIndiceEmpleado(id)
   EMPLEADOS[index] = { ...EMPLEADOS[index], estado: "activo", fechaBaja: undefined, motivoBaja: undefined }
@@ -172,7 +176,7 @@ export async function reactivarEmpleado(id: string): Promise<Empleado> {
 /*                 RF-12: Configuración del Plano de Mesas                    */
 /* -------------------------------------------------------------------------- */
 
-export async function getPlanoMesas(): Promise<PlanoMesas> {
+async function getPlanoMesasInterno(): Promise<PlanoMesas> {
   const catalogo = await getCatalogoPos()
   return {
     areas: catalogo.areas.map((a) => ({ ...a })),
@@ -191,7 +195,7 @@ async function validarMesa(input: MesaInput, id?: string) {
   return catalogo
 }
 
-export async function registrarMesa(input: MesaInput): Promise<Mesa> {
+async function registrarMesaInterno(input: MesaInput): Promise<Mesa> {
   await esperar(250)
   const catalogo = await validarMesa(input)
   const nueva: Mesa = { id: `m${Date.now().toString(36)}`, ...input, estado: "libre" }
@@ -200,7 +204,7 @@ export async function registrarMesa(input: MesaInput): Promise<Mesa> {
   return { ...nueva }
 }
 
-export async function actualizarMesa(id: string, input: MesaInput): Promise<Mesa> {
+async function actualizarMesaInterno(id: string, input: MesaInput): Promise<Mesa> {
   await esperar(250)
   const catalogo = await validarMesa(input, id)
   const actual = catalogo.mesas.find((m) => m.id === id)
@@ -212,7 +216,7 @@ export async function actualizarMesa(id: string, input: MesaInput): Promise<Mesa
   return { ...actualizada }
 }
 
-export async function eliminarMesa(id: string): Promise<void> {
+async function eliminarMesaInterno(id: string): Promise<void> {
   await esperar(250)
   const catalogo = await getCatalogoPos()
   const mesa = catalogo.mesas.find((m) => m.id === id)
@@ -224,7 +228,7 @@ export async function eliminarMesa(id: string): Promise<void> {
   notificarCambioCatalogo()
 }
 
-export async function registrarArea(nombre: string): Promise<Area> {
+async function registrarAreaInterno(nombre: string): Promise<Area> {
   await esperar(250)
   const catalogo = await getCatalogoPos()
   const limpio = nombre.trim()
@@ -243,7 +247,7 @@ export async function registrarArea(nombre: string): Promise<Area> {
   return { ...nueva }
 }
 
-export async function renombrarArea(id: string, nombre: string): Promise<Area> {
+async function renombrarAreaInterno(id: string, nombre: string): Promise<Area> {
   await esperar(250)
   const catalogo = await getCatalogoPos()
   const limpio = nombre.trim()
@@ -258,7 +262,7 @@ export async function renombrarArea(id: string, nombre: string): Promise<Area> {
   return { ...actualizada }
 }
 
-export async function eliminarArea(id: string): Promise<void> {
+async function eliminarAreaInterno(id: string): Promise<void> {
   await esperar(250)
   const catalogo = await getCatalogoPos()
   if (!catalogo.areas.some((a) => a.id === id)) throw new Error("El área no existe o fue eliminada.")
@@ -273,3 +277,67 @@ export async function eliminarArea(id: string): Promise<void> {
   catalogo.areas = catalogo.areas.filter((a) => a.id !== id)
   notificarCambioCatalogo()
 }
+
+/* -------------------------------------------------------------------------- */
+/*            API del módulo: respuestas con los DTOs de dtos/core            */
+/* -------------------------------------------------------------------------- */
+
+const mensajeDe = (e: unknown, porDefecto: string) => (e instanceof Error ? e.message : porDefecto)
+
+async function consulta<T>(operacion: () => Promise<T>, porDefecto: string): Promise<OneQuery<T>> {
+  try {
+    return OneQuery.ok(await operacion())
+  } catch (e) {
+    return OneQuery.error(mensajeDe(e, porDefecto))
+  }
+}
+
+async function comando(operacion: () => Promise<unknown>, porDefecto: string): Promise<CheckStatus> {
+  try {
+    await operacion()
+    return CheckStatus.ok()
+  } catch (e) {
+    return CheckStatus.error(mensajeDe(e, porDefecto))
+  }
+}
+
+// RF-11: Personal
+export async function getEmpleados(): Promise<DataQuery<Empleado>> {
+  try {
+    return DataQuery.ok(await getEmpleadosInterno())
+  } catch (e) {
+    return DataQuery.error(mensajeDe(e, "No se pudo cargar la lista de personal."))
+  }
+}
+
+export const registrarEmpleado = (input: EmpleadoInput) =>
+  consulta(() => registrarEmpleadoInterno(input), "No se pudo registrar al empleado.")
+
+export const actualizarEmpleado = (id: string, input: EmpleadoInput) =>
+  comando(() => actualizarEmpleadoInterno(id, input), "No se pudo actualizar al empleado.")
+
+// La baja es lógica (el registro se conserva), por eso se usa con useEntityDelete
+export const darDeBajaEmpleado = ({ id, motivo }: { id: string; motivo: string }) =>
+  comando(() => darDeBajaEmpleadoInterno(id, motivo), "No se pudo dar de baja al empleado.")
+
+export const reactivarEmpleado = (id: string) =>
+  comando(() => reactivarEmpleadoInterno(id), "No se pudo reactivar al empleado.")
+
+// RF-12: Plano de mesas
+export const getPlanoMesas = () => consulta(() => getPlanoMesasInterno(), "No se pudo cargar el plano de mesas.")
+
+export const registrarMesa = (input: MesaInput) =>
+  consulta(() => registrarMesaInterno(input), "No se pudo registrar la mesa.")
+
+export const actualizarMesa = (id: string, input: MesaInput) =>
+  comando(() => actualizarMesaInterno(id, input), "No se pudo actualizar la mesa.")
+
+export const eliminarMesa = (id: string) => comando(() => eliminarMesaInterno(id), "No se pudo eliminar la mesa.")
+
+export const registrarArea = (nombre: string) =>
+  consulta(() => registrarAreaInterno(nombre), "No se pudo crear el área.")
+
+export const renombrarArea = (id: string, nombre: string) =>
+  consulta(() => renombrarAreaInterno(id, nombre), "No se pudo renombrar el área.")
+
+export const eliminarArea = (id: string) => comando(() => eliminarAreaInterno(id), "No se pudo eliminar el área.")

@@ -11,11 +11,12 @@ import {
   Search,
   SearchX,
   Tags,
-  X,
   Zap,
 } from "lucide-react"
 
+import { Badge } from "@/shared/components/ui/badge"
 import { Button } from "@/shared/components/ui/button"
+import { Empty, EmptyContent, EmptyDescription, EmptyHeader, EmptyTitle } from "@/shared/components/ui/empty"
 import { Input } from "@/shared/components/ui/input"
 import { Skeleton } from "@/shared/components/ui/skeleton"
 import { cn } from "@/shared/utils/cn"
@@ -153,13 +154,11 @@ export default function MenuView() {
         </>
       )}
 
-      {menu.aviso && <Aviso tipo={menu.aviso.tipo} mensaje={menu.aviso.mensaje} onCerrar={menu.cerrarAviso} />}
-
       {modal && catalogo && modal.modo !== "categorias" && (
         <ProductoForm
           producto={modal.modo === "editar" ? modal.producto : undefined}
           categorias={catalogo.categorias}
-          onGuardar={menu.guardarProducto}
+          onGuardado={menu.productoGuardado}
           onClose={cerrarModal}
         />
       )}
@@ -172,7 +171,7 @@ export default function MenuView() {
           puedeEditar={puedeEditar}
           puedeEliminar={puedeEliminar}
           onGuardar={menu.guardarCategoria}
-          onEliminar={menu.borrarCategoria}
+          onEliminada={menu.categoriaEliminada}
           onClose={cerrarModal}
         />
       )}
@@ -326,14 +325,15 @@ function ProductoCard({
         <span className={cn("flex size-10 shrink-0 items-center justify-center rounded-xl", config.className)}>
           <Icono className="size-5" />
         </span>
-        <span
+        <Badge
+          variant="estado"
           className={cn(
-            "rounded-full px-2.5 py-0.5 text-[11px] font-semibold uppercase tracking-wide",
+            "text-[11px] uppercase tracking-wide",
             agotado ? ESTADO_PRODUCTO_CLASS.agotado : ESTADO_PRODUCTO_CLASS.disponible
           )}
         >
           {agotado ? "Agotado" : "Disponible"}
-        </span>
+        </Badge>
       </div>
 
       <div className="flex min-w-0 flex-1 flex-col gap-0.5">
@@ -410,81 +410,58 @@ function ProductoCard({
 /*                                 Auxiliares                                 */
 /* -------------------------------------------------------------------------- */
 
-function Aviso({ tipo, mensaje, onCerrar }: { tipo: "ok" | "error"; mensaje: string; onCerrar: () => void }) {
-  return (
-    <div
-      role={tipo === "error" ? "alert" : "status"}
-      className={cn(
-        "fixed bottom-6 left-1/2 z-40 flex w-[calc(100%-2rem)] max-w-md -translate-x-1/2 items-start gap-3 rounded-2xl border p-3 text-sm shadow-lg animate-in fade-in-0 slide-in-from-bottom-2",
-        tipo === "ok"
-          ? "border-emerald-200 bg-white text-slate-800 dark:border-emerald-500/30 dark:bg-stone-900 dark:text-stone-100"
-          : "border-red-200 bg-white text-slate-800 dark:border-red-500/30 dark:bg-stone-900 dark:text-stone-100"
-      )}
-    >
-      {tipo === "ok" ? (
-        <CircleCheck className="mt-0.5 size-4 shrink-0 text-emerald-600 dark:text-emerald-400" />
-      ) : (
-        <CircleAlert className="mt-0.5 size-4 shrink-0 text-red-600 dark:text-red-400" />
-      )}
-      <p className="flex-1">{mensaje}</p>
-      <button
-        type="button"
-        onClick={onCerrar}
-        aria-label="Cerrar aviso"
-        className="cursor-pointer text-slate-400 hover:text-slate-700 dark:text-stone-500 dark:hover:text-stone-200"
-      >
-        <X className="size-4" />
-      </button>
-    </div>
-  )
-}
-
 function SinResultados({ onLimpiar }: { onLimpiar: () => void }) {
   return (
-    <div className="flex flex-col items-center justify-center gap-3 rounded-2xl border-2 border-dashed border-slate-200 p-10 text-center dark:border-stone-700">
+    <Empty>
       <SearchX className="size-8 text-slate-400 dark:text-stone-500" />
-      <p className="text-sm text-slate-600 dark:text-stone-300">No hay productos que coincidan con los filtros.</p>
-      <Button
-        type="button"
-        variant="outline"
-        size="sm"
-        onClick={onLimpiar}
-        className="rounded-full dark:border-stone-700 dark:text-stone-200 dark:hover:bg-stone-800"
-      >
-        Limpiar filtros
-      </Button>
-    </div>
+      <EmptyDescription>No hay productos que coincidan con los filtros.</EmptyDescription>
+      <EmptyContent>
+        <Button
+          type="button"
+          variant="outline"
+          size="sm"
+          onClick={onLimpiar}
+          className="rounded-full dark:border-stone-700 dark:text-stone-200 dark:hover:bg-stone-800"
+        >
+          Limpiar filtros
+        </Button>
+      </EmptyContent>
+    </Empty>
   )
 }
 
 function AccesoRestringido({ rol }: { rol: string }) {
   return (
-    <div className="flex flex-col items-center justify-center gap-3 rounded-2xl border-2 border-dashed border-slate-200 p-10 text-center dark:border-stone-700">
+    <Empty>
       <Lock className="size-8 text-[#4C0107] dark:text-[#E7B7BC]" />
-      <h1 className="text-lg font-bold text-slate-900 dark:text-stone-100">Acceso restringido</h1>
-      <p className="max-w-sm text-sm text-slate-500 dark:text-stone-400">
-        Tu rol actual (<span className="font-semibold text-slate-700 dark:text-stone-200">{rol}</span>) no puede
-        ver el menú.
-      </p>
-    </div>
+      <EmptyHeader>
+        <EmptyTitle>Acceso restringido</EmptyTitle>
+        <EmptyDescription>
+          Tu rol actual (<span className="font-semibold text-slate-700 dark:text-stone-200">{rol}</span>) no puede
+          ver el menú.
+        </EmptyDescription>
+      </EmptyHeader>
+    </Empty>
   )
 }
 
 function ErrorState({ message, onRetry }: { message: string; onRetry: () => void }) {
   return (
-    <div className="flex flex-col items-center justify-center gap-3 rounded-2xl border-2 border-dashed border-slate-200 p-10 text-center dark:border-stone-700">
-      <p className="text-sm text-slate-600 dark:text-stone-300">{message}</p>
-      <Button
-        type="button"
-        variant="outline"
-        size="sm"
-        onClick={onRetry}
-        leftIcon={<RefreshCw className="size-4" />}
-        className="rounded-full dark:border-stone-700 dark:text-stone-200 dark:hover:bg-stone-800"
-      >
-        Reintentar
-      </Button>
-    </div>
+    <Empty>
+      <EmptyDescription>{message}</EmptyDescription>
+      <EmptyContent>
+        <Button
+          type="button"
+          variant="outline"
+          size="sm"
+          onClick={onRetry}
+          leftIcon={<RefreshCw className="size-4" />}
+          className="rounded-full dark:border-stone-700 dark:text-stone-200 dark:hover:bg-stone-800"
+        >
+          Reintentar
+        </Button>
+      </EmptyContent>
+    </Empty>
   )
 }
 

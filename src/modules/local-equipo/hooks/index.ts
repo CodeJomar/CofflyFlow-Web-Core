@@ -1,108 +1,55 @@
 "use client"
 
 import * as React from "react"
+import { useEntityList } from "@/shared/hooks"
+import { toast } from "@/shared/components/ui/toast"
+import { normalizarTexto } from "@/shared/utils/formatters"
 import { suscribirseCambiosCatalogo } from "@/modules/pos/actions/pos.actions"
 import {
-  actualizarEmpleado,
-  actualizarMesa,
-  darDeBajaEmpleado,
-  eliminarArea,
-  eliminarMesa,
   getEmpleados,
   getPlanoMesas,
   reactivarEmpleado,
   registrarArea,
-  registrarEmpleado,
-  registrarMesa,
   renombrarArea,
 } from "../actions/local-equipo.actions"
 import type {
   Area,
   AreaMesa,
   Empleado,
-  EmpleadoInput,
   FiltroEstadoEmpleado,
   FiltroRolEmpleado,
   Mesa,
-  MesaInput,
   PlanoMesas,
   ResumenPersonal,
   RolOperativo,
 } from "../schema"
 
-type Aviso = { tipo: "ok" | "error"; mensaje: string }
-
-// Normaliza texto para búsquedas sin tildes ni mayúsculas
-const normalizar = (texto: string) =>
-  texto.normalize("NFD").replace(/[̀-ͯ]/g, "").toLowerCase().trim()
-
-// Aviso breve que desaparece solo después de unos segundos
-function useAviso() {
-  const [aviso, setAviso] = React.useState<Aviso | null>(null)
-
-  React.useEffect(() => {
-    if (!aviso) return
-    const timer = window.setTimeout(() => setAviso(null), 3500)
-    return () => window.clearTimeout(timer)
-  }, [aviso])
-
-  const cerrarAviso = React.useCallback(() => setAviso(null), [])
-  return { aviso, setAviso, cerrarAviso }
-}
+const nombreCompleto = (e: Pick<Empleado, "nombres" | "apellidos">) => `${e.nombres} ${e.apellidos}`
 
 /* -------------------------------------------------------------------------- */
 /*            RF-11: Gestión de Personal y Asignación de Roles                */
 /* -------------------------------------------------------------------------- */
 
 export function usePersonal() {
-  const [empleados, setEmpleados] = React.useState<Empleado[] | null>(null)
-  const [isLoading, setIsLoading] = React.useState(true)
-  const [error, setError] = React.useState<string | null>(null)
-  const [reloadKey, setReloadKey] = React.useState(0)
+  // Listado con el hook genérico de shared (DataQuery)
+  const { entities: empleados, isLoading, hasError, errorMessage, fetchEntities } = useEntityList<Empleado>(getEmpleados)
+  // Indica si ya terminó la primera carga (las recargas posteriores no muestran el esqueleto)
+  const [cargado, setCargado] = React.useState(false)
 
   const [busqueda, setBusqueda] = React.useState("")
   const [rol, setRol] = React.useState<FiltroRolEmpleado>("todos")
   const [estado, setEstado] = React.useState<FiltroEstadoEmpleado>("activo")
 
-  const { aviso, setAviso, cerrarAviso } = useAviso()
-
   React.useEffect(() => {
-    let vigente = true
-
-    getEmpleados()
-      .then((data) => {
-        if (!vigente) return
-        setEmpleados(data)
-        setError(null)
-      })
-      .catch(() => {
-        if (vigente) setError("No se pudo cargar la lista de personal.")
-      })
-      .finally(() => {
-        if (vigente) setIsLoading(false)
-      })
-
-    return () => {
-      vigente = false
-    }
-  }, [reloadKey])
+    fetchEntities().finally(() => setCargado(true))
+  }, [fetchEntities])
 
   const recargar = React.useCallback(() => {
-    setIsLoading(true)
-    setReloadKey((k) => k + 1)
-  }, [])
-
-  const reemplazar = React.useCallback((empleado: Empleado) => {
-    setEmpleados((prev) => {
-      if (!prev) return prev
-      const existe = prev.some((e) => e.id === empleado.id)
-      return existe ? prev.map((e) => (e.id === empleado.id ? empleado : e)) : [...prev, empleado]
-    })
-  }, [])
+    void fetchEntities()
+  }, [fetchEntities])
 
   const empleadosFiltrados = React.useMemo(() => {
-    if (!empleados) return []
-    const termino = normalizar(busqueda)
+    const termino = normalizarTexto(busqueda)
 
     return empleados
       .filter((e) => {
@@ -110,65 +57,62 @@ export function usePersonal() {
         const coincideEstado = estado === "todos" || e.estado === estado
         const coincideBusqueda =
           !termino ||
-          normalizar(`${e.nombres} ${e.apellidos}`).includes(termino) ||
+          normalizarTexto(nombreCompleto(e)).includes(termino) ||
           e.dni.includes(termino) ||
-          normalizar(e.correo).includes(termino)
+          normalizarTexto(e.correo).includes(termino)
         return coincideRol && coincideEstado && coincideBusqueda
       })
       .sort((a, b) => `${a.apellidos} ${a.nombres}`.localeCompare(`${b.apellidos} ${b.nombres}`, "es"))
   }, [empleados, busqueda, rol, estado])
 
   const resumen = React.useMemo<ResumenPersonal>(() => {
-    const lista = empleados ?? []
-    const activos = lista.filter((e) => e.estado === "activo").length
-    return { total: lista.length, activos, baja: lista.length - activos }
+    const activos = empleados.filter((e) => e.estado === "activo").length
+    return { total: empleados.length, activos, baja: empleados.length - activos }
   }, [empleados])
 
   // Empleados activos por rol operativo (para la vista de Roles y Permisos)
   const activosPorRol = React.useMemo(() => {
     const mapa = new Map<RolOperativo, number>()
-    for (const e of empleados ?? []) {
+    for (const e of empleados) {
       if (e.estado === "activo") mapa.set(e.rol, (mapa.get(e.rol) ?? 0) + 1)
     }
     return mapa
   }, [empleados])
 
-  // Registro o actualización; propaga el error para mostrarlo en el formulario
-  const guardarEmpleado = React.useCallback(
-    async (input: EmpleadoInput, id?: string) => {
-      const guardado = id ? await actualizarEmpleado(id, input) : await registrarEmpleado(input)
-      reemplazar(guardado)
-      setAviso({
-        tipo: "ok",
-        mensaje: id
-          ? `Datos de ${guardado.nombres} ${guardado.apellidos} actualizados.`
-          : `${guardado.nombres} ${guardado.apellidos} registrado en el equipo.`,
+  // Se invoca desde EmpleadoForm (useEntityForm de shared) tras guardar con éxito
+  const empleadoGuardado = React.useCallback(
+    (empleado: Pick<Empleado, "nombres" | "apellidos">, esNuevo: boolean) => {
+      toast.add({
+        type: "success",
+        title: esNuevo
+          ? `${nombreCompleto(empleado)} registrado en el equipo.`
+          : `Datos de ${nombreCompleto(empleado)} actualizados.`,
       })
-      return guardado
+      void fetchEntities()
     },
-    [reemplazar, setAviso]
+    [fetchEntities]
   )
 
-  const darDeBaja = React.useCallback(
-    async (empleado: Empleado, motivo: string) => {
-      const actualizado = await darDeBajaEmpleado(empleado.id, motivo)
-      reemplazar(actualizado)
-      setAviso({ tipo: "ok", mensaje: `${empleado.nombres} ${empleado.apellidos} fue dado de baja.` })
+  // Se invoca desde BajaEmpleadoForm (useEntityDelete de shared) tras la baja
+  const empleadoDadoDeBaja = React.useCallback(
+    (empleado: Empleado) => {
+      toast.add({ type: "success", title: `${nombreCompleto(empleado)} fue dado de baja.` })
+      void fetchEntities()
     },
-    [reemplazar, setAviso]
+    [fetchEntities]
   )
 
   const reactivar = React.useCallback(
     async (empleado: Empleado) => {
-      try {
-        const actualizado = await reactivarEmpleado(empleado.id)
-        reemplazar(actualizado)
-        setAviso({ tipo: "ok", mensaje: `${empleado.nombres} ${empleado.apellidos} fue reactivado.` })
-      } catch (e) {
-        setAviso({ tipo: "error", mensaje: e instanceof Error ? e.message : "No se pudo reactivar al empleado." })
+      const respuesta = await reactivarEmpleado(empleado.id)
+      if (respuesta.isOk()) {
+        toast.add({ type: "success", title: `${nombreCompleto(empleado)} fue reactivado.` })
+        await fetchEntities()
+      } else {
+        toast.add({ type: "error", title: "No se pudo reactivar al empleado.", description: respuesta.getMessage() })
       }
     },
-    [reemplazar, setAviso]
+    [fetchEntities]
   )
 
   const limpiarFiltros = React.useCallback(() => {
@@ -182,8 +126,9 @@ export function usePersonal() {
     empleadosFiltrados,
     resumen,
     activosPorRol,
+    cargado,
     isLoading,
-    error,
+    error: hasError ? (errorMessage ?? "No se pudo cargar la lista de personal.") : null,
     recargar,
     busqueda,
     setBusqueda,
@@ -192,11 +137,9 @@ export function usePersonal() {
     estado,
     setEstado,
     limpiarFiltros,
-    guardarEmpleado,
-    darDeBaja,
+    empleadoGuardado,
+    empleadoDadoDeBaja,
     reactivar,
-    aviso,
-    cerrarAviso,
   }
 }
 
@@ -204,6 +147,7 @@ export function usePersonal() {
 /*                 RF-12: Configuración del Plano de Mesas                    */
 /* -------------------------------------------------------------------------- */
 
+// El plano mantiene estado propio porque se sincroniza en vivo con los terminales POS
 export function usePlanoMesas() {
   const [plano, setPlano] = React.useState<PlanoMesas | null>(null)
   const [isLoading, setIsLoading] = React.useState(true)
@@ -211,16 +155,18 @@ export function usePlanoMesas() {
   const [reloadKey, setReloadKey] = React.useState(0)
   const [areaFiltro, setAreaFiltro] = React.useState<AreaMesa | "todas">("todas")
 
-  const { aviso, setAviso, cerrarAviso } = useAviso()
-
   React.useEffect(() => {
     let vigente = true
 
     getPlanoMesas()
-      .then((data) => {
+      .then((respuesta) => {
         if (!vigente) return
-        setPlano(data)
-        setError(null)
+        if (respuesta.isOk()) {
+          setPlano(respuesta.data)
+          setError(null)
+        } else {
+          setError(respuesta.getMessage())
+        }
       })
       .catch(() => {
         if (vigente) setError("No se pudo cargar el plano de mesas.")
@@ -273,39 +219,30 @@ export function usePlanoMesas() {
     }
   }, [plano])
 
-  const guardarMesa = React.useCallback(
-    async (input: MesaInput, id?: string) => {
-      const guardada = id ? await actualizarMesa(id, input) : await registrarMesa(input)
-      setPlano((prev) => {
-        if (!prev) return prev
-        const existe = prev.mesas.some((m) => m.id === guardada.id)
-        return {
-          ...prev,
-          mesas: existe ? prev.mesas.map((m) => (m.id === guardada.id ? guardada : m)) : [...prev.mesas, guardada],
-        }
-      })
-      setAviso({ tipo: "ok", mensaje: id ? `"${guardada.nombre}" actualizada.` : `"${guardada.nombre}" registrada en el plano.` })
-      return guardada
-    },
-    [setAviso]
-  )
-
-  const borrarMesa = React.useCallback(
-    async (mesa: Mesa) => {
-      try {
-        await eliminarMesa(mesa.id)
-        setPlano((prev) => (prev ? { ...prev, mesas: prev.mesas.filter((m) => m.id !== mesa.id) } : prev))
-        setAviso({ tipo: "ok", mensaje: `"${mesa.nombre}" eliminada del plano.` })
-      } catch (e) {
-        setAviso({ tipo: "error", mensaje: e instanceof Error ? e.message : "No se pudo eliminar la mesa." })
+  // Se invoca desde MesaForm (useEntityForm de shared) tras guardar con éxito
+  const mesaGuardada = React.useCallback((mesa: Mesa, esNueva: boolean) => {
+    setPlano((prev) => {
+      if (!prev) return prev
+      const existe = prev.mesas.some((m) => m.id === mesa.id)
+      return {
+        ...prev,
+        mesas: existe ? prev.mesas.map((m) => (m.id === mesa.id ? mesa : m)) : [...prev.mesas, mesa],
       }
-    },
-    [setAviso]
-  )
+    })
+    toast.add({ type: "success", title: esNueva ? `"${mesa.nombre}" registrada en el plano.` : `"${mesa.nombre}" actualizada.` })
+  }, [])
 
-  const guardarArea = React.useCallback(
-    async (nombre: string, id?: string) => {
-      const guardada = id ? await renombrarArea(id, nombre) : await registrarArea(nombre)
+  // Se invoca desde la vista (useEntityDelete de shared) tras eliminar con éxito
+  const mesaEliminada = React.useCallback((mesa: Mesa) => {
+    setPlano((prev) => (prev ? { ...prev, mesas: prev.mesas.filter((m) => m.id !== mesa.id) } : prev))
+    toast.add({ type: "success", title: `"${mesa.nombre}" eliminada del plano.` })
+  }, [])
+
+  // Alta o renombrado de área; devuelve la respuesta para mostrar el error en el formulario
+  const guardarArea = React.useCallback(async (nombre: string, id?: string) => {
+    const respuesta = id ? await renombrarArea(id, nombre) : await registrarArea(nombre)
+    if (respuesta.isOk()) {
+      const guardada = respuesta.data
       setPlano((prev) => {
         if (!prev) return prev
         const existe = prev.areas.some((a) => a.id === guardada.id)
@@ -314,20 +251,16 @@ export function usePlanoMesas() {
           areas: existe ? prev.areas.map((a) => (a.id === guardada.id ? guardada : a)) : [...prev.areas, guardada],
         }
       })
-      setAviso({ tipo: "ok", mensaje: id ? `Área renombrada a "${guardada.nombre}".` : `Área "${guardada.nombre}" creada.` })
-      return guardada
-    },
-    [setAviso]
-  )
+      toast.add({ type: "success", title: id ? `Área renombrada a "${guardada.nombre}".` : `Área "${guardada.nombre}" creada.` })
+    }
+    return respuesta
+  }, [])
 
-  const borrarArea = React.useCallback(
-    async (area: Area) => {
-      await eliminarArea(area.id)
-      setPlano((prev) => (prev ? { ...prev, areas: prev.areas.filter((a) => a.id !== area.id) } : prev))
-      setAviso({ tipo: "ok", mensaje: `Área "${area.nombre}" eliminada.` })
-    },
-    [setAviso]
-  )
+  // Se invoca desde AreasForm (useEntityDelete de shared) tras eliminar con éxito
+  const areaEliminada = React.useCallback((area: Area) => {
+    setPlano((prev) => (prev ? { ...prev, areas: prev.areas.filter((a) => a.id !== area.id) } : prev))
+    toast.add({ type: "success", title: `Área "${area.nombre}" eliminada.` })
+  }, [])
 
   return {
     plano,
@@ -339,11 +272,9 @@ export function usePlanoMesas() {
     recargar,
     areaFiltro: areaActiva,
     setAreaFiltro,
-    guardarMesa,
-    borrarMesa,
+    mesaGuardada,
+    mesaEliminada,
     guardarArea,
-    borrarArea,
-    aviso,
-    cerrarAviso,
+    areaEliminada,
   }
 }

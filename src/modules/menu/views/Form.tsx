@@ -5,12 +5,23 @@ import { Controller, useForm, type Control } from "react-hook-form"
 import { zodResolver } from "@hookform/resolvers/zod"
 import { Check, Pencil, Plus, Trash2, X } from "lucide-react"
 
+import type { OneQuery } from "@/dtos/core/oneQuery.dto"
+import { useEntityDelete, useEntityForm } from "@/shared/hooks"
 import { Button } from "@/shared/components/ui/button"
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from "@/shared/components/ui/dialog"
 import { Input } from "@/shared/components/ui/input"
 import { Switch } from "@/shared/components/ui/switch"
 import { Textarea } from "@/shared/components/ui/textarea"
 import { cn } from "@/shared/utils/cn"
 
+import { actualizarProducto, crearProducto, eliminarCategoria } from "../actions/menu.actions"
 import { getCategoriaConfig, opcionClass } from "../components"
 import {
   categoriaFormSchema,
@@ -28,96 +39,89 @@ interface ProductoFormProps {
   // Producto a editar; si no se envía, el formulario crea uno nuevo
   producto?: ProductoMenu
   categorias: CategoriaMenu[]
-  onGuardar: (input: ProductoInput, id?: string) => Promise<unknown>
+  onGuardado: (producto: ProductoMenu, esNuevo: boolean) => void
   onClose: () => void
 }
 
 const labelClass = "text-xs font-semibold uppercase tracking-wider text-slate-500 dark:text-stone-400"
 const errorClass = "text-xs font-medium text-red-600 dark:text-red-400"
+const botonPrimario =
+  "h-10 rounded-full bg-[#4C0107] px-5 text-white hover:bg-[#4C0107]/90 dark:bg-stone-100 dark:text-stone-900 dark:hover:bg-stone-200"
+const botonSecundario = "h-10 rounded-full px-5 dark:border-stone-700 dark:text-stone-200 dark:hover:bg-stone-800"
+
+function ErrorGuardado({ mensaje }: { mensaje: string | null }) {
+  if (!mensaje) return null
+  return (
+    <p
+      role="alert"
+      className="rounded-xl bg-red-50 px-3 py-2 text-sm font-medium text-red-700 dark:bg-red-500/10 dark:text-red-300"
+    >
+      {mensaje}
+    </p>
+  )
+}
 
 /**
- * Modal de alta y edición de productos del menú (React Hook Form + Zod).
+ * Modal de alta y edición de productos del menú.
+ * Usa Dialog y useEntityForm de shared, con React Hook Form + Zod para la validación.
  */
-export default function ProductoForm({ producto, categorias, onGuardar, onClose }: ProductoFormProps) {
-  const dialogRef = React.useRef<HTMLDivElement>(null)
-  const tituloId = React.useId()
+export default function ProductoForm({ producto, categorias, onGuardado, onClose }: ProductoFormProps) {
   const esEdicion = Boolean(producto)
   const [errorGuardado, setErrorGuardado] = React.useState<string | null>(null)
+
+  const { submit, isSubmitting } = useEntityForm<
+    ProductoMenu,
+    ProductoFormValues,
+    ProductoInput,
+    ProductoInput,
+    ProductoMenu
+  >({
+    id: producto?.id,
+    actionCreate: crearProducto,
+    actionUpdate: actualizarProducto,
+    mapEntityToForm: (entidad) => productoToFormValues(entidad),
+    mapFormToCreatePayload: productoFormToInput,
+    mapFormToUpdatePayload: (values) => productoFormToInput(values),
+    onCreated: (creado) => {
+      onGuardado(creado, true)
+      onClose()
+    },
+    onUpdated: (values) => {
+      if (producto) onGuardado({ ...producto, ...productoFormToInput(values) }, false)
+      onClose()
+    },
+    onSaveError: setErrorGuardado,
+  })
 
   const {
     register,
     handleSubmit,
     control,
-    formState: { errors, isSubmitting },
+    formState: { errors },
   } = useForm<ProductoFormValues>({
     resolver: zodResolver(productoFormSchema),
     defaultValues: productoToFormValues(producto, categorias[0]?.id),
   })
 
-  const cerrar = React.useCallback(() => {
-    if (!isSubmitting) onClose()
-  }, [isSubmitting, onClose])
-
-  // Foco inicial dentro del modal (solo al abrir)
-  React.useEffect(() => {
-    dialogRef.current?.focus()
-  }, [])
-
-  // Cierre con Escape
-  React.useEffect(() => {
-    const onKeyDown = (e: KeyboardEvent) => {
-      if (e.key === "Escape") cerrar()
-    }
-    window.addEventListener("keydown", onKeyDown)
-    return () => window.removeEventListener("keydown", onKeyDown)
-  }, [cerrar])
-
   const onSubmit = async (values: ProductoFormValues) => {
     setErrorGuardado(null)
-    try {
-      await onGuardar(productoFormToInput(values), producto?.id)
-      onClose()
-    } catch (e) {
-      setErrorGuardado(e instanceof Error ? e.message : "No se pudo guardar el producto.")
-    }
+    await submit(values)
   }
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
-      <div
-        role="presentation"
-        onClick={cerrar}
-        className="absolute inset-0 bg-black/40 backdrop-blur-xs dark:bg-black/70"
-      />
-
-      <div
-        ref={dialogRef}
-        role="dialog"
-        aria-modal="true"
-        aria-labelledby={tituloId}
-        tabIndex={-1}
-        className="relative flex max-h-[calc(100vh-2rem)] w-full max-w-lg flex-col overflow-hidden rounded-3xl border border-slate-100 bg-white shadow-2xl outline-none animate-in fade-in-0 zoom-in-95 duration-150 dark:border-stone-800 dark:bg-stone-900"
-      >
-        {/* Encabezado */}
-        <div className="flex items-start justify-between gap-3 border-b border-slate-100 p-5 dark:border-stone-800">
-          <div className="flex flex-col gap-0.5">
-            <h2 id={tituloId} className="text-lg font-bold text-slate-900 dark:text-stone-100">
-              {esEdicion ? "Editar producto" : "Nuevo producto"}
-            </h2>
-            <p className="text-xs text-slate-500 dark:text-stone-400">
-              {esEdicion ? "Actualiza los datos que verán los mozos en el POS." : "Agrega una bebida, postre o piqueo a la carta."}
-            </p>
-          </div>
-          <button
-            type="button"
-            onClick={cerrar}
-            disabled={isSubmitting}
-            aria-label="Cerrar"
-            className="flex size-9 shrink-0 cursor-pointer items-center justify-center rounded-full text-slate-500 transition-colors hover:bg-slate-100 hover:text-slate-900 disabled:opacity-50 dark:text-stone-400 dark:hover:bg-stone-800 dark:hover:text-stone-100"
-          >
-            <X className="size-4" />
-          </button>
-        </div>
+    <Dialog
+      open
+      onOpenChange={(abierto) => {
+        if (!abierto && !isSubmitting) onClose()
+      }}
+    >
+      <DialogContent>
+        <DialogHeader>
+          <DialogTitle>{esEdicion ? "Editar producto" : "Nuevo producto"}</DialogTitle>
+          <DialogDescription>
+            {esEdicion ? "Actualiza los datos que verán los mozos en el POS." : "Agrega una bebida, postre o piqueo a la carta."}
+          </DialogDescription>
+        </DialogHeader>
 
         <form onSubmit={handleSubmit(onSubmit)} className="flex min-h-0 flex-1 flex-col" noValidate>
           <div className="flex flex-col gap-5 overflow-y-auto p-5">
@@ -229,40 +233,27 @@ export default function ProductoForm({ producto, categorias, onGuardar, onClose 
               />
             </div>
 
-            {errorGuardado && (
-              <p
-                role="alert"
-                className="rounded-xl bg-red-50 px-3 py-2 text-sm font-medium text-red-700 dark:bg-red-500/10 dark:text-red-300"
-              >
-                {errorGuardado}
-              </p>
-            )}
+            <ErrorGuardado mensaje={errorGuardado} />
           </div>
 
-          {/* Acciones */}
-          <div className="flex items-center justify-end gap-2 border-t border-slate-100 p-4 dark:border-stone-800">
+          <DialogFooter>
             <Button
               type="button"
               variant="outline"
               size="sm"
-              onClick={cerrar}
+              onClick={onClose}
               disabled={isSubmitting}
-              className="h-10 rounded-full px-5 dark:border-stone-700 dark:text-stone-200 dark:hover:bg-stone-800"
+              className={botonSecundario}
             >
               Cancelar
             </Button>
-            <Button
-              type="submit"
-              size="sm"
-              loading={isSubmitting}
-              className="h-10 rounded-full bg-[#4C0107] px-5 text-white hover:bg-[#4C0107]/90 dark:bg-stone-100 dark:text-stone-900 dark:hover:bg-stone-200"
-            >
+            <Button type="submit" size="sm" loading={isSubmitting} className={botonPrimario}>
               {esEdicion ? "Guardar cambios" : "Agregar producto"}
             </Button>
-          </div>
+          </DialogFooter>
         </form>
-      </div>
-    </div>
+      </DialogContent>
+    </Dialog>
   )
 }
 
@@ -313,13 +304,14 @@ interface CategoriasFormProps {
   puedeCrear: boolean
   puedeEditar: boolean
   puedeEliminar: boolean
-  onGuardar: (nombre: string, id?: string) => Promise<unknown>
-  onEliminar: (categoria: CategoriaMenu) => Promise<void>
+  onGuardar: (nombre: string, id?: string) => Promise<OneQuery<CategoriaMenu>>
+  onEliminada: (categoria: CategoriaMenu) => void
   onClose: () => void
 }
 
 /**
- * Modal para crear, renombrar y eliminar categorías (React Hook Form + Zod).
+ * Modal para crear, renombrar y eliminar categorías.
+ * Usa Dialog y useEntityDelete de shared, con React Hook Form + Zod para la validación.
  * Una categoría con productos asociados no se puede eliminar.
  */
 export function CategoriasForm({
@@ -329,13 +321,20 @@ export function CategoriasForm({
   puedeEditar,
   puedeEliminar,
   onGuardar,
-  onEliminar,
+  onEliminada,
   onClose,
 }: CategoriasFormProps) {
-  const dialogRef = React.useRef<HTMLDivElement>(null)
-  const tituloId = React.useId()
   const [editandoId, setEditandoId] = React.useState<string | null>(null)
   const [errorAccion, setErrorAccion] = React.useState<string | null>(null)
+
+  const { entityToDelete, confirmDelete } = useEntityDelete<string>({
+    actionDelete: eliminarCategoria,
+    onSuccess: (id) => {
+      const eliminada = categorias.find((c) => c.id === id)
+      if (eliminada) onEliminada(eliminada)
+    },
+    onError: setErrorAccion,
+  })
 
   const {
     register,
@@ -353,65 +352,25 @@ export function CategoriasForm({
     return mapa
   }, [productos])
 
-  // Foco inicial dentro del modal (solo al abrir)
-  React.useEffect(() => {
-    dialogRef.current?.focus()
-  }, [])
-
-  // Cierre con Escape
-  React.useEffect(() => {
-    const onKeyDown = (e: KeyboardEvent) => {
-      if (e.key === "Escape") onClose()
-    }
-    window.addEventListener("keydown", onKeyDown)
-    return () => window.removeEventListener("keydown", onKeyDown)
-  }, [onClose])
-
   const onCrear = async ({ nombre }: CategoriaFormValues) => {
     setErrorAccion(null)
-    try {
-      await onGuardar(nombre)
-      reset({ nombre: "" })
-    } catch (e) {
-      setErrorAccion(e instanceof Error ? e.message : "No se pudo crear la categoría.")
-    }
+    const respuesta = await onGuardar(nombre)
+    if (respuesta.isOk()) reset({ nombre: "" })
+    else setErrorAccion(respuesta.getMessage())
   }
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
-      <div
-        role="presentation"
-        onClick={onClose}
-        className="absolute inset-0 bg-black/40 backdrop-blur-xs dark:bg-black/70"
-      />
-
-      <div
-        ref={dialogRef}
-        role="dialog"
-        aria-modal="true"
-        aria-labelledby={tituloId}
-        tabIndex={-1}
-        className="relative flex max-h-[calc(100vh-2rem)] w-full max-w-lg flex-col overflow-hidden rounded-3xl border border-slate-100 bg-white shadow-2xl outline-none animate-in fade-in-0 zoom-in-95 duration-150 dark:border-stone-800 dark:bg-stone-900"
-      >
-        {/* Encabezado */}
-        <div className="flex items-start justify-between gap-3 border-b border-slate-100 p-5 dark:border-stone-800">
-          <div className="flex flex-col gap-0.5">
-            <h2 id={tituloId} className="text-lg font-bold text-slate-900 dark:text-stone-100">
-              Categorías del menú
-            </h2>
-            <p className="text-xs text-slate-500 dark:text-stone-400">
-              Organiza la carta en bebidas, postres, piqueos y más.
-            </p>
-          </div>
-          <button
-            type="button"
-            onClick={onClose}
-            aria-label="Cerrar"
-            className="flex size-9 shrink-0 cursor-pointer items-center justify-center rounded-full text-slate-500 transition-colors hover:bg-slate-100 hover:text-slate-900 dark:text-stone-400 dark:hover:bg-stone-800 dark:hover:text-stone-100"
-          >
-            <X className="size-4" />
-          </button>
-        </div>
+    <Dialog
+      open
+      onOpenChange={(abierto) => {
+        if (!abierto) onClose()
+      }}
+    >
+      <DialogContent>
+        <DialogHeader>
+          <DialogTitle>Categorías del menú</DialogTitle>
+          <DialogDescription>Organiza la carta en bebidas, postres, piqueos y más.</DialogDescription>
+        </DialogHeader>
 
         <div className="flex flex-col gap-5 overflow-y-auto p-5">
           {/* Nueva categoría */}
@@ -436,7 +395,7 @@ export function CategoriasForm({
                   size="sm"
                   loading={isSubmitting}
                   leftIcon={<Plus className="size-4" />}
-                  className="h-10 shrink-0 rounded-full bg-[#4C0107] px-4 text-white hover:bg-[#4C0107]/90 dark:bg-stone-100 dark:text-stone-900 dark:hover:bg-stone-200"
+                  className={cn(botonPrimario, "shrink-0 px-4")}
                 >
                   Agregar
                 </Button>
@@ -445,14 +404,7 @@ export function CategoriasForm({
             </form>
           )}
 
-          {errorAccion && (
-            <p
-              role="alert"
-              className="rounded-xl bg-red-50 px-3 py-2 text-sm font-medium text-red-700 dark:bg-red-500/10 dark:text-red-300"
-            >
-              {errorAccion}
-            </p>
-          )}
+          <ErrorGuardado mensaje={errorAccion} />
 
           {/* Listado */}
           <ul className="flex flex-col divide-y divide-slate-100 rounded-2xl border border-slate-100 dark:divide-stone-800 dark:border-stone-800">
@@ -467,6 +419,7 @@ export function CategoriasForm({
                 categoria={categoria}
                 totalProductos={productosPorCategoria.get(categoria.id) ?? 0}
                 editando={editandoId === categoria.id}
+                eliminando={entityToDelete === categoria.id}
                 puedeEditar={puedeEditar}
                 puedeEliminar={puedeEliminar}
                 onEditar={() => {
@@ -476,27 +429,20 @@ export function CategoriasForm({
                 onCancelarEdicion={() => setEditandoId(null)}
                 onGuardar={async (nombre) => {
                   setErrorAccion(null)
-                  try {
-                    await onGuardar(nombre, categoria.id)
-                    setEditandoId(null)
-                  } catch (e) {
-                    setErrorAccion(e instanceof Error ? e.message : "No se pudo renombrar la categoría.")
-                  }
+                  const respuesta = await onGuardar(nombre, categoria.id)
+                  if (respuesta.isOk()) setEditandoId(null)
+                  else setErrorAccion(respuesta.getMessage())
                 }}
                 onEliminar={async () => {
                   setErrorAccion(null)
-                  try {
-                    await onEliminar(categoria)
-                  } catch (e) {
-                    setErrorAccion(e instanceof Error ? e.message : "No se pudo eliminar la categoría.")
-                  }
+                  await confirmDelete(categoria.id)
                 }}
               />
             ))}
           </ul>
         </div>
-      </div>
-    </div>
+      </DialogContent>
+    </Dialog>
   )
 }
 
@@ -504,6 +450,7 @@ function CategoriaFila({
   categoria,
   totalProductos,
   editando,
+  eliminando,
   puedeEditar,
   puedeEliminar,
   onEditar,
@@ -514,6 +461,7 @@ function CategoriaFila({
   categoria: CategoriaMenu
   totalProductos: number
   editando: boolean
+  eliminando: boolean
   puedeEditar: boolean
   puedeEliminar: boolean
   onEditar: () => void
@@ -524,7 +472,6 @@ function CategoriaFila({
   const config = getCategoriaConfig(categoria.id)
   const Icono = config.icon
   const [confirmando, setConfirmando] = React.useState(false)
-  const [eliminando, setEliminando] = React.useState(false)
   const enUso = totalProductos > 0
   const inputId = React.useId()
 
@@ -596,9 +543,7 @@ function CategoriaFila({
             type="button"
             disabled={eliminando}
             onClick={async () => {
-              setEliminando(true)
               await onEliminar()
-              setEliminando(false)
               setConfirmando(false)
             }}
             className="h-8 cursor-pointer rounded-full bg-red-600 px-3 text-xs font-semibold text-white transition-colors hover:bg-red-700 disabled:opacity-60 dark:bg-red-500 dark:hover:bg-red-400"

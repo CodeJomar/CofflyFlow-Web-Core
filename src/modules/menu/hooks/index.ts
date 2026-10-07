@@ -1,14 +1,13 @@
 "use client"
 
 import * as React from "react"
+import { toast } from "@/shared/components/ui/toast"
+import { normalizarTexto } from "@/shared/utils/formatters"
 import { suscribirseCambiosCatalogo } from "@/modules/pos/actions/pos.actions"
 import {
   actualizarCategoria,
-  actualizarProducto,
   cambiarDisponibilidadProducto,
   crearCategoria,
-  crearProducto,
-  eliminarCategoria,
   getCatalogoMenu,
 } from "../actions/menu.actions"
 import type {
@@ -16,14 +15,9 @@ import type {
   CategoriaMenu,
   FiltroCategoria,
   FiltroDisponibilidad,
-  ProductoInput,
   ProductoMenu,
   ResumenMenu,
 } from "../schema"
-
-// Normaliza texto para búsquedas sin tildes ni mayúsculas
-const normalizar = (texto: string) =>
-  texto.normalize("NFD").replace(/[̀-ͯ]/g, "").toLowerCase().trim()
 
 export function useMenu() {
   const [catalogo, setCatalogo] = React.useState<CatalogoMenu | null>(null)
@@ -37,17 +31,19 @@ export function useMenu() {
 
   // Productos con un cambio de disponibilidad en curso
   const [pendientes, setPendientes] = React.useState<ReadonlySet<string>>(new Set())
-  // Mensaje breve de confirmación o error tras cambiar la disponibilidad
-  const [aviso, setAviso] = React.useState<{ tipo: "ok" | "error"; mensaje: string } | null>(null)
 
   React.useEffect(() => {
     let vigente = true
 
     getCatalogoMenu()
-      .then((data) => {
+      .then((respuesta) => {
         if (!vigente) return
-        setCatalogo(data)
-        setError(null)
+        if (respuesta.isOk()) {
+          setCatalogo(respuesta.data)
+          setError(null)
+        } else {
+          setError(respuesta.getMessage())
+        }
       })
       .catch(() => {
         if (vigente) setError("No se pudo cargar el catálogo del menú.")
@@ -76,36 +72,37 @@ export function useMenu() {
     []
   )
 
-  // El aviso desaparece solo después de unos segundos
-  React.useEffect(() => {
-    if (!aviso) return
-    const timer = window.setTimeout(() => setAviso(null), 3500)
-    return () => window.clearTimeout(timer)
-  }, [aviso])
-
   const recargar = React.useCallback(() => {
     setIsLoading(true)
     setReloadKey((k) => k + 1)
   }, [])
 
-  const reemplazarProducto = React.useCallback((producto: ProductoMenu) => {
-    setCatalogo((prev) =>
-      prev
-        ? { ...prev, productos: prev.productos.map((p) => (p.id === producto.id ? producto : p)) }
-        : prev
-    )
+  // Inserta o reemplaza un producto en el catálogo local
+  const aplicarProducto = React.useCallback((producto: ProductoMenu) => {
+    setCatalogo((prev) => {
+      if (!prev) return prev
+      const existe = prev.productos.some((p) => p.id === producto.id)
+      return {
+        ...prev,
+        productos: existe
+          ? prev.productos.map((p) => (p.id === producto.id ? producto : p))
+          : [...prev.productos, producto],
+      }
+    })
   }, [])
 
   const productosFiltrados = React.useMemo(() => {
     if (!catalogo) return []
-    const termino = normalizar(busqueda)
+    const termino = normalizarTexto(busqueda)
 
     return catalogo.productos.filter((p) => {
       const coincideCategoria = categoria === "todos" || p.categoriaId === categoria
       const coincideDisponibilidad =
         disponibilidad === "todos" || (disponibilidad === "disponibles" ? p.disponible : !p.disponible)
       const coincideBusqueda =
-        !termino || normalizar(p.nombre).includes(termino) || normalizar(p.descripcion).includes(termino)
+        !termino ||
+        normalizarTexto(p.nombre).includes(termino) ||
+        normalizarTexto(p.descripcion).includes(termino)
       return coincideCategoria && coincideDisponibilidad && coincideBusqueda
     })
   }, [catalogo, busqueda, categoria, disponibilidad])
@@ -125,78 +122,76 @@ export function useMenu() {
       if (pendientes.has(producto.id)) return
       const disponible = !producto.disponible
 
-      reemplazarProducto({ ...producto, disponible })
+      aplicarProducto({ ...producto, disponible })
       setPendientes((prev) => new Set(prev).add(producto.id))
 
-      try {
-        const actualizado = await cambiarDisponibilidadProducto(producto.id, disponible)
-        reemplazarProducto(actualizado)
-        setAviso({
-          tipo: "ok",
-          mensaje: disponible
+      const respuesta = await cambiarDisponibilidadProducto(producto.id, disponible)
+      if (respuesta.isOk()) {
+        aplicarProducto(respuesta.data)
+        toast.add({
+          type: "success",
+          title: disponible
             ? `"${producto.nombre}" vuelve a estar disponible en el POS.`
             : `"${producto.nombre}" marcado como Agotado. Ya no se puede seleccionar en el POS.`,
         })
-      } catch {
-        reemplazarProducto(producto)
-        setAviso({ tipo: "error", mensaje: `No se pudo actualizar "${producto.nombre}". Intenta de nuevo.` })
-      } finally {
-        setPendientes((prev) => {
-          const siguiente = new Set(prev)
-          siguiente.delete(producto.id)
-          return siguiente
-        })
+      } else {
+        aplicarProducto(producto)
+        toast.add({ type: "error", title: `No se pudo actualizar "${producto.nombre}".`, description: respuesta.getMessage() })
       }
+
+      setPendientes((prev) => {
+        const siguiente = new Set(prev)
+        siguiente.delete(producto.id)
+        return siguiente
+      })
     },
-    [pendientes, reemplazarProducto]
+    [pendientes, aplicarProducto]
   )
 
-  // Alta o edición de un producto; propaga el error para mostrarlo en el formulario
-  const guardarProducto = React.useCallback(
-    async (input: ProductoInput, id?: string) => {
-      const guardado = id ? await actualizarProducto(id, input) : await crearProducto(input)
-      setCatalogo((prev) => {
-        if (!prev) return prev
-        const existe = prev.productos.some((p) => p.id === guardado.id)
-        return {
-          ...prev,
-          productos: existe
-            ? prev.productos.map((p) => (p.id === guardado.id ? guardado : p))
-            : [...prev.productos, guardado],
-        }
+  // Se invoca desde el formulario (useEntityForm de shared) tras guardar con éxito
+  const productoGuardado = React.useCallback(
+    (producto: ProductoMenu, esNuevo: boolean) => {
+      aplicarProducto(producto)
+      toast.add({
+        type: "success",
+        title: esNuevo ? `"${producto.nombre}" agregado al menú.` : `"${producto.nombre}" actualizado.`,
       })
-      setAviso({ tipo: "ok", mensaje: id ? `"${guardado.nombre}" actualizado.` : `"${guardado.nombre}" agregado al menú.` })
-      return guardado
     },
-    []
+    [aplicarProducto]
   )
 
   /* ------------------------- RF-09: Categorías -------------------------- */
 
-  // Alta o renombrado de categoría; propaga el error para mostrarlo en el formulario
+  // Alta o renombrado de categoría; devuelve la respuesta para mostrar el error en el formulario
   const guardarCategoria = React.useCallback(async (nombre: string, id?: string) => {
-    const guardada = id ? await actualizarCategoria(id, nombre) : await crearCategoria(nombre)
-    setCatalogo((prev) => {
-      if (!prev) return prev
-      const existe = prev.categorias.some((c) => c.id === guardada.id)
-      return {
-        ...prev,
-        categorias: existe
-          ? prev.categorias.map((c) => (c.id === guardada.id ? guardada : c))
-          : [...prev.categorias, guardada],
-      }
-    })
-    setAviso({ tipo: "ok", mensaje: id ? `Categoría renombrada a "${guardada.nombre}".` : `Categoría "${guardada.nombre}" creada.` })
-    return guardada
+    const respuesta = id ? await actualizarCategoria(id, nombre) : await crearCategoria(nombre)
+    if (respuesta.isOk()) {
+      const guardada = respuesta.data
+      setCatalogo((prev) => {
+        if (!prev) return prev
+        const existe = prev.categorias.some((c) => c.id === guardada.id)
+        return {
+          ...prev,
+          categorias: existe
+            ? prev.categorias.map((c) => (c.id === guardada.id ? guardada : c))
+            : [...prev.categorias, guardada],
+        }
+      })
+      toast.add({
+        type: "success",
+        title: id ? `Categoría renombrada a "${guardada.nombre}".` : `Categoría "${guardada.nombre}" creada.`,
+      })
+    }
+    return respuesta
   }, [])
 
-  const borrarCategoria = React.useCallback(async (categoria: CategoriaMenu) => {
-    await eliminarCategoria(categoria.id)
+  // Se invoca desde el formulario (useEntityDelete de shared) tras eliminar con éxito
+  const categoriaEliminada = React.useCallback((categoriaEliminadaItem: CategoriaMenu) => {
     setCatalogo((prev) =>
-      prev ? { ...prev, categorias: prev.categorias.filter((c) => c.id !== categoria.id) } : prev
+      prev ? { ...prev, categorias: prev.categorias.filter((c) => c.id !== categoriaEliminadaItem.id) } : prev
     )
-    setCategoria((actual) => (actual === categoria.id ? "todos" : actual))
-    setAviso({ tipo: "ok", mensaje: `Categoría "${categoria.nombre}" eliminada.` })
+    setCategoria((actual) => (actual === categoriaEliminadaItem.id ? "todos" : actual))
+    toast.add({ type: "success", title: `Categoría "${categoriaEliminadaItem.nombre}" eliminada.` })
   }, [])
 
   const limpiarFiltros = React.useCallback(() => {
@@ -221,10 +216,8 @@ export function useMenu() {
     limpiarFiltros,
     pendientes,
     toggleDisponibilidad,
-    guardarProducto,
+    productoGuardado,
     guardarCategoria,
-    borrarCategoria,
-    aviso,
-    cerrarAviso: () => setAviso(null),
+    categoriaEliminada,
   }
 }

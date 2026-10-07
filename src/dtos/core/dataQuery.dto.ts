@@ -1,4 +1,5 @@
 import { BaseResponse } from "./baseResponse.dto";
+import { API_RESPONSE_STATUS } from "./const";
 import type { ApiMensajeCodigo } from "./mensajeCodigo";
 
 export class DataQuery<
@@ -30,5 +31,18 @@ export class DataQuery<
 
   isOk(): this is this & { data: T[]; total: number } {
     return super.isOk() && Array.isArray(this.#data.items);
+  }
+
+  /** Respuesta exitosa con una lista (útil para operaciones locales o mocks) */
+  static ok<D>(items: D[], total: number = items.length): DataQuery<D> {
+    return new DataQuery<D>({ status: API_RESPONSE_STATUS.Ok, mensajes: [], data: { items, total } });
+  }
+
+  /** Respuesta de error con un mensaje legible para el usuario */
+  static error<D>(descripcion: string): DataQuery<D> {
+    return new DataQuery<D>({
+      status: API_RESPONSE_STATUS.Error,
+      mensajes: [{ codigo: "UNKNOWN_ERROR", descripcion }],
+    });
   }
 }
