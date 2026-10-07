@@ -1,0 +1,41 @@
+name: CI
+
+on:
+  pull_request:
+    branches: [develop, prod]
+  push:
+    branches: [develop, prod]
+
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+
+jobs:
+  web:
+    name: Web · lint, build y seguridad
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    env:
+      NEXT_TELEMETRY_DISABLED: "1"
+      API_INTERNAL_URL: http://localhost:4000
+      NEXT_PUBLIC_API_URL: /api
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+      - name: Instalar dependencias (determinista)
+        run: npm ci
+      # DECISIÓN TEMPORAL: el frontend tiene errores de lint heredados (8 al 2026-10-07: any explícitos y setState en
+      # effects). Mientras se corrigen, el lint informa pero no bloquea. Quitar continue-on-error cuando estén en cero.
+      - name: Lint
+        run: npm run lint
+        continue-on-error: true
+      - name: Build de producción
+        run: npm run build
+      - name: Vulnerabilidades en dependencias de producción
+        run: npm audit --omit=dev --audit-level=high

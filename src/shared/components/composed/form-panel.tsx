@@ -3,14 +3,14 @@
 import * as React from "react"
 
 import {
-  Sheet,
-  SheetBody,
-  SheetContent,
-  SheetDescription,
-  SheetFooter,
-  SheetHeader,
-  SheetTitle,
-} from "@/shared/components/ui/sheet"
+  Panel,
+  PanelBody,
+  PanelContent,
+  PanelDescription,
+  PanelFooter,
+  PanelHeader,
+  PanelTitle,
+} from "@/shared/components/ui/panel"
 
 interface FormPanelProps {
   open: boolean
@@ -29,15 +29,15 @@ interface FormPanelProps {
  */
 export function FormPanel({ open, onOpenChange, title, description, children, footer }: FormPanelProps) {
   return (
-    <Sheet open={open} onOpenChange={onOpenChange}>
-      <SheetContent side="right">
-        <SheetHeader>
-          <SheetTitle>{title}</SheetTitle>
-          {description && <SheetDescription>{description}</SheetDescription>}
-        </SheetHeader>
-        <SheetBody>{children}</SheetBody>
-        {footer && <SheetFooter>{footer}</SheetFooter>}
-      </SheetContent>
-    </Sheet>
+    <Panel open={open} onOpenChange={onOpenChange}>
+      <PanelContent>
+        <PanelHeader>
+          <PanelTitle>{title}</PanelTitle>
+          {description && <PanelDescription>{description}</PanelDescription>}
+        </PanelHeader>
+        <PanelBody>{children}</PanelBody>
+        {footer && <PanelFooter>{footer}</PanelFooter>}
+      </PanelContent>
+    </Panel>
   )
 }

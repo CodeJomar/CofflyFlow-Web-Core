@@ -1,7 +1,7 @@
 "use client"
 
 import * as React from "react"
-import { Mail, User } from "lucide-react"
+import { LogOut, Mail, User } from "lucide-react"
 
 import { Button } from "@/shared/components/ui/button"
 import { FloatingInput } from "@/shared/components/composed/floating-input"
@@ -16,16 +16,17 @@ export function OverlaysDemo() {
   const confirm = useConfirm()
   const [panelAbierto, setPanelAbierto] = React.useState(false)
 
-  const probarConfirm = async (destructiva: boolean) => {
+  const probarConfirm = async (tipo: "default" | "destructive" | "personalizado") => {
     const aceptado = await confirm(
-      destructiva
+      tipo === "personalizado"
         ? {
-            title: "¿Eliminar este producto?",
-            description: "Se quitará del menú. Los pedidos anteriores conservan su historial.",
-            confirmText: "Eliminar",
-            variant: "destructive",
+            variant: "warning",
+            icon: LogOut,
+            title: "¿Cerrar sesión?",
+            description: "Tendrás que volver a ingresar tus credenciales.",
+            confirmText: "Sí, salir",
           }
-        : { title: "¿Cerrar el turno de caja?", description: "Podrás abrir uno nuevo cuando lo necesites." },
+        : { variant: tipo },
     )
     toast.add({
       type: aceptado ? "success" : "info",
@@ -82,11 +83,14 @@ export function OverlaysDemo() {
       <div className="space-y-3">
         <p className="text-sm font-semibold text-slate-700">Confirm — decisión del usuario (AlertDialog)</p>
         <div className="flex flex-wrap gap-3">
-          <Button variant="default" size="sm" onClick={() => probarConfirm(false)}>
+          <Button variant="default" size="sm" onClick={() => probarConfirm("default")}>
             Confirmación normal
           </Button>
-          <Button variant="danger" size="sm" onClick={() => probarConfirm(true)}>
+          <Button variant="danger" size="sm" onClick={() => probarConfirm("destructive")}>
             Confirmación destructiva
+          </Button>
+          <Button variant="warning" size="sm" onClick={() => probarConfirm("personalizado")}>
+            Confirmación personalizada
           </Button>
         </div>
       </div>

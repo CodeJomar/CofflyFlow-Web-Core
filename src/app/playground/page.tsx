@@ -74,6 +74,13 @@ export default function PlaygroundPage() {
                 <Button variant="warning-ghost">Pausar Orden</Button>
               </div>
 
+              {/* Neutral y Danger fuerte (diálogos de confirmación) */}
+              <div className="flex flex-wrap gap-4 items-center">
+                <Button variant="neutral">Neutral</Button>
+                <Button variant="neutral-outline">Neutral</Button>
+                <Button variant="danger-strong">Danger fuerte</Button>
+              </div>
+
               {/* Disabled State (Funciona con cualquier variante) */}
               <div className="flex flex-wrap gap-4 items-center border-t pt-4">
                 <Button disabled>Inactivo Default</Button>
