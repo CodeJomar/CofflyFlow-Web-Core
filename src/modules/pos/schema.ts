@@ -83,6 +83,7 @@ export interface ProductoPos {
   categoriaId: CategoriaId
   disponible: boolean
   permitePersonalizacion?: boolean
+  imagen?: string
 }
 
 export interface ItemCarrito {

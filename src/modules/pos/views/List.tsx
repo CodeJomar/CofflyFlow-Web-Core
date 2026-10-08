@@ -702,7 +702,7 @@ function ProductoCard({
   return (
     <div
       className={cn(
-        "group relative flex h-full w-full flex-col justify-between gap-3 rounded-2xl border bg-white p-3 text-left transition-all",
+        "group relative flex h-full w-full flex-col justify-between rounded-2xl border bg-white p-3 text-left transition-all",
         "border-slate-100 hover:-translate-y-0.5 hover:border-[#4C0107]/30 hover:shadow-md",
         "dark:border-stone-800 dark:bg-stone-900 dark:hover:border-stone-600 dark:hover:shadow-black/40",
         agotado && "opacity-60",
@@ -710,34 +710,68 @@ function ProductoCard({
         "border-[#4C0107]/40 ring-1 ring-[#4C0107]/20 dark:border-[#E7B7BC]/50 dark:ring-[#E7B7BC]/20"
       )}
     >
-      <div className="flex flex-col gap-2">
-        <div className="flex items-start justify-between gap-2">
-          <span
-            className={cn(
-              "flex size-10 items-center justify-center rounded-xl transition-transform group-hover:scale-105",
-              config.className
-            )}
-          >
-            <Icono className="size-5" />
-          </span>
-          {agotado ? (
-            <span className="rounded-full bg-slate-100 px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wide text-slate-600 dark:bg-stone-800 dark:text-stone-300">
-              Agotado
+      <div className="flex flex-col gap-2.5">
+        {/* Contenedor de Imagen de Producto correspondiente al título */}
+        {producto.imagen ? (
+          <div className="relative aspect-4/3 w-full overflow-hidden rounded-xl bg-slate-100 dark:bg-stone-800">
+            <img
+              src={producto.imagen}
+              alt={producto.nombre}
+              className="size-full object-cover transition-transform duration-300 group-hover:scale-105"
+              loading="lazy"
+            />
+            {/* Ícono representativo de la categoría sobre la imagen */}
+            <span
+              className={cn(
+                "absolute top-2 left-2 flex size-7 items-center justify-center rounded-lg shadow-sm backdrop-blur-md transition-transform group-hover:scale-105",
+                config.className
+              )}
+            >
+              <Icono className="size-3.5" />
             </span>
-          ) : (
-            cantidad > 0 && (
-              <span className="flex h-6 min-w-6 items-center justify-center rounded-full bg-[#4C0107] px-1.5 text-xs font-bold tabular-nums text-white animate-in zoom-in-50 dark:bg-[#E7B7BC] dark:text-stone-900">
-                {cantidad}
+
+            {/* Badges de estado sobre la imagen */}
+            {agotado ? (
+              <span className="absolute top-2 right-2 rounded-full bg-slate-900/80 px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wide text-white backdrop-blur-xs">
+                Agotado
               </span>
-            )
-          )}
-        </div>
+            ) : (
+              cantidad > 0 && (
+                <span className="absolute top-2 right-2 flex h-6 min-w-6 items-center justify-center rounded-full bg-[#4C0107] px-1.5 text-xs font-bold tabular-nums text-white shadow-md animate-in zoom-in-50 dark:bg-[#E7B7BC] dark:text-stone-900">
+                  {cantidad}
+                </span>
+              )
+            )}
+          </div>
+        ) : (
+          <div className="flex items-start justify-between gap-2">
+            <span
+              className={cn(
+                "flex size-10 items-center justify-center rounded-xl transition-transform group-hover:scale-105",
+                config.className
+              )}
+            >
+              <Icono className="size-5" />
+            </span>
+            {agotado ? (
+              <span className="rounded-full bg-slate-100 px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wide text-slate-600 dark:bg-stone-800 dark:text-stone-300">
+                Agotado
+              </span>
+            ) : (
+              cantidad > 0 && (
+                <span className="flex h-6 min-w-6 items-center justify-center rounded-full bg-[#4C0107] px-1.5 text-xs font-bold tabular-nums text-white animate-in zoom-in-50 dark:bg-[#E7B7BC] dark:text-stone-900">
+                  {cantidad}
+                </span>
+              )
+            )}
+          </div>
+        )}
 
         <div className="flex min-w-0 flex-1 flex-col gap-0.5">
-          <span className="truncate text-sm font-semibold text-slate-900 dark:text-stone-100">
+          <span className="truncate text-sm font-semibold text-slate-900 dark:text-stone-100" title={producto.nombre}>
             {producto.nombre}
           </span>
-          <span className="line-clamp-2 text-xs text-slate-500 dark:text-stone-400">
+          <span className="line-clamp-2 text-xs text-slate-500 dark:text-stone-400" title={producto.descripcion}>
             {producto.descripcion}
           </span>
         </div>
@@ -1214,7 +1248,7 @@ function CatalogoSkeleton() {
   return (
     <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 2xl:grid-cols-4" aria-busy="true">
       {Array.from({ length: 8 }).map((_, i) => (
-        <Skeleton key={i} className="h-40 rounded-2xl dark:bg-stone-800" />
+        <Skeleton key={i} className="h-64 rounded-2xl dark:bg-stone-800" />
       ))}
     </div>
   )

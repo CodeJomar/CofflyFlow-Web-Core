@@ -97,6 +97,7 @@ const CATALOGO: CatalogoPos = {
       categoriaId: "calientes",
       disponible: true,
       permitePersonalizacion: true,
+      imagen: "/images/products/espresso.webp",
     },
     {
       id: "p02",
@@ -106,6 +107,7 @@ const CATALOGO: CatalogoPos = {
       categoriaId: "calientes",
       disponible: true,
       permitePersonalizacion: true,
+      imagen: "/images/products/americano.webp",
     },
     {
       id: "p03",
@@ -115,6 +117,7 @@ const CATALOGO: CatalogoPos = {
       categoriaId: "calientes",
       disponible: true,
       permitePersonalizacion: true,
+      imagen: "/images/products/capuccino.webp",
     },
     {
       id: "p04",
@@ -124,6 +127,7 @@ const CATALOGO: CatalogoPos = {
       categoriaId: "calientes",
       disponible: true,
       permitePersonalizacion: true,
+      imagen: "/images/products/latte-vainilla.webp",
     },
     {
       id: "p05",
@@ -133,6 +137,7 @@ const CATALOGO: CatalogoPos = {
       categoriaId: "calientes",
       disponible: false,
       permitePersonalizacion: true,
+      imagen: "/images/products/chocolate-caliente.webp",
     },
     {
       id: "p06",
@@ -142,6 +147,7 @@ const CATALOGO: CatalogoPos = {
       categoriaId: "frias",
       disponible: true,
       permitePersonalizacion: true,
+      imagen: "/images/products/frappe-caramelo.webp",
     },
     {
       id: "p07",
@@ -151,6 +157,7 @@ const CATALOGO: CatalogoPos = {
       categoriaId: "frias",
       disponible: true,
       permitePersonalizacion: true,
+      imagen: "/images/products/cold-brew.webp",
     },
     {
       id: "p08",
@@ -160,6 +167,7 @@ const CATALOGO: CatalogoPos = {
       categoriaId: "frias",
       disponible: true,
       permitePersonalizacion: true,
+      imagen: "/images/products/limonada-frozen.webp",
     },
     {
       id: "p09",
@@ -169,6 +177,7 @@ const CATALOGO: CatalogoPos = {
       categoriaId: "panaderia",
       disponible: true,
       permitePersonalizacion: false,
+      imagen: "/images/products/croissant.webp",
     },
     {
       id: "p10",
@@ -178,6 +187,7 @@ const CATALOGO: CatalogoPos = {
       categoriaId: "panaderia",
       disponible: true,
       permitePersonalizacion: false,
+      imagen: "/images/products/pan-chocolate.webp",
     },
     {
       id: "p11",
@@ -187,6 +197,7 @@ const CATALOGO: CatalogoPos = {
       categoriaId: "panaderia",
       disponible: true,
       permitePersonalizacion: false,
+      imagen: "/images/products/empanada-carne.webp",
     },
     {
       id: "p12",
@@ -196,6 +207,7 @@ const CATALOGO: CatalogoPos = {
       categoriaId: "salados",
       disponible: true,
       permitePersonalizacion: true,
+      imagen: "/images/products/sandwich-triple.webp",
     },
     {
       id: "p13",
@@ -205,6 +217,7 @@ const CATALOGO: CatalogoPos = {
       categoriaId: "salados",
       disponible: true,
       permitePersonalizacion: true,
+      imagen: "/images/products/butifarra.webp",
     },
     {
       id: "p14",
@@ -214,6 +227,7 @@ const CATALOGO: CatalogoPos = {
       categoriaId: "salados",
       disponible: false,
       permitePersonalizacion: true,
+      imagen: "/images/products/tostadas-palta.webp",
     },
     {
       id: "p15",
@@ -223,6 +237,7 @@ const CATALOGO: CatalogoPos = {
       categoriaId: "postres",
       disponible: true,
       permitePersonalizacion: false,
+      imagen: "/images/products/cheesecake-maracuya.webp",
     },
     {
       id: "p16",
@@ -232,6 +247,7 @@ const CATALOGO: CatalogoPos = {
       categoriaId: "postres",
       disponible: true,
       permitePersonalizacion: false,
+      imagen: "/images/products/torta-chocolate.webp",
     },
     {
       id: "p17",
@@ -241,6 +257,7 @@ const CATALOGO: CatalogoPos = {
       categoriaId: "postres",
       disponible: true,
       permitePersonalizacion: false,
+      imagen: "/images/products/alfajor-maicena.webp",
     },
     {
       id: "p18",
@@ -250,6 +267,7 @@ const CATALOGO: CatalogoPos = {
       categoriaId: "piqueos",
       disponible: true,
       permitePersonalizacion: false,
+      imagen: "/images/products/tequenos-queso.webp",
     },
     {
       id: "p19",
@@ -259,6 +277,7 @@ const CATALOGO: CatalogoPos = {
       categoriaId: "piqueos",
       disponible: true,
       permitePersonalizacion: false,
+      imagen: "/images/products/empanada-carne.webp",
     },
     {
       id: "p20",
@@ -268,6 +287,7 @@ const CATALOGO: CatalogoPos = {
       categoriaId: "piqueos",
       disponible: true,
       permitePersonalizacion: false,
+      imagen: "/images/products/papas-nativas.webp",
     },
   ],
   areas: [
