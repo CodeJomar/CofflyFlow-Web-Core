@@ -1,5 +1,5 @@
-import PosView from "@/modules/pos/views/List"
+import { PosView } from "@/modules/pos"
 
-export default function POSPage() {
+export default function PosPage() {
   return <PosView />
 }
