@@ -1,3 +1,6 @@
+import TransaccionesView from "@/modules/transacciones/views/List"
+
 export default function CajasPage() {
-  return null;
+  return <TransaccionesView pestanaPorDefecto="cajas" />
 }
+
