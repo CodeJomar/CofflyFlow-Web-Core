@@ -2,7 +2,8 @@
 
 import * as React from "react"
 import { getDashboardResumen } from "../actions/dashboard.actions"
-import { DASHBOARD_REFRESH_MS, type DashboardResumen, type PeriodoDashboard } from "../schema"
+import type { DashboardResumenDto } from "@/dtos/dashboard"
+import { DASHBOARD_REFRESH_MS, type PeriodoDashboard } from "../schema"
 
 interface UseDashboardOptions {
   periodoInicial?: PeriodoDashboard
@@ -17,7 +18,8 @@ export function useDashboard({
   intervalMs = DASHBOARD_REFRESH_MS,
 }: UseDashboardOptions = {}) {
   const [periodo, setPeriodo] = React.useState<PeriodoDashboard>(periodoInicial)
-  const [data, setData] = React.useState<DashboardResumen | null>(null)
+  const [data, setData] = React.useState<DashboardResumenDto | null>(null)
+  const [actualizadoEn, setActualizadoEn] = React.useState<string | null>(null)
   const [isLoading, setIsLoading] = React.useState(true)
   const [isRefreshing, setIsRefreshing] = React.useState(false)
   const [error, setError] = React.useState<string | null>(null)
@@ -35,6 +37,7 @@ export function useDashboard({
         if (!esVigente()) return
         if (respuesta.isOk()) {
           setData(respuesta.data)
+          setActualizadoEn(new Date().toISOString())
           setError(null)
         } else {
           setError(respuesta.getMessage())
@@ -85,5 +88,5 @@ export function useDashboard({
     setReloadKey((k) => k + 1)
   }, [])
 
-  return { periodo, cambiarPeriodo, data, isLoading, isRefreshing, error, recargar }
+  return { periodo, cambiarPeriodo, data, actualizadoEn, isLoading, isRefreshing, error, recargar }
 }
