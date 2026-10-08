@@ -7,4 +7,6 @@ export type RolResumenDto = {
   descripcion: string | null
   total_permisos: number
   total_usuarios: number
+  /** Nombres de los módulos (USERS, MENU…) a los que el cargo tiene algún permiso. */
+  modulos: string[]
 }

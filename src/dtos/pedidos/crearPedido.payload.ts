@@ -11,6 +11,8 @@ import type { TipoPedido } from "./tipoPedido"
 export type CrearPedidoPayload = {
   tipo_pedido?: TipoPedido
   id_mesa?: UUID
+  /** Nombre del cliente (opcional, máx. 100 caracteres): sirve para llamarlo cuando el pedido está listo. */
+  cliente_nombre?: string
   descuento?: Dinero
   items: ItemPedidoPayload[]
 }

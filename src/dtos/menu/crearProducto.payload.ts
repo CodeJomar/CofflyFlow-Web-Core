@@ -7,4 +7,6 @@ export type CrearProductoPayload = {
   descripcion?: string
   precio: Dinero
   disponible?: boolean
+  /** Dirección https de la foto (máx. 500). En `actualizar`, una cadena vacía la quita. */
+  imagen_url?: string
 }

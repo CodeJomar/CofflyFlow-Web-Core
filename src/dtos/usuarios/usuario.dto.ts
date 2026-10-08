@@ -15,4 +15,12 @@ export type UsuarioDto = EntidadAuditada & {
   estado: EstadoUsuario
   email_verificado: boolean
   ultimo_login: FechaIso | null
+  /** Documento de identidad (DNI o similar). */
+  dni: string | null
+  telefono: string | null
+  /** Fecha de ingreso (YYYY-MM-DD). */
+  fecha_ingreso: string | null
+  /** Fecha y motivo de la baja; null si sigue en el equipo. */
+  fecha_baja: FechaIso | null
+  motivo_baja: string | null
 }

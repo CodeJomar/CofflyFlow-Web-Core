@@ -4,6 +4,9 @@ import type { FechaHoraLocal } from "../core/fechaHoraLocal"
 import type { UUID } from "../core/helpers"
 import type { EstadoPedido } from "../pedidos/estadoPedido"
 import type { CajaActualDto } from "./cajaActual.dto"
+import type { ComparacionPeriodoDto } from "./comparacionPeriodo.dto"
+import type { PedidoRecienteDto } from "./pedidoReciente.dto"
+import type { SerieVentasDto } from "./serieVentas.dto"
 import type { TipoPeriodo } from "./tipoPeriodo"
 
 export type DashboardResumenDto = {
@@ -43,6 +46,8 @@ export type DashboardResumenDto = {
   top_productos: Array<{
     id_producto: UUID
     nombre: string
+    /** Categoría del producto; null si ya no existe. */
+    categoria: string | null
     unidades_vendidas: number
     total_recaudado: Dinero
   }>
@@ -53,6 +58,11 @@ export type DashboardResumenDto = {
     /** Ya formateado ("62.5%"). */
     porcentaje: string
   }>
+  /** Ventas por tramo (hora, día o semana). */
+  serie_ventas: SerieVentasDto
+  /** null cuando se consulta un turno (no tiene "anterior"). */
+  comparacion: ComparacionPeriodoDto | null
+  pedidos_recientes: PedidoRecienteDto[]
   /** null si el usuario no tiene `TRANSACTIONS:LEER`; `{ abierta: false }` si la caja está cerrada. */
   caja_actual: CajaActualDto | null
 }

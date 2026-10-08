@@ -9,4 +9,5 @@ export type ListarPedidosQuery = PaginacionQuery &
     estado?: EstadoPedido
     tipo_pedido?: TipoPedido
     id_mesa?: UUID
+    // `busqueda` (de PaginacionQuery) busca por cliente, mesa, número de pedido (#12) o inicio del id.
   }

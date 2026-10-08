@@ -1,12 +1,11 @@
 import type { Dinero } from "../core/dinero"
-import type { EntidadAuditada } from "../core/entidadAuditada"
 import type { FechaIso } from "../core/fechaIso"
 import type { UUID } from "../core/helpers"
 import type { ConteoArqueo } from "./denominacion"
 import type { EstadoTurno } from "./estadoTurno"
 
-/** Turno de caja tal como lo devuelven apertura y cierre. */
-export type TurnoCajaDto = EntidadAuditada & {
+/** Fila de `GET /transactions/turnos` (paginada, más recientes primero). El propietario ve todos; los demás, los suyos. */
+export type TurnoListadoDto = {
   id_turno_caja: UUID
   fecha_apertura: FechaIso
   fecha_cierre: FechaIso | null
@@ -15,8 +14,15 @@ export type TurnoCajaDto = EntidadAuditada & {
   monto_final_real: Dinero | null
   diferencia: Dinero
   estado: EstadoTurno
-  notas_cierre: string | null
   nota_apertura: string | null
-  /** Conteo por denominación del arqueo; null si el cierre no lo envió. */
+  notas_cierre: string | null
   conteo_cierre: ConteoArqueo | null
+  /** Nombre de quien abrió el turno. */
+  abierto_por: string
+  /** Nombre de quien lo cerró; null si sigue abierto. */
+  cerrado_por: string | null
+  total_ventas: Dinero
+  total_devoluciones: Dinero
+  /** Cantidad de movimientos del libro de caja en el turno. */
+  movimientos: number
 }
