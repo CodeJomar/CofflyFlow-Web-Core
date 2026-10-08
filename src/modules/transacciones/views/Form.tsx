@@ -209,7 +209,11 @@ export function AperturaCajaForm({
     <form
       onSubmit={handleSubmit(onSubmit)}
       noValidate
-      className={cn(tarjetaClass, "flex flex-col gap-5 p-5 lg:p-6")}
+      data-sin-desborde
+      className={cn(
+        tarjetaClass,
+        "flex min-h-0 flex-col gap-4 overflow-hidden p-4 lg:gap-5 lg:p-6 [@media(max-height:760px)]:gap-3"
+      )}
       aria-label="Apertura de turno de caja"
     >
       <div className="flex items-start gap-3">
@@ -218,20 +222,21 @@ export function AperturaCajaForm({
         </span>
         <div className="flex flex-col gap-0.5">
           <h2 className={cn("text-lg font-bold", textoTitulo)}>Apertura de caja</h2>
-          <p className={cn("text-sm", textoSecundario)}>
+          <p className={cn("text-sm [@media(max-height:760px)]:hidden", textoSecundario)}>
             Registra el fondo inicial en efectivo para comenzar a cobrar cuentas.
           </p>
         </div>
       </div>
 
-      <div className="grid grid-cols-1 gap-3 text-sm sm:grid-cols-2">
-        <div className="rounded-xl bg-slate-100/70 px-4 py-3 dark:bg-stone-800">
+      {/* En pantallas muy bajas se omite: el último cierre también figura en "Turnos anteriores" */}
+      <div className="grid grid-cols-2 gap-2 text-xs sm:gap-3 sm:text-sm [@media(max-height:680px)]:hidden">
+        <div className="min-w-0 rounded-xl bg-slate-100/70 px-3 py-2 sm:px-4 sm:py-3 dark:bg-stone-800">
           <span className={cn("block text-xs", textoSecundario)}>Cajero responsable</span>
-          <span className={cn("font-semibold", textoTitulo)}>{cajero}</span>
+          <span className={cn("block truncate font-semibold", textoTitulo)}>{cajero}</span>
         </div>
-        <div className="rounded-xl bg-slate-100/70 px-4 py-3 dark:bg-stone-800">
+        <div className="min-w-0 rounded-xl bg-slate-100/70 px-3 py-2 sm:px-4 sm:py-3 dark:bg-stone-800">
           <span className={cn("block text-xs", textoSecundario)}>Último cierre</span>
-          <span className={cn("font-semibold", textoTitulo)}>
+          <span className={cn("block truncate font-semibold", textoTitulo)}>
             {ultimoTurno?.cerradoEn
               ? `${formatFechaHora(ultimoTurno.cerradoEn)} · ${formatToCurrency(ultimoTurno.arqueo?.efectivoContado ?? 0)}`
               : "Sin registros"}
@@ -252,7 +257,7 @@ export function AperturaCajaForm({
           placeholder="0.00"
           disabled={!puedeAbrir}
           state={errors.montoInicial ? "error" : "default"}
-          className="h-12 rounded-xl text-base tabular-nums"
+          className="h-11 rounded-xl text-base tabular-nums sm:h-12"
           {...register("montoInicial")}
         />
         <CampoError mensaje={errors.montoInicial?.message} />

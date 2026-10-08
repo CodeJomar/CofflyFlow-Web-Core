@@ -1,17 +1,11 @@
 "use client"
 
 import * as React from "react"
-import Link from "next/link"
 import {
-  CalendarDays,
-  Check,
-  Grid2X2,
-  IdCard,
+  Crown,
   Lock,
-  Mail,
   MapPin,
   Pencil,
-  Phone,
   Plus,
   RefreshCw,
   Search,
@@ -21,129 +15,57 @@ import {
   UserMinus,
   UserPlus,
   Users,
-  X,
 } from "lucide-react"
 
-import { useEntityDelete } from "@/shared/hooks"
+import { useEntityDelete, usePaginacionAjustada } from "@/shared/hooks"
+import { Avatar, AvatarFallback } from "@/shared/components/ui/avatar"
 import { Badge } from "@/shared/components/ui/badge"
 import { Button } from "@/shared/components/ui/button"
 import { Empty, EmptyContent, EmptyDescription, EmptyHeader, EmptyTitle } from "@/shared/components/ui/empty"
 import { Input } from "@/shared/components/ui/input"
+import { NativeSelect, NativeSelectOption } from "@/shared/components/ui/native-select"
+import { BarraPaginacion, GrillaAjustada } from "@/shared/components/ui/pagination"
 import { Skeleton } from "@/shared/components/ui/skeleton"
-import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/shared/components/ui/table"
-import {
-  Pagination,
-  PaginationContent,
-  PaginationItem,
-  PaginationLink,
-  PaginationNext,
-  PaginationPrevious,
-} from "@/shared/components/ui/pagination"
 import { toast } from "@/shared/components/ui/toast"
 import { cn } from "@/shared/utils/cn"
 import { formatDateStrict } from "@/shared/utils/formatters"
 import { useWorkspaceLayout } from "@/shared/context/workspace-layout-context"
-import { PERMISO, PERMISOS_POR_ROL, ROL_LABELS, tienePermiso } from "@/shared/constants/permisos"
+import { PERMISO, ROL_LABELS, tienePermiso } from "@/shared/constants/permisos"
 
 import { eliminarMesa } from "../actions/local-equipo.actions"
-import { usePersonal, usePlanoMesas } from "../hooks"
+import { usePersonal, usePlanoMesas, useRoles } from "../hooks"
 import {
   ESTADO_EMPLEADO_CONFIG,
   ESTADO_MESA_CONFIG,
-  MODULOS_PERMISOS,
-  ROL_OPERATIVO_CONFIG,
+  botonIcono,
+  botonPrimario,
+  botonSecundario,
   getAreaIcon,
-  opcionClass,
-  panelClass,
+  getRolVisual,
+  selectClass,
+  tarjetaClass,
 } from "../components"
-import {
-  FILTRO_ESTADO_LABELS,
-  ROLES_OPERATIVOS,
-  rolOperativoSchema,
-  type Empleado,
-  type FiltroEstadoEmpleado,
-  type FiltroRolEmpleado,
-  type Mesa,
-} from "../schema"
-import EmpleadoForm, { AreasForm, BajaEmpleadoForm, MesaForm } from "./Form"
+import { estadoEmpleadoSchema, type Empleado, type FiltroEstadoEmpleado, type Mesa, type Rol } from "../schema"
+import EmpleadoForm, {
+  AreasForm,
+  BajaEmpleadoForm,
+  ChipsModulos,
+  EncabezadoSeccion,
+  MesaForm,
+  RolForm,
+} from "./Form"
 
-const botonPrimario =
-  "h-10 rounded-full bg-[#4C0107] px-5 text-white hover:bg-[#4C0107]/90 dark:bg-stone-100 dark:text-stone-900 dark:hover:bg-stone-200"
-const botonSecundario = "h-10 rounded-full px-5 dark:border-stone-700 dark:text-stone-200 dark:hover:bg-stone-800"
-const botonIcono =
-  "flex size-9 shrink-0 cursor-pointer items-center justify-center rounded-full text-slate-500 transition-colors hover:bg-slate-100 hover:text-slate-900 dark:text-stone-400 dark:hover:bg-stone-800 dark:hover:text-stone-100"
+// Altos fijos de cada tarjeta: permiten calcular cuántas caben sin scroll en cualquier pantalla
+const ALTO_EMPLEADO = 160
+const ALTO_ROL = 216
+const ALTO_MESA = 128
 
-// Las fechas YYYY-MM-DD se interpretan como fecha local (evita el desfase por zona horaria)
-const formatearFecha = (iso: string) => formatDateStrict(`${iso}T00:00:00`)
+// Cada vista ocupa exactamente el alto disponible del workspace: sin scroll vertical ni horizontal
+const vistaClass = "flex h-full min-h-0 flex-col gap-4 overflow-hidden"
 
-/* -------------------------------------------------------------------------- */
-/*                                Encabezado                                  */
-/* -------------------------------------------------------------------------- */
-
-// La navegación entre secciones la resuelve la barra lateral (Local y Equipo)
-function EncabezadoLocal({
-  titulo,
-  descripcion,
-  acciones,
-}: {
-  titulo?: string
-  descripcion?: string
-  acciones?: React.ReactNode
-}) {
-  if (!titulo && !acciones) return null
-
-  return (
-    <div className="flex flex-col gap-4 sm:flex-row sm:items-end sm:justify-between">
-      {titulo && (
-        <div className="flex flex-col gap-1">
-          <h1 className="text-2xl font-bold tracking-tight text-slate-900 dark:text-stone-100">{titulo}</h1>
-          {descripcion && <p className="text-sm text-slate-500 dark:text-stone-400">{descripcion}</p>}
-        </div>
-      )}
-      {acciones && <div className="flex flex-wrap items-center gap-2 sm:ml-auto">{acciones}</div>}
-    </div>
-  )
-}
-
-function Contador({
-  label,
-  valor,
-  valueClass = "text-slate-900 dark:text-stone-100",
-  activo,
-  onClick,
-}: {
-  label: string
-  valor: number
-  valueClass?: string
-  activo?: boolean
-  onClick?: () => void
-}) {
-  const contenido = (
-    <>
-      <span className="text-[11px] font-semibold uppercase tracking-wider text-slate-500 sm:text-xs dark:text-stone-400">
-        {label}
-      </span>
-      <span className={cn("text-2xl font-bold tabular-nums sm:text-3xl", valueClass)}>{valor}</span>
-    </>
-  )
-  const clases = cn(panelClass, "w-full h-full flex flex-col items-start gap-1 p-3 text-left sm:p-4 rounded-2xl")
-
-  if (!onClick) return <div className={clases}>{contenido}</div>
-
-  return (
-    <button
-      type="button"
-      onClick={onClick}
-      aria-pressed={activo}
-      className={cn(
-        clases,
-        "cursor-pointer hover:border-[#4C0107]/30 dark:hover:border-stone-600",
-        activo && "border-[#4C0107]/50 ring-1 ring-[#4C0107]/20 dark:border-stone-400 dark:ring-stone-400/20"
-      )}
-    >
-      {contenido}
-    </button>
-  )
+const iniciales = (nombre: string) => {
+  const partes = nombre.trim().split(/\s+/)
+  return ((partes[0]?.[0] ?? "") + (partes.length > 1 ? partes[partes.length - 1][0] : (partes[0]?.[1] ?? ""))).toUpperCase()
 }
 
 /* -------------------------------------------------------------------------- */
@@ -161,233 +83,114 @@ export function PersonalView() {
 
   const personal = usePersonal()
   const [modal, setModal] = React.useState<ModalPersonal>(null)
-  const [pagina, setPagina] = React.useState(1)
-  const [itemsPorPagina, setItemsPorPagina] = React.useState(6)
   const cerrarModal = React.useCallback(() => setModal(null), [])
 
-  // Ajuste reactivo del tamaño de página para evitar scroll vertical en cualquier dispositivo:
-  // Móvil: 4 tarjetas (1 col) | Tablet: 4 tarjetas (2x2 cols) | Escritorio: 6 tarjetas (2x3 cols)
-  React.useEffect(() => {
-    const calcularLimite = () => {
-      if (window.innerWidth < 640) {
-        setItemsPorPagina(4)
-      } else if (window.innerWidth < 1024) {
-        setItemsPorPagina(4)
-      } else {
-        setItemsPorPagina(6)
-      }
-    }
-    calcularLimite()
-    window.addEventListener("resize", calcularLimite)
-    return () => window.removeEventListener("resize", calcularLimite)
-  }, [])
-
-  // Handlers para filtros con reinicio seguro de página
-  const handleBusqueda = React.useCallback(
-    (valor: string) => {
-      personal.setBusqueda(valor)
-      setPagina(1)
-    },
-    [personal]
-  )
-
-  const handleRol = React.useCallback(
-    (r: FiltroRolEmpleado) => {
-      personal.setRol(r)
-      setPagina(1)
-    },
-    [personal]
-  )
-
-  const handleEstado = React.useCallback(
-    (est: FiltroEstadoEmpleado) => {
-      personal.setEstado(est)
-      setPagina(1)
-    },
-    [personal]
-  )
-
-  const handleLimpiarFiltros = React.useCallback(() => {
-    personal.limpiarFiltros()
-    setPagina(1)
-  }, [personal])
-
-  const { empleadosFiltrados, resumen, cargado, error, recargar } = personal
-
-  const totalPaginas = Math.ceil(empleadosFiltrados.length / itemsPorPagina)
-  const paginaValida = Math.min(Math.max(1, pagina), Math.max(1, totalPaginas))
-
-  const empleadosPaginados = React.useMemo(() => {
-    const inicio = (paginaValida - 1) * itemsPorPagina
-    return empleadosFiltrados.slice(inicio, inicio + itemsPorPagina)
-  }, [empleadosFiltrados, paginaValida, itemsPorPagina])
+  const paginacion = usePaginacionAjustada(personal.empleadosFiltrados, {
+    altoItem: ALTO_EMPLEADO,
+    anchoMinimo: 280,
+    clave: `${personal.busqueda}|${personal.rol}|${personal.estado}`,
+  })
 
   if (!puedeVer) return <AccesoRestringido rol={ROL_LABELS[rol]} seccion="la gestión de personal" />
 
+  const { roles, rolesPorId, empleados, empleadosFiltrados, conteoPorEstado, cargado, error, recargar } = personal
+
   return (
-    <div className="flex flex-col gap-6 pb-2">
+    <div className={vistaClass}>
+      <EncabezadoSeccion
+        titulo="Gestión de Empleados"
+        descripcion="Registra, actualiza y da de baja al personal, vinculándolo a su rol operativo."
+        acciones={
+          puedeRegistrar && (
+            <Button
+              type="button"
+              size="sm"
+              onClick={() => setModal({ modo: "registrar" })}
+              disabled={!cargado || roles.length === 0}
+              leftIcon={<UserPlus className="size-4" />}
+              aria-label="Registrar empleado"
+              className={botonPrimario}
+            >
+              <span className="hidden sm:inline">Registrar Empleado</span>
+            </Button>
+          )
+        }
+      />
+
+      {/* Filtros */}
+      <div className="flex shrink-0 flex-col gap-2 sm:flex-row">
+        <div className="relative min-w-0 flex-1">
+          <Search className="pointer-events-none absolute left-3 top-1/2 size-4 -translate-y-1/2 text-slate-400 dark:text-stone-500" />
+          <Input
+            type="search"
+            value={personal.busqueda}
+            onChange={(e) => personal.setBusqueda(e.target.value)}
+            placeholder="Buscar por nombre, correo o rol…"
+            aria-label="Buscar empleado"
+            className="h-10 rounded-xl pl-9"
+          />
+        </div>
+        <div className="grid grid-cols-2 gap-2 sm:flex">
+          <NativeSelect
+            value={personal.rol}
+            onChange={(e) => personal.setRol(e.target.value)}
+            aria-label="Filtrar por rol"
+            className={cn("w-full sm:w-44", selectClass)}
+          >
+            <NativeSelectOption value="todos">Todos los roles</NativeSelectOption>
+            {roles.map((r) => (
+              <NativeSelectOption key={r.id} value={r.id}>
+                {r.nombre}
+              </NativeSelectOption>
+            ))}
+          </NativeSelect>
+          <NativeSelect
+            value={personal.estado}
+            onChange={(e) => personal.setEstado(e.target.value as FiltroEstadoEmpleado)}
+            aria-label="Filtrar por estado"
+            className={cn("w-full sm:w-44", selectClass)}
+          >
+            <NativeSelectOption value="todos">Todos ({empleados.length})</NativeSelectOption>
+            {estadoEmpleadoSchema.options.map((estado) => (
+              <NativeSelectOption key={estado} value={estado}>
+                {ESTADO_EMPLEADO_CONFIG[estado].label} ({conteoPorEstado.get(estado) ?? 0})
+              </NativeSelectOption>
+            ))}
+          </NativeSelect>
+        </div>
+      </div>
+
       {error ? (
         <ErrorState message={error} onRetry={recargar} />
       ) : !cargado ? (
-        <ListadoSkeleton />
+        <GrillaSkeleton />
+      ) : empleadosFiltrados.length === 0 ? (
+        <SinResultados texto="No hay empleados que coincidan con los filtros." onLimpiar={personal.limpiarFiltros} />
       ) : (
         <>
-          <div className="grid grid-cols-12 gap-3 sm:gap-4 items-stretch">
-            {(["todos", "activo", "baja"] as FiltroEstadoEmpleado[]).map((filtro) => (
-              <div
-                key={filtro}
-                className={cn(
-                  "col-span-4",
-                  puedeRegistrar ? "lg:col-span-3" : "lg:col-span-4"
-                )}
-              >
-                <Contador
-                  label={filtro === "todos" ? "Personal" : FILTRO_ESTADO_LABELS[filtro]}
-                  valor={filtro === "todos" ? resumen.total : filtro === "activo" ? resumen.activos : resumen.baja}
-                  valueClass={
-                    filtro === "activo"
-                      ? "text-emerald-700 dark:text-emerald-400"
-                      : filtro === "baja"
-                        ? "text-slate-500 dark:text-stone-400"
-                        : undefined
-                  }
-                  activo={personal.estado === filtro}
-                  onClick={() => handleEstado(filtro)}
+          <GrillaAjustada paginacion={paginacion} etiqueta="Empleados">
+            {paginacion.visibles.map((empleado) => (
+              <li key={empleado.id} className="min-h-0">
+                <EmpleadoCard
+                  empleado={empleado}
+                  rol={empleado.idRol ? rolesPorId.get(empleado.idRol) : undefined}
+                  puedeEditar={puedeEditar}
+                  puedeDarDeBaja={puedeDarDeBaja}
+                  onEditar={(e) => setModal({ modo: "editar", empleado: e })}
+                  onDarDeBaja={(e) => setModal({ modo: "baja", empleado: e })}
+                  onReactivar={personal.reactivar}
                 />
-              </div>
+              </li>
             ))}
-
-            {puedeRegistrar && (
-              <div className="col-span-12 lg:col-span-3 flex items-center justify-center">
-                <Button
-                  type="button"
-                  size="sm"
-                  onClick={() => setModal({ modo: "registrar" })}
-                  disabled={!cargado}
-                  leftIcon={<UserPlus className="size-4" />}
-                  className={cn(botonPrimario, "w-full justify-center shadow-xs cursor-pointer")}
-                >
-                  Registrar empleado
-                </Button>
-              </div>
-            )}
-          </div>
-
-          {/* Filtros */}
-          <div className="flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between">
-            <div className="relative w-full lg:max-w-xs">
-              <Search className="pointer-events-none absolute left-4 top-1/2 size-4 -translate-y-1/2 text-slate-400 dark:text-stone-500" />
-              <Input
-                type="search"
-                value={personal.busqueda}
-                onChange={(e) => handleBusqueda(e.target.value)}
-                placeholder="Buscar por nombre, DNI o correo"
-                aria-label="Buscar empleado"
-                className="h-10 rounded-full pl-10"
-              />
-            </div>
-            <div role="radiogroup" aria-label="Rol operativo" className="flex flex-wrap items-center gap-2">
-              {(["todos", ...rolOperativoSchema.options] as const).map((r) => {
-                const activo = personal.rol === r
-                const Icono = r === "todos" ? Users : ROL_OPERATIVO_CONFIG[r].icon
-                return (
-                  <button
-                    key={r}
-                    type="button"
-                    role="radio"
-                    aria-checked={activo}
-                    onClick={() => handleRol(r)}
-                    className={cn(
-                      "inline-flex h-9 shrink-0 cursor-pointer items-center gap-1.5 rounded-full border px-3.5 text-xs font-semibold whitespace-nowrap transition-colors",
-                      opcionClass(activo)
-                    )}
-                  >
-                    <Icono className="size-3.5" />
-                    {r === "todos" ? "Todos los roles" : ROLES_OPERATIVOS[r].nombre}
-                  </button>
-                )
-              })}
-            </div>
-          </div>
-
-          {empleadosFiltrados.length === 0 ? (
-            <SinResultados texto="No hay empleados que coincidan con los filtros." onLimpiar={handleLimpiarFiltros} />
-          ) : (
-            <div className="flex flex-col gap-5">
-              <ul className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3 items-stretch list-none p-0 m-0">
-                {empleadosPaginados.map((empleado) => (
-                  <li key={empleado.id} className="flex flex-col">
-                    <EmpleadoCard
-                      empleado={empleado}
-                      puedeEditar={puedeEditar}
-                      puedeDarDeBaja={puedeDarDeBaja}
-                      onEditar={(e) => setModal({ modo: "editar", empleado: e })}
-                      onBaja={(e) => setModal({ modo: "baja", empleado: e })}
-                      onReactivar={personal.reactivar}
-                    />
-                  </li>
-                ))}
-              </ul>
-
-              {/* Paginación solo cuando no caben todos los empleados en la pantalla */}
-              {totalPaginas > 1 && (
-                <div className="flex flex-col sm:flex-row items-center justify-between gap-3 pt-2">
-                  <span className="text-xs text-slate-500 dark:text-stone-400">
-                    Mostrando {(paginaValida - 1) * itemsPorPagina + 1} -{" "}
-                    {Math.min(paginaValida * itemsPorPagina, empleadosFiltrados.length)} de{" "}
-                    {empleadosFiltrados.length} empleados
-                  </span>
-
-                  <Pagination className="mx-0 w-auto justify-end">
-                    <PaginationContent>
-                      <PaginationItem>
-                        <PaginationPrevious
-                          onClick={() => setPagina((p) => Math.max(1, p - 1))}
-                          disabled={paginaValida <= 1}
-                          className={cn(
-                            "cursor-pointer",
-                            paginaValida <= 1 && "pointer-events-none opacity-50"
-                          )}
-                        />
-                      </PaginationItem>
-
-                      {Array.from({ length: totalPaginas }).map((_, i) => {
-                        const num = i + 1
-                        return (
-                          <PaginationItem key={num}>
-                            <PaginationLink
-                              isActive={paginaValida === num}
-                              onClick={() => setPagina(num)}
-                              className="cursor-pointer"
-                            >
-                              {num}
-                            </PaginationLink>
-                          </PaginationItem>
-                        )
-                      })}
-
-                      <PaginationItem>
-                        <PaginationNext
-                          onClick={() => setPagina((p) => Math.min(totalPaginas, p + 1))}
-                          disabled={paginaValida >= totalPaginas}
-                          className={cn(
-                            "cursor-pointer",
-                            paginaValida >= totalPaginas && "pointer-events-none opacity-50"
-                          )}
-                        />
-                      </PaginationItem>
-                    </PaginationContent>
-                  </Pagination>
-                </div>
-              )}
-            </div>
-          )}
+          </GrillaAjustada>
+          <BarraPaginacion paginacion={paginacion} etiqueta="empleados" />
         </>
       )}
 
       {(modal?.modo === "registrar" || modal?.modo === "editar") && (
         <EmpleadoForm
           empleado={modal.modo === "editar" ? modal.empleado : undefined}
+          roles={roles}
           onGuardado={personal.empleadoGuardado}
           onClose={cerrarModal}
         />
@@ -402,124 +205,95 @@ export function PersonalView() {
 
 function EmpleadoCard({
   empleado,
+  rol,
   puedeEditar,
   puedeDarDeBaja,
   onEditar,
-  onBaja,
+  onDarDeBaja,
   onReactivar,
 }: {
   empleado: Empleado
+  rol?: Rol
   puedeEditar: boolean
   puedeDarDeBaja: boolean
   onEditar: (empleado: Empleado) => void
-  onBaja: (empleado: Empleado) => void
+  onDarDeBaja: (empleado: Empleado) => void
   onReactivar: (empleado: Empleado) => Promise<void>
 }) {
-  const rolInfo = ROLES_OPERATIVOS[empleado.rol]
-  const rolConfig = ROL_OPERATIVO_CONFIG[empleado.rol]
-  const IconoRol = rolConfig.icon
-  const estado = ESTADO_EMPLEADO_CONFIG[empleado.estado]
-  const deBaja = empleado.estado === "baja"
-  const iniciales = `${empleado.nombres[0] ?? ""}${empleado.apellidos[0] ?? ""}`.toUpperCase()
   const [reactivando, setReactivando] = React.useState(false)
+  const estado = ESTADO_EMPLEADO_CONFIG[empleado.estado]
+  const visual = getRolVisual(rol?.nombre ?? "")
+  const IconoRol = visual.icon
+  const esDueno = empleado.tipoCuenta === "OWNER"
+  const deBaja = empleado.estado === "inactivo"
+  const puedeReactivar = empleado.estado === "inactivo" || empleado.estado === "suspendido"
 
   return (
-    <article
-      className={cn(
-        "flex h-full flex-col gap-4 rounded-2xl border bg-white p-4 transition-colors",
-        "border-slate-100 dark:border-stone-800 dark:bg-stone-900",
-        deBaja && "bg-slate-50/70 dark:bg-stone-950/40"
-      )}
-    >
+    <article className={cn(tarjetaClass, "gap-3", deBaja && "opacity-70")}>
       <div className="flex items-start gap-3">
-        <span
-          className={cn(
-            "flex size-11 shrink-0 items-center justify-center rounded-full text-sm font-bold",
-            deBaja
-              ? "bg-slate-200 text-slate-500 dark:bg-stone-800 dark:text-stone-400"
-              : "bg-[#4C0107] text-white dark:bg-[#E7B7BC] dark:text-stone-900"
-          )}
-          aria-hidden="true"
-        >
-          {iniciales}
-        </span>
-        <div className="flex min-w-0 flex-1 flex-col gap-1">
-          <h3
-            className={cn(
-              "truncate text-sm font-semibold text-slate-900 dark:text-stone-100",
-              deBaja && "text-slate-500 dark:text-stone-400"
-            )}
-          >
-            {empleado.nombres} {empleado.apellidos}
-          </h3>
-          <div className="flex flex-wrap items-center gap-1.5">
-            <Badge variant="estado" className={cn("px-2 text-[11px]", rolConfig.className)}>
-              <IconoRol className="size-3" />
-              {rolInfo.nombre}
-            </Badge>
-            <Badge variant="estado" className={cn("px-2 text-[11px]", estado.className)}>
-              {estado.label}
-            </Badge>
+        <Avatar className="size-11">
+          <AvatarFallback className={cn("text-sm", visual.className)}>{iniciales(empleado.nombre)}</AvatarFallback>
+        </Avatar>
+        <div className="flex min-w-0 flex-1 flex-col">
+          <div className="flex min-w-0 items-center gap-1.5">
+            <h3 className="truncate text-sm font-semibold text-slate-900 dark:text-stone-100">{empleado.nombre}</h3>
+            {esDueno && <Crown className="size-3.5 shrink-0 text-amber-500" aria-label="Dueño" />}
           </div>
+          <p className="truncate text-xs text-slate-500 dark:text-stone-400">{empleado.email}</p>
         </div>
+        <Badge variant="estado" className={cn("shrink-0 px-2 text-[11px]", estado.className)}>
+          {estado.label}
+        </Badge>
       </div>
 
-      <dl className="grid grid-cols-1 gap-1.5 text-xs text-slate-600 dark:text-stone-300">
-        <DatoEmpleado icon={IdCard} label="DNI" valor={empleado.dni} />
-        <DatoEmpleado icon={Phone} label="Celular" valor={empleado.telefono} />
-        <DatoEmpleado icon={Mail} label="Correo" valor={empleado.correo} />
-        <DatoEmpleado icon={CalendarDays} label="Ingreso" valor={formatearFecha(empleado.fechaIngreso)} />
-      </dl>
+      <div className="flex min-w-0 items-center gap-1.5">
+        <Badge variant="estado" className={cn("max-w-full gap-1 px-2 text-[11px]", visual.className)}>
+          <IconoRol className="size-3 shrink-0" />
+          <span className="truncate">{rol?.nombre ?? "Sin rol asignado"}</span>
+        </Badge>
+        {esDueno && (
+          <Badge variant="estado" className="bg-amber-50 px-2 text-[11px] text-amber-800 dark:bg-amber-500/15 dark:text-amber-300">
+            Dueño
+          </Badge>
+        )}
+      </div>
 
-      {deBaja && empleado.fechaBaja && (
-        <p className="rounded-xl bg-slate-100 px-3 py-2 text-xs text-slate-600 dark:bg-stone-800 dark:text-stone-300">
-          Baja el {formatearFecha(empleado.fechaBaja)}
-          {empleado.motivoBaja && ` · ${empleado.motivoBaja}`}
-        </p>
-      )}
-
-      <div className="mt-auto flex items-center justify-between gap-2 border-t border-slate-100 pt-3 dark:border-stone-800">
-        <span className="text-[11px] text-slate-500 dark:text-stone-400">Acceso: {ROL_LABELS[rolInfo.acceso]}</span>
-        <div className="flex items-center gap-1">
-          {puedeEditar && !deBaja && (
-            <button
-              type="button"
-              onClick={() => onEditar(empleado)}
-              aria-label={`Actualizar datos de ${empleado.nombres}`}
-              className={botonIcono}
-            >
+      <div className="mt-auto flex items-center justify-between gap-2 border-t border-slate-100 pt-2 dark:border-stone-800">
+        <span className="truncate text-[11px] text-slate-400 dark:text-stone-500">
+          Registrado el {formatDateStrict(empleado.fechaCreacion)}
+        </span>
+        <div className="flex shrink-0 items-center gap-0.5">
+          {puedeEditar && (
+            <button type="button" onClick={() => onEditar(empleado)} aria-label={`Editar ${empleado.nombre}`} className={botonIcono}>
               <Pencil className="size-4" />
             </button>
           )}
-          {puedeDarDeBaja &&
-            (deBaja ? (
-              <button
-                type="button"
-                disabled={reactivando}
-                onClick={async () => {
-                  setReactivando(true)
-                  await onReactivar(empleado)
-                  setReactivando(false)
-                }}
-                className="inline-flex h-9 cursor-pointer items-center gap-1.5 rounded-full border border-emerald-200 px-3.5 text-xs font-semibold text-emerald-700 transition-colors hover:bg-emerald-50 disabled:cursor-wait disabled:opacity-60 dark:border-emerald-500/30 dark:text-emerald-300 dark:hover:bg-emerald-500/10"
-              >
-                {reactivando ? <RefreshCw className="size-3.5 animate-spin" /> : <UserCheck className="size-3.5" />}
-                Reactivar
-              </button>
-            ) : (
-              <button
-                type="button"
-                onClick={() => onBaja(empleado)}
-                className="inline-flex h-9 cursor-pointer items-center gap-1.5 rounded-full border border-red-200 px-3.5 text-xs font-semibold text-red-700 transition-colors hover:bg-red-50 dark:border-red-500/30 dark:text-red-300 dark:hover:bg-red-500/10"
-              >
-                <UserMinus className="size-3.5" />
-                Dar de baja
-              </button>
-            ))}
-          {!puedeEditar && !puedeDarDeBaja && (
-            <span className="inline-flex items-center gap-1 text-xs text-slate-400 dark:text-stone-500">
-              <Lock className="size-3.5" /> Solo lectura
-            </span>
+          {puedeDarDeBaja && !esDueno && puedeReactivar && (
+            <button
+              type="button"
+              disabled={reactivando}
+              onClick={async () => {
+                setReactivando(true)
+                await onReactivar(empleado)
+                setReactivando(false)
+              }}
+              aria-label={`Reactivar a ${empleado.nombre}`}
+              title="Reactivar"
+              className={cn(botonIcono, "hover:text-emerald-700 dark:hover:text-emerald-400")}
+            >
+              <UserCheck className={cn("size-4", reactivando && "animate-pulse")} />
+            </button>
+          )}
+          {puedeDarDeBaja && !esDueno && !deBaja && (
+            <button
+              type="button"
+              onClick={() => onDarDeBaja(empleado)}
+              aria-label={`Dar de baja a ${empleado.nombre}`}
+              title="Dar de baja"
+              className={cn(botonIcono, "hover:text-red-600 dark:hover:text-red-400")}
+            >
+              <UserMinus className="size-4" />
+            </button>
           )}
         </div>
       </div>
@@ -527,138 +301,165 @@ function EmpleadoCard({
   )
 }
 
-function DatoEmpleado({ icon: Icono, label, valor }: { icon: typeof IdCard; label: string; valor: string }) {
-  return (
-    <div className="flex min-w-0 items-center gap-2">
-      <Icono className="size-3.5 shrink-0 text-slate-400 dark:text-stone-500" aria-hidden="true" />
-      <dt className="sr-only">{label}</dt>
-      <dd className="truncate tabular-nums">{valor}</dd>
-    </div>
-  )
-}
-
 /* -------------------------------------------------------------------------- */
-/*                 RF-11: Roles operativos y sus permisos                     */
+/*                     Gestión de Roles y Permisos                            */
 /* -------------------------------------------------------------------------- */
 
-const NIVELES_ACCESO = ["dueno", "administrador", "empleado"] as const
+type VistaRoles = { modo: "lista" } | { modo: "crear" } | { modo: "editar"; rol: Rol }
 
 export function RolesPermisosView() {
   const { rol } = useWorkspaceLayout()
   const puedeVer = tienePermiso(rol, PERMISO.READ_STAFF)
-  const personal = usePersonal()
+  const puedeCrear = tienePermiso(rol, PERMISO.CREATE_STAFF)
+  const puedeEditar = tienePermiso(rol, PERMISO.UPDATE_STAFF)
+  const puedeEliminar = tienePermiso(rol, PERMISO.DELETE_STAFF)
+
+  const roles = useRoles()
+  const [vista, setVista] = React.useState<VistaRoles>({ modo: "lista" })
+  const volver = React.useCallback(() => setVista({ modo: "lista" }), [])
+
+  // Ancho mínimo amplio: 2 columnas en escritorio como el diseño de referencia
+  const paginacion = usePaginacionAjustada(roles.roles, { altoItem: ALTO_ROL, anchoMinimo: 400 })
 
   if (!puedeVer) return <AccesoRestringido rol={ROL_LABELS[rol]} seccion="los roles y permisos" />
 
-  const { activosPorRol, cargado, error, recargar } = personal
+  // Vista "Crear Nuevo Rol" / "Editar Permisos" en la misma pantalla
+  if (vista.modo !== "lista") {
+    const rolEditado = vista.modo === "editar" ? vista.rol : undefined
+    return (
+      <RolForm
+        key={rolEditado?.id ?? "nuevo"}
+        rol={rolEditado}
+        puedeEditar={rolEditado ? puedeEditar : puedeCrear}
+        puedeEliminar={puedeEliminar}
+        empleadosAsignados={rolEditado ? (roles.empleadosPorRol.get(rolEditado.id) ?? 0) : 0}
+        onGuardado={roles.rolGuardado}
+        onEliminado={roles.rolEliminado}
+        onVolver={volver}
+      />
+    )
+  }
 
   return (
-    <div className="flex flex-col gap-6 pb-2">
-      <EncabezadoLocal
+    <div className={vistaClass}>
+      <EncabezadoSeccion
+        titulo="Gestión de Roles"
+        descripcion="Define las responsabilidades y niveles de acceso para tu equipo en Coffy Flow."
         acciones={
-          <Link
-            href="/local-equipo/personal"
-            className="inline-flex h-10 items-center gap-1.5 rounded-full border border-slate-200 px-5 text-sm font-medium text-slate-700 transition-colors hover:bg-slate-50 dark:border-stone-700 dark:text-stone-200 dark:hover:bg-stone-800"
-          >
-            <Users className="size-4" /> Asignar roles al personal
-          </Link>
+          puedeCrear && (
+            <Button
+              type="button"
+              size="sm"
+              onClick={() => setVista({ modo: "crear" })}
+              disabled={!roles.cargado}
+              leftIcon={<Plus className="size-4" />}
+              aria-label="Crear nuevo rol"
+              className={botonPrimario}
+            >
+              <span className="hidden sm:inline">Crear Nuevo Rol</span>
+            </Button>
+          )
         }
       />
 
-      {error ? (
-        <ErrorState message={error} onRetry={recargar} />
-      ) : !cargado ? (
-        <ListadoSkeleton />
+      {roles.error ? (
+        <ErrorState message={roles.error} onRetry={roles.recargar} />
+      ) : !roles.cargado ? (
+        <GrillaSkeleton />
+      ) : roles.roles.length === 0 ? (
+        <Empty className="min-h-0 flex-1">
+          <Users className="size-8 text-slate-400 dark:text-stone-500" />
+          <EmptyDescription>Aún no hay roles registrados.</EmptyDescription>
+        </Empty>
       ) : (
         <>
-          {/* Roles operativos */}
-          <ul className="grid grid-cols-1 gap-4 sm:grid-cols-2 xl:grid-cols-3 2xl:grid-cols-5">
-            {rolOperativoSchema.options.map((r) => {
-              const info = ROLES_OPERATIVOS[r]
-              const config = ROL_OPERATIVO_CONFIG[r]
-              const Icono = config.icon
-              const total = activosPorRol.get(r) ?? 0
-              return (
-                <li key={r} className={cn(panelClass, "flex flex-col gap-3 p-4")}>
-                  <div className="flex items-center justify-between gap-2">
-                    <span className={cn("flex size-10 items-center justify-center rounded-xl", config.className)}>
-                      <Icono className="size-5" />
-                    </span>
-                    <span className="text-right">
-                      <span className="block text-2xl font-bold tabular-nums text-slate-900 dark:text-stone-100">{total}</span>
-                      <span className="text-[11px] text-slate-500 dark:text-stone-400">{total === 1 ? "activo" : "activos"}</span>
-                    </span>
-                  </div>
-                  <div className="flex flex-col gap-1">
-                    <h2 className="text-sm font-semibold text-slate-900 dark:text-stone-100">{info.nombre}</h2>
-                    <p className="text-xs text-slate-500 dark:text-stone-400">{info.descripcion}</p>
-                  </div>
-                  <Badge
-                    variant="estado"
-                    className="mt-auto bg-slate-100 text-[11px] text-slate-700 dark:bg-stone-800 dark:text-stone-200"
-                  >
-                    Acceso: {ROL_LABELS[info.acceso]}
-                  </Badge>
-                </li>
-              )
-            })}
-          </ul>
-
-          {/* Matriz de permisos por nivel de acceso */}
-          <section className={cn(panelClass, "flex flex-col gap-4 p-4 lg:p-5")}>
-            <div className="flex flex-col gap-0.5">
-              <h2 className="text-base font-semibold text-slate-900 dark:text-stone-100">Permisos por nivel de acceso</h2>
-              <p className="text-xs text-slate-500 dark:text-stone-400">
-                El Dueño tiene acceso total. Los roles operativos heredan los permisos de su nivel.
-              </p>
-            </div>
-
-            <Table className="min-w-[520px]">
-              <TableHeader>
-                <TableRow className="border-slate-200 hover:bg-transparent">
-                  <TableHead className="h-auto px-0 pb-2">Permiso</TableHead>
-                  {NIVELES_ACCESO.map((nivel) => (
-                    <TableHead key={nivel} className="h-auto px-0 pb-2 text-center">
-                      {ROL_LABELS[nivel]}
-                    </TableHead>
-                  ))}
-                </TableRow>
-              </TableHeader>
-              {MODULOS_PERMISOS.map(({ modulo, permisos }) => (
-                <TableBody key={modulo}>
-                  <TableRow className="border-0 hover:bg-transparent">
-                    <TableHead
-                      colSpan={NIVELES_ACCESO.length + 1}
-                      scope="colgroup"
-                      className="h-auto px-0 pt-4 pb-1 text-xs font-semibold tracking-normal text-[#4C0107] normal-case dark:text-[#E7B7BC]"
-                    >
-                      {modulo}
-                    </TableHead>
-                  </TableRow>
-                  {permisos.map(({ label, permiso }) => (
-                    <TableRow key={permiso} className="text-slate-700 hover:bg-transparent dark:text-stone-300">
-                      <TableCell className="px-0 py-2">{label}</TableCell>
-                      {NIVELES_ACCESO.map((nivel) => {
-                        const tiene = PERMISOS_POR_ROL[nivel].includes(permiso)
-                        return (
-                          <TableCell key={nivel} className="px-0 py-2 text-center">
-                            {tiene ? (
-                              <Check className="mx-auto size-4 text-emerald-600 dark:text-emerald-400" aria-label="Permitido" />
-                            ) : (
-                              <X className="mx-auto size-4 text-slate-300 dark:text-stone-600" aria-label="No permitido" />
-                            )}
-                          </TableCell>
-                        )
-                      })}
-                    </TableRow>
-                  ))}
-                </TableBody>
-              ))}
-            </Table>
-          </section>
+          <GrillaAjustada paginacion={paginacion} etiqueta="Roles operativos">
+            {paginacion.visibles.map((r) => (
+              <li key={r.id} className="min-h-0">
+                <RolCard
+                  rol={r}
+                  empleados={roles.empleadosPorRol.get(r.id) ?? 0}
+                  editable={puedeEditar && !r.esSistema}
+                  onAbrir={() => setVista({ modo: "editar", rol: r })}
+                />
+              </li>
+            ))}
+          </GrillaAjustada>
+          <BarraPaginacion paginacion={paginacion} etiqueta="roles" />
         </>
       )}
     </div>
+  )
+}
+
+function RolCard({
+  rol,
+  empleados,
+  editable,
+  onAbrir,
+}: {
+  rol: Rol
+  empleados: number
+  editable: boolean
+  onAbrir: () => void
+}) {
+  const visual = getRolVisual(rol.nombre)
+  const Icono = visual.icon
+  const conPersonal = rol.esSistema || empleados > 0
+  const subtitulo = rol.esSistema
+    ? "Rol base del sistema"
+    : empleados > 0
+      ? `${empleados} ${empleados === 1 ? "empleado asignado" : "empleados asignados"}`
+      : "Sin empleados asignados"
+
+  return (
+    <article className={cn(tarjetaClass, "gap-3")}>
+      <div className="flex items-start justify-between gap-3">
+        <div className="flex min-w-0 items-center gap-3">
+          <span className={cn("flex size-11 shrink-0 items-center justify-center rounded-xl", visual.className)}>
+            <Icono className="size-5" />
+          </span>
+          <div className="flex min-w-0 flex-col">
+            <h3 className="truncate text-base font-bold text-slate-900 dark:text-stone-100">{rol.nombre}</h3>
+            <p
+              className={cn(
+                "flex items-center gap-1.5 truncate text-xs font-medium",
+                conPersonal ? "text-emerald-700 dark:text-emerald-400" : "text-slate-500 dark:text-stone-400"
+              )}
+            >
+              <span
+                className={cn("size-1.5 shrink-0 rounded-full", conPersonal ? "bg-emerald-500" : "bg-slate-300 dark:bg-stone-600")}
+              />
+              {subtitulo}
+            </p>
+          </div>
+        </div>
+        <Button
+          type="button"
+          variant="outline"
+          size="sm"
+          onClick={onAbrir}
+          leftIcon={editable ? <Pencil className="size-3.5" /> : <Lock className="size-3.5" />}
+          aria-label={editable ? `Editar permisos de ${rol.nombre}` : `Ver permisos de ${rol.nombre}`}
+          className="h-8 shrink-0 gap-1.5 rounded-lg border border-slate-200 bg-white px-2.5 text-xs font-medium text-slate-700 hover:bg-slate-50 hover:text-slate-900 dark:border-stone-700 dark:bg-transparent dark:text-stone-200 dark:hover:bg-stone-800"
+        >
+          <span className="hidden sm:inline">{editable ? "Editar Permisos" : "Ver Permisos"}</span>
+        </Button>
+      </div>
+
+      <p className="line-clamp-1 text-sm text-slate-600 dark:text-stone-300" title={rol.descripcion}>
+        {rol.descripcion || "Sin descripción."}
+      </p>
+
+      <div className="h-px shrink-0 bg-slate-100 dark:bg-stone-800" />
+
+      <div className="flex min-h-0 flex-1 flex-col gap-2 overflow-hidden">
+        <span className="text-[11px] font-semibold uppercase tracking-wider text-slate-400 dark:text-stone-500">
+          Módulos con acceso
+        </span>
+        <ChipsModulos permisos={rol.permisos} maximo={4} />
+      </div>
+    </article>
   )
 }
 
@@ -679,6 +480,12 @@ export function MesasView() {
   const [modal, setModal] = React.useState<ModalMesas>(null)
   const cerrarModal = React.useCallback(() => setModal(null), [])
 
+  const paginacion = usePaginacionAjustada(mesas.mesasFiltradas, {
+    altoItem: ALTO_MESA,
+    anchoMinimo: 190,
+    clave: mesas.areaFiltro,
+  })
+
   // Eliminación con el hook genérico de shared
   const { entityToDelete: mesaEnEliminacion, confirmDelete: confirmarEliminarMesa } = useEntityDelete<string>({
     actionDelete: eliminarMesa,
@@ -695,8 +502,10 @@ export function MesasView() {
   const nombreArea = (id: string) => plano?.areas.find((a) => a.id === id)?.nombre ?? "Sin área"
 
   return (
-    <div className="flex flex-col gap-6 pb-2">
-      <EncabezadoLocal
+    <div className={vistaClass}>
+      <EncabezadoSeccion
+        titulo="Gestión de Mesas"
+        descripcion="Registra, renombra o elimina las mesas y las áreas de atención del local."
         acciones={
           <>
             {puedeEditar && (
@@ -707,9 +516,10 @@ export function MesasView() {
                 onClick={() => setModal({ modo: "areas" })}
                 disabled={!plano}
                 leftIcon={<MapPin className="size-4" />}
+                aria-label="Gestionar áreas"
                 className={botonSecundario}
               >
-                Áreas
+                <span className="hidden sm:inline">Áreas</span>
               </Button>
             )}
             {puedeRegistrar && (
@@ -719,82 +529,73 @@ export function MesasView() {
                 onClick={() => setModal({ modo: "registrar" })}
                 disabled={!plano || plano.areas.length === 0}
                 leftIcon={<Plus className="size-4" />}
+                aria-label="Registrar nueva mesa"
                 className={botonPrimario}
               >
-                Nueva mesa
+                <span className="hidden sm:inline">Nueva Mesa</span>
               </Button>
             )}
           </>
         }
       />
 
+      {/* Filtro por área y resumen */}
+      <div className="flex shrink-0 items-center justify-between gap-3">
+        <NativeSelect
+          value={mesas.areaFiltro}
+          onChange={(e) => mesas.setAreaFiltro(e.target.value)}
+          disabled={!plano}
+          aria-label="Filtrar por área de atención"
+          className={cn("w-full min-w-0 sm:w-56", selectClass)}
+        >
+          <NativeSelectOption value="todas">Todas las áreas ({plano?.mesas.length ?? 0})</NativeSelectOption>
+          {plano?.areas.map((a) => (
+            <NativeSelectOption key={a.id} value={a.id}>
+              {a.nombre} ({mesasPorArea.get(a.id) ?? 0})
+            </NativeSelectOption>
+          ))}
+        </NativeSelect>
+        <p className="shrink-0 text-xs text-slate-500 tabular-nums dark:text-stone-400">
+          {resumen.mesas} {resumen.mesas === 1 ? "mesa" : "mesas"} · {resumen.capacidad}{" "}
+          <span className="hidden sm:inline">personas</span>
+          <span className="sm:hidden">pers.</span>
+        </p>
+      </div>
+
       {!puedeEditar && (
-        <p className="flex items-start gap-2 rounded-2xl border border-slate-200 bg-slate-50 p-3 text-sm text-slate-600 dark:border-stone-800 dark:bg-stone-950/40 dark:text-stone-300">
-          <Lock className="mt-0.5 size-4 shrink-0" />
-          Solo el Dueño o el Administrador pueden modificar el plano de mesas.
+        <p className="flex shrink-0 items-center gap-2 rounded-xl border border-slate-200 bg-slate-50 px-3 py-2 text-xs text-slate-600 dark:border-stone-800 dark:bg-stone-950/40 dark:text-stone-300">
+          <Lock className="size-3.5 shrink-0" />
+          <span className="truncate">Solo el Dueño o el Administrador pueden modificar el plano de mesas.</span>
         </p>
       )}
 
       {error ? (
         <ErrorState message={error} onRetry={recargar} />
       ) : !plano || isLoading ? (
-        <ListadoSkeleton />
+        <GrillaSkeleton />
+      ) : mesasFiltradas.length === 0 ? (
+        <Empty className="min-h-0 flex-1">
+          <MapPin className="size-8 text-slate-400 dark:text-stone-500" />
+          <EmptyDescription>No hay mesas registradas en esta área.</EmptyDescription>
+        </Empty>
       ) : (
         <>
-          <div className="grid grid-cols-3 gap-3 sm:gap-4">
-            <Contador label="Áreas" valor={resumen.areas} />
-            <Contador label="Mesas" valor={resumen.mesas} />
-            <Contador label="Aforo" valor={resumen.capacidad} valueClass="text-[#4C0107] dark:text-[#E7B7BC]" />
-          </div>
-
-          {/* Filtro por área */}
-          <div role="radiogroup" aria-label="Área de atención" className="-mx-1 flex gap-2 overflow-x-auto px-1 pb-1 no-scrollbar">
-            {[{ id: "todas", nombre: "Todas las áreas" }, ...plano.areas].map((a) => {
-              const activa = mesas.areaFiltro === a.id
-              const Icono = a.id === "todas" ? Grid2X2 : getAreaIcon(a.id)
-              const total = a.id === "todas" ? plano.mesas.length : (mesasPorArea.get(a.id) ?? 0)
-              return (
-                <button
-                  key={a.id}
-                  type="button"
-                  role="radio"
-                  aria-checked={activa}
-                  onClick={() => mesas.setAreaFiltro(a.id)}
-                  className={cn(
-                    "inline-flex h-9 shrink-0 cursor-pointer items-center gap-1.5 rounded-full border px-3.5 text-xs font-semibold whitespace-nowrap transition-colors",
-                    opcionClass(activa)
-                  )}
-                >
-                  <Icono className="size-3.5" />
-                  {a.nombre}
-                  <span className="tabular-nums opacity-70">{total}</span>
-                </button>
-              )
-            })}
-          </div>
-
-          {mesasFiltradas.length === 0 ? (
-            <Empty>
-              <Grid2X2 className="size-8 text-slate-400 dark:text-stone-500" />
-              <EmptyDescription>No hay mesas registradas en esta área.</EmptyDescription>
-            </Empty>
-          ) : (
-            <ul className="grid grid-cols-2 gap-3 sm:grid-cols-3 xl:grid-cols-4 2xl:grid-cols-5">
-              {mesasFiltradas.map((mesa) => (
-                <li key={mesa.id}>
-                  <MesaCard
-                    mesa={mesa}
-                    area={nombreArea(mesa.area)}
-                    puedeEditar={puedeEditar}
-                    puedeEliminar={puedeEliminar}
-                    onEditar={(m) => setModal({ modo: "editar", mesa: m })}
-                    eliminando={mesaEnEliminacion === mesa.id}
-                    onEliminar={(m) => confirmarEliminarMesa(m.id)}
-                  />
-                </li>
-              ))}
-            </ul>
-          )}
+          <GrillaAjustada paginacion={paginacion} etiqueta="Mesas del local">
+            {paginacion.visibles.map((mesa) => (
+              <li key={mesa.id} className="min-h-0">
+                <MesaCard
+                  mesa={mesa}
+                  area={nombreArea(mesa.area)}
+                  puedeEditar={puedeEditar}
+                  puedeEliminar={puedeEliminar}
+                  eliminando={mesaEnEliminacion === mesa.id}
+                  onEditar={(m) => setModal({ modo: "editar", mesa: m })}
+                  onEliminar={(m) => confirmarEliminarMesa(m.id)}
+                />
+              </li>
+            ))}
+          </GrillaAjustada>
+          <BarraPaginacion paginacion={paginacion} etiqueta="mesas" />
         </>
       )}
 
@@ -843,7 +644,7 @@ function MesaCard({
   const enUso = mesa.estado !== "libre"
 
   return (
-    <article className="flex h-full flex-col gap-3 rounded-2xl border border-slate-100 bg-white p-4 dark:border-stone-800 dark:bg-stone-900">
+    <article className={cn(tarjetaClass, "gap-2 p-3.5")}>
       <div className="flex items-start justify-between gap-2">
         <h3 className="truncate text-base font-bold text-slate-900 dark:text-stone-100">{mesa.nombre}</h3>
         <Badge variant="estado" className={cn("shrink-0 px-2 text-[11px]", estado.badge)}>
@@ -851,68 +652,70 @@ function MesaCard({
         </Badge>
       </div>
 
-      <div className="flex flex-col gap-1 text-xs text-slate-500 dark:text-stone-400">
-        <span className="inline-flex items-center gap-1.5">
-          {React.createElement(getAreaIcon(mesa.area), { className: "size-3.5" })} {area}
-        </span>
-        <span className="inline-flex items-center gap-1.5">
-          <Users className="size-3.5" /> {mesa.capacidad} {mesa.capacidad === 1 ? "persona" : "personas"}
-        </span>
-      </div>
+      <p className="flex min-w-0 items-center gap-1.5 text-xs text-slate-500 dark:text-stone-400">
+        {React.createElement(getAreaIcon(mesa.area), { className: "size-3.5 shrink-0" })}
+        <span className="truncate">{area}</span>
+        <span>·</span>
+        <Users className="size-3.5 shrink-0" />
+        <span className="shrink-0">{mesa.capacidad}</span>
+      </p>
 
-      {(puedeEditar || puedeEliminar) && (
-        <div className="mt-auto flex items-center justify-end gap-1 border-t border-slate-100 pt-2 dark:border-stone-800">
-          {confirmando ? (
-            <div className="flex w-full items-center justify-between gap-1">
-              <span className="text-xs font-medium text-red-700 dark:text-red-300">¿Eliminar?</span>
-              <div className="flex items-center gap-1">
-                <button
-                  type="button"
-                  disabled={eliminando}
-                  onClick={async () => {
-                    await onEliminar(mesa)
-                    setConfirmando(false)
-                  }}
-                  className="h-8 cursor-pointer rounded-full bg-red-600 px-3 text-xs font-semibold text-white transition-colors hover:bg-red-700 disabled:opacity-60 dark:bg-red-500 dark:hover:bg-red-400"
-                >
-                  Sí
-                </button>
-                <button
-                  type="button"
-                  disabled={eliminando}
-                  onClick={() => setConfirmando(false)}
-                  className="h-8 cursor-pointer rounded-full px-3 text-xs font-semibold text-slate-600 transition-colors hover:bg-slate-100 dark:text-stone-300 dark:hover:bg-stone-800"
-                >
-                  No
-                </button>
-              </div>
+      <div className="mt-auto flex min-h-8 items-center justify-end gap-1 border-t border-slate-100 pt-2 dark:border-stone-800">
+        {confirmando ? (
+          <div className="flex w-full items-center justify-between gap-1">
+            <span className="text-xs font-medium text-red-700 dark:text-red-300">¿Eliminar?</span>
+            <div className="flex items-center gap-1">
+              <button
+                type="button"
+                disabled={eliminando}
+                onClick={async () => {
+                  await onEliminar(mesa)
+                  setConfirmando(false)
+                }}
+                className="h-8 cursor-pointer rounded-full bg-red-600 px-3 text-xs font-semibold text-white transition-colors hover:bg-red-700 disabled:opacity-60 dark:bg-red-500 dark:hover:bg-red-400"
+              >
+                Sí
+              </button>
+              <button
+                type="button"
+                disabled={eliminando}
+                onClick={() => setConfirmando(false)}
+                className="h-8 cursor-pointer rounded-full px-3 text-xs font-semibold text-slate-600 transition-colors hover:bg-slate-100 dark:text-stone-300 dark:hover:bg-stone-800"
+              >
+                No
+              </button>
             </div>
-          ) : (
-            <>
-              {puedeEditar && (
-                <button type="button" onClick={() => onEditar(mesa)} aria-label={`Editar ${mesa.nombre}`} className={botonIcono}>
-                  <Pencil className="size-4" />
-                </button>
-              )}
-              {puedeEliminar && (
-                <button
-                  type="button"
-                  onClick={() => setConfirmando(true)}
-                  disabled={enUso}
-                  title={enUso ? "Tiene un pedido en curso" : undefined}
-                  aria-label={`Eliminar ${mesa.nombre}`}
-                  className={cn(
-                    botonIcono,
-                    "hover:text-red-600 disabled:cursor-not-allowed disabled:opacity-40 disabled:hover:bg-transparent dark:hover:text-red-400"
-                  )}
-                >
-                  <Trash2 className="size-4" />
-                </button>
-              )}
-            </>
-          )}
-        </div>
-      )}
+          </div>
+        ) : (
+          <>
+            {!puedeEditar && !puedeEliminar && (
+              <span className="mr-auto text-[11px] text-slate-400 dark:text-stone-500">Solo lectura</span>
+            )}
+            {puedeEditar && (
+              <button
+                type="button"
+                onClick={() => onEditar(mesa)}
+                aria-label={`Editar ${mesa.nombre}`}
+                className={cn(botonIcono, "size-8")}
+              >
+                <Pencil className="size-4" />
+              </button>
+            )}
+            {puedeEliminar && (
+              <button
+                type="button"
+                onClick={() => setConfirmando(true)}
+                disabled={enUso}
+                title={enUso ? "Tiene un pedido en curso" : undefined}
+                aria-label={`Eliminar ${mesa.nombre}`}
+                className={cn(botonIcono, "size-8 hover:text-red-600 dark:hover:text-red-400")}
+              >
+                <Trash2 className="size-4" />
+              </button>
+            )}
+          </>
+        )}
+      </div>
     </article>
   )
 }
@@ -923,7 +726,7 @@ function MesaCard({
 
 function SinResultados({ texto, onLimpiar }: { texto: string; onLimpiar: () => void }) {
   return (
-    <Empty>
+    <Empty className="min-h-0 flex-1">
       <SearchX className="size-8 text-slate-400 dark:text-stone-500" />
       <EmptyDescription>{texto}</EmptyDescription>
       <EmptyContent>
@@ -943,7 +746,7 @@ function SinResultados({ texto, onLimpiar }: { texto: string; onLimpiar: () => v
 
 function AccesoRestringido({ rol, seccion }: { rol: string; seccion: string }) {
   return (
-    <Empty>
+    <Empty className="h-full">
       <Lock className="size-8 text-[#4C0107] dark:text-[#E7B7BC]" />
       <EmptyHeader>
         <EmptyTitle>Acceso restringido</EmptyTitle>
@@ -958,7 +761,7 @@ function AccesoRestringido({ rol, seccion }: { rol: string; seccion: string }) {
 
 function ErrorState({ message, onRetry }: { message: string; onRetry: () => void }) {
   return (
-    <Empty>
+    <Empty className="min-h-0 flex-1">
       <EmptyDescription>{message}</EmptyDescription>
       <EmptyContent>
         <Button
@@ -976,25 +779,16 @@ function ErrorState({ message, onRetry }: { message: string; onRetry: () => void
   )
 }
 
-function ListadoSkeleton() {
+// Esqueleto que ocupa el espacio disponible sin desbordarlo
+function GrillaSkeleton() {
   return (
-    <div className="flex flex-col gap-6" aria-busy="true">
-      <div className="grid grid-cols-12 gap-3 sm:gap-4">
-        {Array.from({ length: 3 }).map((_, i) => (
-          <div key={i} className="col-span-4 lg:col-span-3">
-            <Skeleton className="h-20 sm:h-24 rounded-2xl dark:bg-stone-800" />
-          </div>
-        ))}
-        <div className="col-span-12 lg:col-span-3">
-          <Skeleton className="h-20 sm:h-24 rounded-2xl dark:bg-stone-800" />
-        </div>
-      </div>
-      <Skeleton className="h-10 rounded-full dark:bg-stone-800" />
-      <div className="grid grid-cols-1 gap-4 md:grid-cols-2 2xl:grid-cols-3">
-        {Array.from({ length: 6 }).map((_, i) => (
-          <Skeleton key={i} className="h-48 rounded-2xl dark:bg-stone-800" />
-        ))}
-      </div>
+    <div
+      className="grid min-h-0 flex-1 auto-rows-[136px] grid-cols-1 gap-4 overflow-hidden sm:grid-cols-2 xl:grid-cols-3"
+      aria-busy="true"
+    >
+      {Array.from({ length: 9 }).map((_, i) => (
+        <Skeleton key={i} className="rounded-2xl dark:bg-stone-800" />
+      ))}
     </div>
   )
 }

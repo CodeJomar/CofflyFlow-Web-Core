@@ -8,6 +8,7 @@ import { suscribirseCambiosCatalogo } from "@/modules/pos/actions/pos.actions"
 import {
   getEmpleados,
   getPlanoMesas,
+  getRoles,
   reactivarEmpleado,
   registrarArea,
   renombrarArea,
@@ -16,103 +17,171 @@ import type {
   Area,
   AreaMesa,
   Empleado,
+  EstadoEmpleado,
   FiltroEstadoEmpleado,
   FiltroRolEmpleado,
   Mesa,
   PlanoMesas,
-  ResumenPersonal,
-  RolOperativo,
+  Rol,
 } from "../schema"
 
-const nombreCompleto = (e: Pick<Empleado, "nombres" | "apellidos">) => `${e.nombres} ${e.apellidos}`
+/* -------------------------------------------------------------------------- */
+/*                         Datos compartidos del equipo                       */
+/* -------------------------------------------------------------------------- */
+
+// Roles y usuarios se cargan con el hook genérico de shared (DataQuery)
+function useEquipo() {
+  const roles = useEntityList<Rol>(getRoles)
+  const empleados = useEntityList<Empleado>(getEmpleados)
+  const { fetchEntities: cargarRoles } = roles
+  const { fetchEntities: cargarEmpleados } = empleados
+  // Indica si ya terminó la primera carga (las recargas posteriores no muestran el esqueleto)
+  const [cargado, setCargado] = React.useState(false)
+
+  React.useEffect(() => {
+    Promise.all([cargarRoles(), cargarEmpleados()]).finally(() => setCargado(true))
+  }, [cargarRoles, cargarEmpleados])
+
+  const recargar = React.useCallback(() => {
+    void Promise.all([cargarRoles(), cargarEmpleados()])
+  }, [cargarRoles, cargarEmpleados])
+
+  const rolesPorId = React.useMemo(() => new Map(roles.entities.map((r) => [r.id, r])), [roles.entities])
+
+  const error =
+    roles.hasError || empleados.hasError
+      ? (roles.errorMessage ?? empleados.errorMessage ?? "No se pudo cargar la información del equipo.")
+      : null
+
+  return {
+    roles: roles.entities,
+    empleados: empleados.entities,
+    rolesPorId,
+    cargado,
+    error,
+    recargar,
+    cargarRoles,
+    cargarEmpleados,
+  }
+}
+
+/* -------------------------------------------------------------------------- */
+/*                      Roles operativos y sus permisos                       */
+/* -------------------------------------------------------------------------- */
+
+export function useRoles() {
+  const equipo = useEquipo()
+  const { cargarRoles } = equipo
+
+  // Empleados vigentes (no dados de baja) por rol
+  const empleadosPorRol = React.useMemo(() => {
+    const mapa = new Map<string, number>()
+    for (const e of equipo.empleados) {
+      if (e.idRol && e.estado !== "inactivo") mapa.set(e.idRol, (mapa.get(e.idRol) ?? 0) + 1)
+    }
+    return mapa
+  }, [equipo.empleados])
+
+  const rolGuardado = React.useCallback(
+    (nombre: string, esNuevo: boolean) => {
+      toast.add({ type: "success", title: esNuevo ? `Rol "${nombre}" creado.` : `Permisos de "${nombre}" actualizados.` })
+      void cargarRoles()
+    },
+    [cargarRoles]
+  )
+
+  const rolEliminado = React.useCallback(
+    (rol: Rol) => {
+      toast.add({ type: "success", title: `Rol "${rol.nombre}" eliminado.` })
+      void cargarRoles()
+    },
+    [cargarRoles]
+  )
+
+  return {
+    roles: equipo.roles,
+    empleadosPorRol,
+    cargado: equipo.cargado,
+    error: equipo.error,
+    recargar: equipo.recargar,
+    rolGuardado,
+    rolEliminado,
+  }
+}
 
 /* -------------------------------------------------------------------------- */
 /*            RF-11: Gestión de Personal y Asignación de Roles                */
 /* -------------------------------------------------------------------------- */
 
 export function usePersonal() {
-  // Listado con el hook genérico de shared (DataQuery)
-  const { entities: empleados, isLoading, hasError, errorMessage, fetchEntities } = useEntityList<Empleado>(getEmpleados)
-  // Indica si ya terminó la primera carga (las recargas posteriores no muestran el esqueleto)
-  const [cargado, setCargado] = React.useState(false)
+  const equipo = useEquipo()
+  const { cargarEmpleados, rolesPorId } = equipo
 
   const [busqueda, setBusqueda] = React.useState("")
   const [rol, setRol] = React.useState<FiltroRolEmpleado>("todos")
-  const [estado, setEstado] = React.useState<FiltroEstadoEmpleado>("activo")
-
-  React.useEffect(() => {
-    fetchEntities().finally(() => setCargado(true))
-  }, [fetchEntities])
-
-  const recargar = React.useCallback(() => {
-    void fetchEntities()
-  }, [fetchEntities])
+  const [estado, setEstado] = React.useState<FiltroEstadoEmpleado>("todos")
 
   const empleadosFiltrados = React.useMemo(() => {
     const termino = normalizarTexto(busqueda)
 
-    return empleados
+    return equipo.empleados
       .filter((e) => {
-        const coincideRol = rol === "todos" || e.rol === rol
+        const coincideRol = rol === "todos" || e.idRol === rol
         const coincideEstado = estado === "todos" || e.estado === estado
+        const nombreRol = e.idRol ? (rolesPorId.get(e.idRol)?.nombre ?? "") : ""
         const coincideBusqueda =
           !termino ||
-          normalizarTexto(nombreCompleto(e)).includes(termino) ||
-          e.dni.includes(termino) ||
-          normalizarTexto(e.correo).includes(termino)
+          normalizarTexto(e.nombre).includes(termino) ||
+          normalizarTexto(e.email).includes(termino) ||
+          normalizarTexto(nombreRol).includes(termino)
         return coincideRol && coincideEstado && coincideBusqueda
       })
-      .sort((a, b) => `${a.apellidos} ${a.nombres}`.localeCompare(`${b.apellidos} ${b.nombres}`, "es"))
-  }, [empleados, busqueda, rol, estado])
+      .sort((a, b) => {
+        // El Dueño primero; luego los de baja al final y orden alfabético
+        if (a.tipoCuenta !== b.tipoCuenta) return a.tipoCuenta === "OWNER" ? -1 : 1
+        if ((a.estado === "inactivo") !== (b.estado === "inactivo")) return a.estado === "inactivo" ? 1 : -1
+        return a.nombre.localeCompare(b.nombre, "es")
+      })
+  }, [equipo.empleados, rolesPorId, busqueda, rol, estado])
 
-  const resumen = React.useMemo<ResumenPersonal>(() => {
-    const activos = empleados.filter((e) => e.estado === "activo").length
-    return { total: empleados.length, activos, baja: empleados.length - activos }
-  }, [empleados])
-
-  // Empleados activos por rol operativo (para la vista de Roles y Permisos)
-  const activosPorRol = React.useMemo(() => {
-    const mapa = new Map<RolOperativo, number>()
-    for (const e of empleados) {
-      if (e.estado === "activo") mapa.set(e.rol, (mapa.get(e.rol) ?? 0) + 1)
-    }
+  const conteoPorEstado = React.useMemo(() => {
+    const mapa = new Map<EstadoEmpleado, number>()
+    for (const e of equipo.empleados) mapa.set(e.estado, (mapa.get(e.estado) ?? 0) + 1)
     return mapa
-  }, [empleados])
+  }, [equipo.empleados])
 
   // Se invoca desde EmpleadoForm (useEntityForm de shared) tras guardar con éxito
   const empleadoGuardado = React.useCallback(
-    (empleado: Pick<Empleado, "nombres" | "apellidos">, esNuevo: boolean) => {
+    (nombre: string, esNuevo: boolean) => {
       toast.add({
         type: "success",
-        title: esNuevo
-          ? `${nombreCompleto(empleado)} registrado en el equipo.`
-          : `Datos de ${nombreCompleto(empleado)} actualizados.`,
+        title: esNuevo ? `${nombre} registrado. Su cuenta queda pendiente de activación.` : `Datos de ${nombre} actualizados.`,
       })
-      void fetchEntities()
+      void cargarEmpleados()
     },
-    [fetchEntities]
+    [cargarEmpleados]
   )
 
   // Se invoca desde BajaEmpleadoForm (useEntityDelete de shared) tras la baja
   const empleadoDadoDeBaja = React.useCallback(
     (empleado: Empleado) => {
-      toast.add({ type: "success", title: `${nombreCompleto(empleado)} fue dado de baja.` })
-      void fetchEntities()
+      toast.add({ type: "success", title: `${empleado.nombre} fue dado de baja.` })
+      void cargarEmpleados()
     },
-    [fetchEntities]
+    [cargarEmpleados]
   )
 
   const reactivar = React.useCallback(
     async (empleado: Empleado) => {
       const respuesta = await reactivarEmpleado(empleado.id)
       if (respuesta.isOk()) {
-        toast.add({ type: "success", title: `${nombreCompleto(empleado)} fue reactivado.` })
-        await fetchEntities()
+        toast.add({ type: "success", title: `${empleado.nombre} fue reactivado.` })
+        await cargarEmpleados()
       } else {
         toast.add({ type: "error", title: "No se pudo reactivar al empleado.", description: respuesta.getMessage() })
       }
     },
-    [fetchEntities]
+    [cargarEmpleados]
   )
 
   const limpiarFiltros = React.useCallback(() => {
@@ -122,14 +191,14 @@ export function usePersonal() {
   }, [])
 
   return {
-    empleados,
+    roles: equipo.roles,
+    rolesPorId,
+    empleados: equipo.empleados,
     empleadosFiltrados,
-    resumen,
-    activosPorRol,
-    cargado,
-    isLoading,
-    error: hasError ? (errorMessage ?? "No se pudo cargar la lista de personal.") : null,
-    recargar,
+    conteoPorEstado,
+    cargado: equipo.cargado,
+    error: equipo.error,
+    recargar: equipo.recargar,
     busqueda,
     setBusqueda,
     rol,
@@ -210,14 +279,13 @@ export function usePlanoMesas() {
     return mapa
   }, [plano])
 
-  const resumen = React.useMemo(() => {
-    const mesas = plano?.mesas ?? []
-    return {
-      areas: plano?.areas.length ?? 0,
-      mesas: mesas.length,
-      capacidad: mesas.reduce((acc, m) => acc + m.capacidad, 0),
-    }
-  }, [plano])
+  const resumen = React.useMemo(
+    () => ({
+      mesas: mesasFiltradas.length,
+      capacidad: mesasFiltradas.reduce((acc, m) => acc + m.capacidad, 0),
+    }),
+    [mesasFiltradas]
+  )
 
   // Se invoca desde MesaForm (useEntityForm de shared) tras guardar con éxito
   const mesaGuardada = React.useCallback((mesa: Mesa, esNueva: boolean) => {

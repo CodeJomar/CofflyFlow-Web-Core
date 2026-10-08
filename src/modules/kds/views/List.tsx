@@ -89,6 +89,10 @@ function KdsContent() {
       {/* Encabezado Responsivo */}
       <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
         <div className="flex flex-col gap-1">
+          <h1 className="text-xl font-bold tracking-tight text-slate-900 dark:text-stone-100">
+            Cocina y Barra
+          </h1>
+          
           <div className="flex flex-wrap items-center gap-2">
             <span className="inline-flex items-center gap-1.5 rounded-full bg-[#4C0107]/10 dark:bg-[#EDE5E6]/10 px-2.5 py-0.5 text-xs font-semibold text-[#4C0107] dark:text-[#E7B7BC]">
               <span className="size-1.5 rounded-full bg-emerald-500 animate-pulse" />
@@ -99,12 +103,8 @@ function KdsContent() {
               {contadores.todas} {contadores.todas === 1 ? "comanda registrada" : "comandas registradas"}
             </span>
           </div>
-          <h1 className="text-2xl font-black tracking-tight text-slate-900 dark:text-stone-100">
-            Monitor de Cocina y Barra
-          </h1>
-          <p className="text-xs sm:text-sm text-slate-500 dark:text-stone-400">
-            Flujo en tiempo real para preparación, tiempos de espera y entrega ágil de pedidos.
-          </p>
+          
+          
         </div>
 
         <div className="flex items-center gap-2 self-start sm:self-auto shrink-0">
