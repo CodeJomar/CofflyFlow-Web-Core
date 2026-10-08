@@ -11,6 +11,7 @@ import { UserProfile } from "@/shared/components/composed/user-profile";
 import { FloatingSelect } from "@/shared/components/composed/floating-select";
 import { SelectContent, SelectItem } from "@/shared/components/ui/select";
 import { OverlaysDemo } from "./overlays-demo";
+import { ComposedDemo } from "./composed-demo";
 
 export default function PlaygroundPage() {
   return (
@@ -127,14 +128,10 @@ export default function PlaygroundPage() {
           </Card>
         </section>
 
-        {/* 4. Componentes Compuestos (Composed) */}
+        {/* 4. Componentes compuestos: texto largo, búsqueda y estados de lista */}
         <section className="space-y-4">
-          <h2 className="text-xl font-semibold">4. Composed Components (Próximamente)</h2>
-          <Card className="border-dashed">
-            <CardContent className="flex items-center justify-center h-32 pt-6 text-slate-400">
-              Aquí montaremos los SearchInputs, ConfirmModals y DataTables personalizados.
-            </CardContent>
-          </Card>
+          <h2 className="text-xl font-semibold">4. Composed: Textarea, Búsqueda y Estados</h2>
+          <ComposedDemo />
         </section>
 
         <section className="space-y-4">
