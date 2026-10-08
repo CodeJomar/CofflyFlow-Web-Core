@@ -4,7 +4,10 @@ import * as React from "react"
 import { cn } from "@/shared/utils/cn"
 import { AppSidebar } from "@/shared/components/layout/app-sidebar"
 import { WorkspaceHeader } from "@/shared/components/layout/workspace-header"
-import { SessionProvider, useSession, useLogout, etiquetaRol, iniciales } from "@/modules/auth"
+import { usePathname } from "next/navigation"
+import { AccesoDenegado } from "@/shared/components/composed/acceso-denegado"
+import { filtrarNavegacion, NAVEGACION, permisoDeRuta, rutaInicial } from "@/shared/constants/navegacion"
+import { SessionProvider, useSession, useCan, useLogout, etiquetaCuenta, etiquetaRol, iniciales } from "@/modules/auth"
 
 export default function WorkspaceLayout({
   children,
@@ -20,6 +23,12 @@ export default function WorkspaceLayout({
 
 function WorkspaceShell({ children }: { children: React.ReactNode }) {
   const usuario = useSession()
+  const { puede } = useCan()
+  const pathname = usePathname()
+  // Menú y protección de ruta salen del mismo mapa y de los permisos reales de la sesión.
+  const menu = React.useMemo(() => filtrarNavegacion(NAVEGACION, puede), [puede])
+  const requisito = permisoDeRuta(pathname)
+  const puedeVerRuta = !requisito || puede(requisito)
   const { logout } = useLogout()
   const [isCollapsed, setIsCollapsed] = React.useState(false)
   const [isMobileOpen, setIsMobileOpen] = React.useState(false)
@@ -73,6 +82,7 @@ function WorkspaceShell({ children }: { children: React.ReactNode }) {
         >
           <div className="flex-1 w-full overflow-hidden flex flex-col">
             <AppSidebar
+              items={menu}
               isCollapsed={isCollapsed && !isMobileOpen}
               userName={usuario.nombre}
               userRole={etiquetaRol(usuario)}
@@ -87,10 +97,11 @@ function WorkspaceShell({ children }: { children: React.ReactNode }) {
             isCollapsed={isCollapsed}
             onToggleCollapse={handleToggleSidebar}
             onLogout={logout}
+            etiquetaCuenta={etiquetaCuenta(usuario)}
           />
 
           <div className="flex-1 overflow-y-auto no-scrollbar pt-4">
-            {children}
+            {puedeVerRuta ? children : <AccesoDenegado rutaSegura={rutaInicial(puede)} />}
           </div>
         </main>
 

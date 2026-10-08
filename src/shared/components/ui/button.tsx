@@ -46,6 +46,9 @@ const buttonVariants = cva(
         md: "h-12 px-6 text-md",
         lg: "h-14 px-8 text-base",
         icon: "h-12 w-12",
+        // Sin estilo propio: los dimensiona quien los usa (dialog, sheet, sidebar, carousel...).
+        "icon-xs": "",
+        "icon-sm": "",
       },
     },
     defaultVariants: {

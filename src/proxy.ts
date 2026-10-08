@@ -11,7 +11,7 @@ const COOKIE_SESION = "cf_access";
 export function proxy(request: NextRequest) {
   const { pathname, search } = request.nextUrl;
 
-  const esPublica = pathname === "/" || RUTAS_PUBLICAS.some((ruta) => pathname === ruta || pathname.startsWith(`${ruta}/`));
+  const esPublica = RUTAS_PUBLICAS.some((ruta) => pathname === ruta || pathname.startsWith(`${ruta}/`));
   if (esPublica || request.cookies.has(COOKIE_SESION)) return NextResponse.next();
 
   const login = new URL("/login", request.url);

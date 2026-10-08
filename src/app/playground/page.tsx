@@ -1,12 +1,10 @@
 import React from "react";
 import { Button } from "@/shared/components/ui/button";
-import { Input } from "@/shared/components/ui/input";
-import { Label } from "@/shared/components/ui/label";
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/shared/components/ui/card";
+import { Card, CardContent } from "@/shared/components/ui/card";
 import { Badge } from "@/shared/components/ui/badge";
 import { FloatingInput } from "@/shared/components/composed/floating-input";
 import { IconSwitch } from "@/shared/components/composed/icon-switch";
-import { Users, Eye, Coffee, Croissant, CupSoda, CakeSlice, Lock, Mail, ArrowRight, Monitor, RotateCcw, CheckCircle2, AlertCircle, Info, Moon, Sun, Bell, AlertTriangle } from "lucide-react";
+import { Users, Eye, Lock, Mail, ArrowRight, Monitor, RotateCcw, CheckCircle2, AlertCircle, Info, Moon, Sun, Bell, AlertTriangle } from "lucide-react";
 import { Switch } from "@/shared/components/ui/switch";
 import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/shared/components/ui/tabs";
 import { UserProfile } from "@/shared/components/composed/user-profile";

@@ -3,21 +3,9 @@
 import * as React from "react"
 import Link from "next/link"
 import { usePathname } from "next/navigation"
-import {
-  LayoutDashboard,
-  ReceiptText,
-  Refrigerator,
-  UtensilsCrossed,
-  Store,
-  FileText,
-  Users,
-  ShieldCheck,
-  Grid2X2,
-  Coins,
-  Clock,
-  Coffee
-} from "lucide-react"
+import { Coffee } from "lucide-react"
 
+import { HOME_HREF, type NavItem } from "@/shared/constants/navegacion"
 import { SidebarNavItem } from "@/shared/components/composed/sidebar-nav-item"
 import { SidebarNavGroup } from "@/shared/components/composed/sidebar-nav-group"
 import { UserProfile } from "@/shared/components/composed/user-profile"
@@ -27,6 +15,8 @@ import { Tooltip, TooltipContent, TooltipTrigger } from "@/shared/components/ui/
 import { cn } from "@/shared/utils/cn"
 
 interface AppSidebarProps {
+  /** Menú que puede ver este usuario (ya filtrado por permisos con `filtrarNavegacion`). */
+  items: NavItem[]
   isCollapsed?: boolean
   className?: string
   /** Usuario autenticado (lo provee el layout del workspace). */
@@ -36,6 +26,7 @@ interface AppSidebarProps {
 }
 
 export function AppSidebar({
+  items,
   isCollapsed = false,
   className,
   userName = "Usuario",
@@ -62,7 +53,7 @@ export function AppSidebar({
               <TooltipTrigger
                 render={
                   <Link
-                    href="/dashboard"
+                    href={HOME_HREF}
                     className="flex items-center justify-center pt-1 rounded-2xl transition-opacity hover:opacity-90 outline-none select-none cursor-pointer"
                   >
                     <Avatar className="size-12 shrink-0 border-none">
@@ -77,7 +68,7 @@ export function AppSidebar({
             </Tooltip>
           ) : (
             <Link
-              href="/dashboard"
+              href={HOME_HREF}
               className="flex items-center gap-3 pt-1 px-2 rounded-2xl transition-opacity hover:opacity-90 outline-none select-none cursor-pointer"
             >
               <Avatar className="size-12 shrink-0 border-none">
@@ -101,109 +92,31 @@ export function AppSidebar({
           <Separator className="bg-[#EDE5E6] dark:bg-[#373232]" />
         </div>
 
-        {/* Enlaces del Menú */}
+        {/* Enlaces del Menú (generados desde el mapa de navegación) */}
         <nav className="flex flex-col gap-1.5 w-full">
-          {isCollapsed ? (
-            <>
-              <Tooltip>
-                <TooltipTrigger render={
-                  <Link href="/dashboard" className="w-full flex justify-center cursor-pointer">
-                    <SidebarNavItem icon={<LayoutDashboard />} isActive={pathname === "/dashboard"} />
-                  </Link>
-                } />
-                <TooltipContent side="right">Dashboard</TooltipContent>
-              </Tooltip>
-
-              <Tooltip>
-                <TooltipTrigger render={
-                  <Link href="/pos" className="w-full flex justify-center cursor-pointer">
-                    <SidebarNavItem icon={<ReceiptText />} isActive={pathname === "/pos"} />
-                  </Link>
-                } />
-                <TooltipContent side="right">POS</TooltipContent>
-              </Tooltip>
-
-              <Tooltip>
-                <TooltipTrigger render={
-                  <Link href="/kds" className="w-full flex justify-center cursor-pointer">
-                    <SidebarNavItem icon={<Refrigerator />} isActive={pathname === "/kds"} />
-                  </Link>
-                } />
-                <TooltipContent side="right">KDS</TooltipContent>
-              </Tooltip>
-
-              <Tooltip>
-                <TooltipTrigger render={
-                  <Link href="/menu" className="w-full flex justify-center cursor-pointer">
-                    <SidebarNavItem icon={<UtensilsCrossed />} isActive={pathname === "/menu"} />
-                  </Link>
-                } />
-                <TooltipContent side="right">Menú</TooltipContent>
-              </Tooltip>
-
-              <Tooltip>
-                <TooltipTrigger render={
-                  <div className="w-full flex justify-center cursor-pointer">
-                    <SidebarNavItem icon={<Store />} />
-                  </div>
-                } />
-                <TooltipContent side="right">Local y Equipo</TooltipContent>
-              </Tooltip>
-
-              <Tooltip>
-                <TooltipTrigger render={
-                  <div className="w-full flex justify-center cursor-pointer">
-                    <SidebarNavItem icon={<FileText />} />
-                  </div>
-                } />
-                <TooltipContent side="right">Transacciones</TooltipContent>
-              </Tooltip>
-            </>
-          ) : (
-            <>
-              <Link href="/dashboard" className="w-full cursor-pointer">
-                <SidebarNavItem icon={<LayoutDashboard />} isActive={pathname === "/dashboard"}>
-                  Dashboard
-                </SidebarNavItem>
-              </Link>
-
-              <Link href="/pos" className="w-full cursor-pointer">
-                <SidebarNavItem icon={<ReceiptText />} isActive={pathname === "/pos"}>
-                  POS
-                </SidebarNavItem>
-              </Link>
-
-              <Link href="/kds" className="w-full cursor-pointer">
-                <SidebarNavItem icon={<Refrigerator />} isActive={pathname === "/kds"}>
-                  KDS
-                </SidebarNavItem>
-              </Link>
-
-              <Link href="/menu" className="w-full cursor-pointer">
-                <SidebarNavItem icon={<UtensilsCrossed />} isActive={pathname === "/menu"}>
-                  Menú
-                </SidebarNavItem>
-              </Link>
-
+          {items.map((item) =>
+            isCollapsed ? (
+              <CollapsedNavLink key={item.id} item={item} pathname={pathname} />
+            ) : item.hijos ? (
               <SidebarNavGroup
-                title="Local y Equipo"
-                icon={<Store />}
-                items={[
-                  { title: "Gestión de Empleados", icon: <Users /> },
-                  { title: "Roles y Permisos", icon: <ShieldCheck /> },
-                  { title: "Gestión de Mesas", icon: <Grid2X2 /> },
-                ]}
+                key={item.id}
+                title={item.label}
+                icon={<item.icon />}
+                defaultOpen={item.hijos.some((hijo) => estaActivo(pathname, hijo.href))}
+                items={item.hijos.map((hijo) => ({
+                  title: hijo.label,
+                  icon: <hijo.icon />,
+                  href: hijo.href,
+                  isActive: estaActivo(pathname, hijo.href),
+                }))}
               />
-
-              <SidebarNavGroup
-                title="Transacciones"
-                icon={<FileText />}
-                items={[
-                  { title: "Gestión de cajas", icon: <Coins /> },
-                  { title: "Historial de Pedidos", icon: <Clock /> },
-                ]}
-              />
-            </>
+            ) : (
+              <Link key={item.id} href={item.href!} className="w-full cursor-pointer">
+                <SidebarNavItem icon={<item.icon />} isActive={estaActivo(pathname, item.href)}>
+                  {item.label}
+                </SidebarNavItem>
+              </Link>
+            ),
           )}
         </nav>
       </div>
@@ -228,5 +141,29 @@ export function AppSidebar({
         )}
       </div>
     </div>
+  )
+}
+/** ¿La URL actual pertenece a esta pantalla? (exacta o anidada) */
+function estaActivo(pathname: string, href?: string): boolean {
+  return Boolean(href) && (pathname === href || pathname.startsWith(`${href}/`))
+}
+
+/** Menú colapsado: un icono con tooltip. Un grupo lleva a su primera pantalla disponible. */
+function CollapsedNavLink({ item, pathname }: { item: NavItem; pathname: string }) {
+  const destino = item.href ?? item.hijos?.[0]?.href
+  const activo = item.hijos ? item.hijos.some((hijo) => estaActivo(pathname, hijo.href)) : estaActivo(pathname, item.href)
+  if (!destino) return null
+
+  return (
+    <Tooltip>
+      <TooltipTrigger
+        render={
+          <Link href={destino} className="w-full flex justify-center cursor-pointer">
+            <SidebarNavItem icon={<item.icon />} isActive={activo} />
+          </Link>
+        }
+      />
+      <TooltipContent side="right">{item.label}</TooltipContent>
+    </Tooltip>
   )
 }

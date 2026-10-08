@@ -6,9 +6,6 @@ const API_INTERNAL_URL = (process.env.API_INTERNAL_URL ?? "http://localhost:4000
 
 const nextConfig: NextConfig = {
   output: "standalone",
-  typescript: {
-    ignoreBuildErrors: true,
-  },
   // El navegador habla SIEMPRE con su propio origen (/api/...) y Next reenvía a NestJS.
   // Así las cookies de sesión son de primera parte (sin SameSite=None ni CORS, que Safari/iPad bloquea)
   // y el Proxy de Next puede ver si existe sesión.

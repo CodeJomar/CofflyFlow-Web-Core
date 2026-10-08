@@ -13,6 +13,11 @@ export function etiquetaRol(usuario: SesionUsuarioDto): string {
   return (usuario.rol_nombre && ETIQUETAS_CARGO[usuario.rol_nombre]) || usuario.rol_nombre || "Empleado"
 }
 
+/** Tipo de cuenta para el encabezado: el propietario es "Dueño"; cualquier otra cuenta es "Empleado". */
+export function etiquetaCuenta(usuario: SesionUsuarioDto): string {
+  return usuario.tipo_cuenta === "OWNER" ? "Dueño" : "Empleado"
+}
+
 export function iniciales(nombre: string): string {
   const partes = nombre.trim().split(/\s+/).filter(Boolean)
   if (partes.length === 0) return "??"

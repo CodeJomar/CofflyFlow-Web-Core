@@ -1,13 +1,14 @@
-import type { UUID } from "../core/helpers"
-
-/** Usuario autenticado que devuelve la API (los tokens viajan solo en cookies HttpOnly). */
+/**
+ * Usuario autenticado que devuelve la API. Lista blanca: sin identificadores internos (ni usuario ni cargo).
+ * Los tokens viajan solo en cookies HttpOnly.
+ */
 export type SesionUsuarioDto = {
-  id_usuario: UUID
   nombre: string
   email: string
   tipo_cuenta: "OWNER" | "EMPLOYEE"
-  id_rol: UUID | null
   rol_nombre: string | null
+  /** Permisos efectivos "MODULO:ACCION"; el propietario recibe ["*"]. Solo ayuda de UX: la API vuelve a autorizar. */
+  permisos: string[]
 }
 
 export type LoginResponseDto = {

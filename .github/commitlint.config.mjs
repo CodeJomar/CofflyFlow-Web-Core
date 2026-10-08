@@ -1,5 +1,5 @@
 // Formato: tipo(ámbito): descripción   Ej.: feat(orders): idempotencia al crear pedidos
-export default {
+const configuracion = {
   extends: ['@commitlint/config-conventional'],
   rules: {
     'type-enum': [2, 'always', ['feat', 'fix', 'docs', 'style', 'refactor', 'perf', 'test', 'build', 'ci', 'chore', 'revert']],
@@ -9,3 +9,5 @@ export default {
     'footer-max-line-length': [0],
   },
 };
+
+export default configuracion;

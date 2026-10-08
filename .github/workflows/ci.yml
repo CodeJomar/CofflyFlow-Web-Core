@@ -30,11 +30,10 @@ jobs:
           cache: npm
       - name: Instalar dependencias (determinista)
         run: npm ci
-      # DECISIÓN TEMPORAL: el frontend tiene errores de lint heredados (8 al 2026-10-07: any explícitos y setState en
-      # effects). Mientras se corrigen, el lint informa pero no bloquea. Quitar continue-on-error cuando estén en cero.
       - name: Lint
         run: npm run lint
-        continue-on-error: true
+      - name: Tipos
+        run: npx tsc --noEmit
       - name: Build de producción
         run: npm run build
       - name: Vulnerabilidades en dependencias de producción

@@ -3,19 +3,19 @@
 import * as React from "react"
 
 const TABLET_BREAKPOINT = 1024
+const CONSULTA = `(max-width: ${TABLET_BREAKPOINT - 1}px)`
 
-export function useIsMobile() {
-  const [isMobile, setIsMobile] = React.useState<boolean | undefined>(undefined)
+function suscribir(alCambiar: () => void) {
+  const mql = window.matchMedia(CONSULTA)
+  mql.addEventListener("change", alCambiar)
+  return () => mql.removeEventListener("change", alCambiar)
+}
 
-  React.useEffect(() => {
-    const mql = window.matchMedia(`(max-width: ${TABLET_BREAKPOINT - 1}px)`)
-    const onChange = () => {
-      setIsMobile(window.innerWidth < TABLET_BREAKPOINT)
-    }
-    mql.addEventListener("change", onChange)
-    setIsMobile(window.innerWidth < TABLET_BREAKPOINT)
-    return () => mql.removeEventListener("change", onChange)
-  }, [])
-
-  return !!isMobile
+/** true en pantallas menores al breakpoint de tablet. En el servidor es false. */
+export function useIsMobile(): boolean {
+  return React.useSyncExternalStore(
+    suscribir,
+    () => window.matchMedia(CONSULTA).matches,
+    () => false,
+  )
 }

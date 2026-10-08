@@ -1,21 +1,28 @@
-import { z } from "zod";
+import { z } from "zod"
 
+/**
+ * Variables de entorno del navegador, validadas una sola vez. Se usa desde cualquier lado con `import { env }`.
+ *  - NEXT_PUBLIC_API_URL: por defecto "/api" (mismo origen; Next reenvía a NestJS con el rewrite de next.config.ts,
+ *    así las cookies de sesión son de primera parte).
+ *  - NEXT_PUBLIC_WS_URL: URL pública de la API para el WebSocket del KDS. Opcional hasta que se integre el KDS.
+ * Nunca guardes aquí secretos: todo NEXT_PUBLIC_* es visible en el navegador.
+ */
 const envSchema = z.object({
-  NEXT_PUBLIC_API_URL: z.string().url("URL base de la API NestJS"),
-  NEXT_PUBLIC_WS_URL: z.string().url("URL del servidor WebSocket (KDS/POS)"),
-  NODE_ENV: z.enum(["development", "production", "test"]).default("development"),
-});
+  NEXT_PUBLIC_API_URL: z.string().min(1).default("/api"),
+  NEXT_PUBLIC_WS_URL: z.string().url("NEXT_PUBLIC_WS_URL debe ser una URL (https://...)").optional(),
+})
 
-// Las variables NEXT_PUBLIC_* deben leerse de forma explícita para que Next las inline en el cliente.
+// Next solo sustituye NEXT_PUBLIC_* cuando se leen de forma explícita, no desde un objeto genérico.
 const parsed = envSchema.safeParse({
-  NEXT_PUBLIC_API_URL: process.env.NEXT_PUBLIC_API_URL,
-  NEXT_PUBLIC_WS_URL: process.env.NEXT_PUBLIC_WS_URL,
-  NODE_ENV: process.env.NODE_ENV,
-});
+  NEXT_PUBLIC_API_URL: process.env.NEXT_PUBLIC_API_URL || undefined,
+  NEXT_PUBLIC_WS_URL: process.env.NEXT_PUBLIC_WS_URL || undefined,
+})
 
 if (!parsed.success) {
-  console.error("Error en las variables de entorno:", parsed.error.flatten().fieldErrors);
-  process.exit(1);
+  const detalle = Object.entries(parsed.error.flatten().fieldErrors)
+    .map(([campo, errores]) => `${campo}: ${errores?.join(", ")}`)
+    .join("; ")
+  throw new Error(`Variables de entorno inválidas: ${detalle}`)
 }
 
-export const env = parsed.data;
+export const env = parsed.data

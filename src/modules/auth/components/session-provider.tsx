@@ -17,25 +17,43 @@ export function useSession(): SesionUsuarioDto {
 }
 
 /**
- * Confirma la sesión real con la API (/auth/me) antes de mostrar el workspace. El cliente HTTP renueva el
- * access token si venció; si la sesión no se puede recuperar, vuelve al login. La autorización sigue en NestJS.
+ * Confirma la sesión real con la API (/auth/me) antes de mostrar el workspace y la vuelve a confirmar cada vez que
+ * el usuario regresa a la pestaña: así un cambio de cargo o de permisos hecho por el propietario se refleja sin
+ * tener que cerrar sesión. El cliente HTTP renueva el access token si venció; si la sesión no se puede recuperar,
+ * vuelve al login. La autorización sigue en NestJS.
  */
 export function SessionProvider({ children }: { children: React.ReactNode }) {
   const router = useRouter()
   const pathname = usePathname()
   const [usuario, setUsuario] = React.useState<SesionUsuarioDto | null>(null)
 
+  // La ruta actual se lee al fallar, sin volver a pedir la sesión en cada navegación.
+  const rutaActual = React.useRef(pathname)
+  React.useEffect(() => {
+    rutaActual.current = pathname
+  }, [pathname])
+
   React.useEffect(() => {
     let cancelado = false
-    perfilAction().then((res) => {
-      if (cancelado) return
-      if (res.isOk()) setUsuario(res.data)
-      else router.replace(`/login?siguiente=${encodeURIComponent(pathname)}`)
-    })
+
+    const confirmarSesion = () =>
+      perfilAction().then((res) => {
+        if (cancelado) return
+        if (res.isOk()) setUsuario(res.data)
+        else router.replace(`/login?siguiente=${encodeURIComponent(rutaActual.current)}`)
+      })
+
+    const alVolver = () => {
+      if (document.visibilityState === "visible") void confirmarSesion()
+    }
+
+    void confirmarSesion()
+    document.addEventListener("visibilitychange", alVolver)
     return () => {
       cancelado = true
+      document.removeEventListener("visibilitychange", alVolver)
     }
-  }, [router, pathname])
+  }, [router])
 
   if (!usuario) {
     return (

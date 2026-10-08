@@ -6,14 +6,23 @@ import { useForm } from "react-hook-form"
 import { zodResolver } from "@hookform/resolvers/zod"
 
 import { toastResponse } from "@/shared/utils/toast-response"
+import { permisoDeRuta, rutaInicial } from "@/shared/constants/navegacion"
+import { puedeCon } from "@/shared/constants/permisos"
 import { loginAction } from "../actions/auth.actions"
 import { loginSchema, type LoginValues } from "../schema"
 
-/** Solo se aceptan rutas internas como destino (evita redirecciones abiertas). */
-function destinoSeguro(siguiente?: string): string {
-  return siguiente && siguiente.startsWith("/") && !siguiente.startsWith("//") && !siguiente.startsWith("/login")
-    ? siguiente
-    : "/dashboard"
+/**
+ * A dónde ir tras iniciar sesión. Solo se aceptan rutas internas (evita redirecciones abiertas) y solo si el cargo
+ * puede abrirlas; si no, a Inicio, que lista los accesos que su cargo sí puede usar.
+ */
+function destinoSeguro(siguiente: string | undefined, permisos: readonly string[]): string {
+  const puede = puedeCon(permisos)
+  const esInterna = Boolean(siguiente) && siguiente !== "/" && siguiente!.startsWith("/") && !siguiente!.startsWith("//") && !siguiente!.startsWith("/login")
+  if (esInterna) {
+    const requisito = permisoDeRuta(siguiente!.split("?")[0])
+    if (!requisito || puede(requisito)) return siguiente!
+  }
+  return rutaInicial(puede) ?? "/dashboard"
 }
 
 export function useLogin(siguiente?: string) {
@@ -50,7 +59,7 @@ export function useLogin(siguiente?: string) {
     })
 
     if (res.isOk()) {
-      router.replace(destinoSeguro(siguiente))
+      router.replace(destinoSeguro(siguiente, res.data.usuario.permisos))
       return
     }
 
