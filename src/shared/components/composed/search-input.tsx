@@ -9,6 +9,8 @@ import { cn } from "@/shared/utils/cn"
 export interface SearchInputProps extends Omit<React.InputHTMLAttributes<HTMLInputElement>, "value" | "onChange" | "type"> {
   value: string
   onValueChange: (valor: string) => void
+  /** Tecla de atajo que se muestra como pista mientras no hay texto (por ejemplo "/"). El atajo en sí lo programa quien lo usa. */
+  atajo?: string
 }
 
 /**
@@ -16,7 +18,7 @@ export interface SearchInputProps extends Omit<React.InputHTMLAttributes<HTMLInp
  * Controlado (`value` + `onValueChange`); usa el `Input` base para heredar sus estados y su modo oscuro.
  */
 export const SearchInput = React.forwardRef<HTMLInputElement, SearchInputProps>(function SearchInput(
-  { value, onValueChange, placeholder = "Buscar…", className, ...props },
+  { value, onValueChange, placeholder = "Buscar…", className, atajo, ...props },
   ref,
 ) {
   return (
@@ -33,6 +35,11 @@ export const SearchInput = React.forwardRef<HTMLInputElement, SearchInputProps>(
         className="h-10 rounded-xl pl-10 pr-9 text-sm [&::-webkit-search-cancel-button]:appearance-none"
         {...props}
       />
+      {!value && atajo && (
+        <kbd className="pointer-events-none absolute right-3.5 top-1/2 hidden -translate-y-1/2 rounded-md border border-slate-200 bg-white px-1.5 text-[11px] font-semibold text-slate-500 sm:block dark:border-stone-700 dark:bg-stone-800 dark:text-stone-300">
+          {atajo}
+        </kbd>
+      )}
       {value && (
         <button
           type="button"
