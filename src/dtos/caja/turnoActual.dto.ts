@@ -11,6 +11,7 @@ export type TurnoActualDto = {
     id_turno_caja: UUID
     fecha_apertura: FechaIso
     monto_inicial: Dinero
+    nota_apertura: string | null
     estado: EstadoTurno
     /** Nombre (no id) de quien abrió la caja. */
     abierto_por: string

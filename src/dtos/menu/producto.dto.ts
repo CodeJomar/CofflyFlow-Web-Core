@@ -10,4 +10,6 @@ export type ProductoDto = EntidadAuditada & {
   /** Precio base (sin modificadores). */
   precio: Dinero
   disponible: boolean
+  /** Dirección https de la foto; null si no tiene. */
+  imagen_url: string | null
 }

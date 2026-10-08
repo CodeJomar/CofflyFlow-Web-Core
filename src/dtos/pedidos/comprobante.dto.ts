@@ -11,6 +11,13 @@ import type { TipoPedido } from "./tipoPedido"
 export type ComprobanteDto = {
   /** Número corto para mostrar (8 caracteres). */
   numero: string
+  /** Número legible del pedido (#1, #2…). */
+  correlativo: number
+  cliente_nombre: string | null
+  /** Nombre de quien tomó el pedido. */
+  atendido_por: string | null
+  /** Cuántas veces se reimprimió el comprobante. */
+  reimpresiones: number
   aviso: string
   fecha: FechaIso
   mesa_numero: string | null

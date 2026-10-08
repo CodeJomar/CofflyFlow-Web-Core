@@ -9,6 +9,9 @@ export type TarjetaKdsDto = {
   id_pedido: UUID
   id_mesa: UUID | null
   mesa_numero: string | null
+  /** Número legible del pedido (#1, #2…). */
+  correlativo: number | null
+  cliente_nombre: string | null
   tipo_pedido: TipoPedido
   /** "pendiente" o "en_preparacion" mientras está en la cola. */
   estado: EstadoPedido

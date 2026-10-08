@@ -9,4 +9,8 @@ export type CajaActualDto =
       desde: FechaHoraLocal
       monto_inicial: Dinero
       efectivo_esperado: Dinero
+      /** Lo vendido en el turno que entra a la gaveta (efectivo). */
+      ventas_efectivo: Dinero
+      /** Lo vendido en el turno con tarjeta, Yape, Plin o transferencia. */
+      ventas_digitales: Dinero
     }
