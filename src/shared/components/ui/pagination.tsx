@@ -5,6 +5,9 @@ import { Button } from "@/shared/components/ui/button"
 import { ChevronLeftIcon, ChevronRightIcon, MoreHorizontalIcon } from "lucide-react"
 import type { PaginacionAjustada } from "@/shared/hooks/useDataTable"
 
+// Lo mínimo que necesita la barra: sirve con usePaginacionAjustada y con usePaginacionSimple
+type DatosPaginacion = Pick<PaginacionAjustada, "pagina" | "totalPaginas" | "setPagina" | "desde" | "hasta" | "total">
+
 function Pagination({ className, ...props }: React.ComponentProps<"nav">) {
   return (
     <nav
@@ -208,7 +211,7 @@ export function BarraPaginacion({
   etiqueta,
   compacta = false,
 }: {
-  paginacion: PaginacionAjustada
+  paginacion: DatosPaginacion
   etiqueta: string
   // Para paneles angostos: solo flechas y "página / total"
   compacta?: boolean
