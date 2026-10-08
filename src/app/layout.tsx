@@ -4,6 +4,7 @@ import { ThemeProvider } from "@/shared/providers/theme-provider"
 import { Toaster } from "@/shared/components/ui/toast"
 import { ConfirmProvider } from "@/shared/providers/confirm-provider"
 import { BloqueoMovil } from "@/shared/components/composed/bloqueo-movil"
+import { EstadoConexionModal } from "@/shared/components/composed/estado-conexion-modal"
 import "./globals.css";
 
 // Inter: Fuente global por defecto
@@ -47,6 +48,7 @@ export default function RootLayout({
             {/* En celular la app se oculta por completo (display: contents mantiene el layout normal en pantallas grandes) */}
             <div className="contents pantalla-pequena:hidden">
               <ConfirmProvider>{children}</ConfirmProvider>
+              <EstadoConexionModal />
             </div>
           </Toaster>
         </ThemeProvider>

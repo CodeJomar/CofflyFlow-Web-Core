@@ -10,7 +10,11 @@ const nextConfig: NextConfig = {
   // Así las cookies de sesión son de primera parte (sin SameSite=None ni CORS, que Safari/iPad bloquea)
   // y el Proxy de Next puede ver si existe sesión.
   async rewrites() {
-    return [{ source: "/api/:path*", destination: `${API_INTERNAL_URL}/api/:path*` }];
+    return [
+      { source: "/api/:path*", destination: `${API_INTERNAL_URL}/api/:path*` },
+      // Latido de la API (público, sin prefijo /api): lo usa el aviso de conexión para saber si volvió.
+      { source: "/estado-api", destination: `${API_INTERNAL_URL}/health` },
+    ];
   },
 };
 
