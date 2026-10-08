@@ -10,6 +10,7 @@ import {
   type TarjetaKdsDto,
   type WsTicketDto,
 } from "@/dtos/kds"
+import type { CatalogoActualizadoEventoDto } from "@/dtos/menu"
 import type { MesaEstadoEventoDto } from "@/dtos/mesas"
 import type { PagoActualizadoEventoDto } from "@/dtos/pedidos"
 
@@ -20,6 +21,7 @@ export interface ManejadoresTiempoReal {
   onItemActualizado?: (evento: ItemActualizadoEventoDto) => void
   onMesaEstado?: (evento: MesaEstadoEventoDto) => void
   onPagoActualizado?: (evento: PagoActualizadoEventoDto) => void
+  onCatalogoActualizado?: (evento: CatalogoActualizadoEventoDto) => void
   /** true al (re)conectar, false al perder la conexión. */
   onConexion?: (conectado: boolean) => void
 }
@@ -56,6 +58,7 @@ export function conectarTiempoReal(manejadores: ManejadoresTiempoReal): (() => v
   if (manejadores.onItemActualizado) socket.on(EVENTOS_KDS.itemActualizado, manejadores.onItemActualizado)
   if (manejadores.onMesaEstado) socket.on(EVENTOS_KDS.mesaEstado, manejadores.onMesaEstado)
   if (manejadores.onPagoActualizado) socket.on(EVENTOS_KDS.pagoActualizado, manejadores.onPagoActualizado)
+  if (manejadores.onCatalogoActualizado) socket.on(EVENTOS_KDS.catalogoActualizado, manejadores.onCatalogoActualizado)
 
   return () => {
     socket.removeAllListeners()

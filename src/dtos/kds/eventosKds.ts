@@ -13,6 +13,8 @@ export const EVENTOS_KDS = {
   mesaEstado: "mesa:estado-actualizado",
   /** servidor → clientes: cambió el estado de pago de un pedido. */
   pagoActualizado: "pedido:pago-actualizado",
+  /** servidor → clientes: el menú cambió (productos, categorías o modificadores); conviene volver a leerlo. */
+  catalogoActualizado: "menu:catalogo-actualizado",
   /** cliente → servidor (requiere KDS:DESPACHAR). */
   cambiarEstadoItem: "kds:cambiar-estado-item",
   /** cliente → servidor (requiere TABLES:CAMBIAR_ESTADO): la mesa por limpiar pasa a libre. */
