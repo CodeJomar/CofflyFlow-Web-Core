@@ -60,6 +60,12 @@ export const productoFormSchema = z.object({
     .refine((v) => aCentimos(v.replace(",", ".")) <= PRECIO_MAXIMO * 100, `El precio no puede superar S/ ${PRECIO_MAXIMO}.`),
   categoriaId: z.string().min(1, "Selecciona una categoría."),
   disponible: z.boolean(),
+  // Foto del producto (URL opcional)
+  imagenUrl: z
+    .string()
+    .trim()
+    .max(500, "La URL no puede superar los 500 caracteres.")
+    .refine((v) => v === "" || /^https?:\/\//i.test(v), "Usa una URL que empiece con http:// o https://."),
   // Grupos de personalización (leche, endulzante...) que se ofrecen al pedir este producto
   grupos: z.array(z.string()),
 })
@@ -72,6 +78,7 @@ export const productoToFormValues = (producto?: ProductoMenu, categoriaPorDefect
   precio: producto?.precio ?? "",
   categoriaId: producto?.id_categoria ?? categoriaPorDefecto,
   disponible: producto?.disponible ?? true,
+  imagenUrl: producto?.imagen_url ?? "",
   grupos: producto?.grupos_modificadores.map((g) => g.id_grupo) ?? [],
 })
 
