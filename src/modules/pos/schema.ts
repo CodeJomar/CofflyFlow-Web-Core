@@ -1,225 +1,176 @@
-import { z } from "zod"
+import type { MetodoPago } from "@/dtos/caja"
+import type { GrupoModificadorDto, ProductoPosDto } from "@/dtos/menu"
+import type { MesaConPedidoDto } from "@/dtos/mesas"
+import type { ItemPedidoPayload, TipoPedido } from "@/dtos/pedidos"
+import { aCentimos } from "@/shared/utils/dinero"
 
-// Tipo de atención del pedido
-export const tipoPedidoSchema = z.enum(["mesa", "llevar"])
-export type TipoPedido = z.infer<typeof tipoPedidoSchema>
+/* -------------------------------------------------------------------------- */
+/*                         Tipo de atención del pedido                         */
+/* -------------------------------------------------------------------------- */
 
-export const TIPO_PEDIDO_LABELS: Record<TipoPedido, string> = {
-  mesa: "En mesa",
+/** El POS atiende en mesa o para llevar (el tipo "delivery" existe en la API pero aún no tiene pantalla). */
+export type TipoAtencion = Extract<TipoPedido, "salon" | "llevar">
+
+export const TIPOS_ATENCION: readonly TipoAtencion[] = ["salon", "llevar"]
+
+export const TIPO_ATENCION_LABELS: Record<TipoAtencion, string> = {
+  salon: "En mesa",
   llevar: "Para llevar",
 }
 
-// Métodos de pago aceptados en caja
-export const metodoPagoSchema = z.enum(["efectivo", "tarjeta", "yape"])
-export type MetodoPago = z.infer<typeof metodoPagoSchema>
-
-export const METODO_PAGO_LABELS: Record<MetodoPago, string> = {
-  efectivo: "Efectivo",
-  tarjeta: "Tarjeta",
-  yape: "Yape / Plin",
-}
-
 /* -------------------------------------------------------------------------- */
-/*                 RF-04: Selección de Mesas y Áreas Físicas                  */
+/*                                  Catálogo                                   */
 /* -------------------------------------------------------------------------- */
 
-// Identificador del área de atención. Son dinámicas: el Dueño las administra
-// desde Local y Equipo → Gestión de Mesas (RF-12)
-export type AreaMesa = string
+export type ProductoPos = ProductoPosDto
 
-export interface AreaPos {
-  id: AreaMesa
-  nombre: string
-}
-
-export const estadoMesaSchema = z.enum(["libre", "ocupada", "por_cobrar"])
-export type EstadoMesa = z.infer<typeof estadoMesaSchema>
-
-export const ESTADO_MESA_LABELS: Record<EstadoMesa, string> = {
-  libre: "Libre",
-  ocupada: "Ocupada",
-  por_cobrar: "Por cobrar",
-}
-
-export interface MesaPos {
-  id: string
-  nombre: string
-  area: AreaMesa
-  estado: EstadoMesa
-  capacidad: number
-  mozo?: string
-  totalActual?: number
-  tiempoOcupada?: string
-}
-
-/* -------------------------------------------------------------------------- */
-/*               RF-05: Modificadores y Personalización de Comandas           */
-/* -------------------------------------------------------------------------- */
-
-export interface ModificadoresProducto {
-  tipoLeche?: "Entera" | "Deslactosada" | "Almendras" | "Avena" | "Sin leche"
-  endulzante?: "Sin azúcar" | "Azúcar rubia" | "Azúcar blanca" | "Stevia"
-  temperatura?: "Caliente" | "Tibio" | "Extra caliente" | "Frío / Con hielo"
-  notas?: string
-  precioExtra?: number
-}
-
-// Identificadores de categoría del catálogo ("todos" es un filtro, no una categoría real)
-// Son dinámicos: el Dueño puede crearlos desde el Menú (RF-09)
-export type CategoriaId = string
-export type FiltroCategoria = CategoriaId | "todos"
+/** Producto del catálogo con el nombre de su categoría (la API lo entrega anidado dentro de ella). */
+export type ProductoCatalogo = ProductoPos & { categoria_nombre: string }
 
 export interface CategoriaPos {
-  id: CategoriaId
+  id: string
   nombre: string
 }
 
-export interface ProductoPos {
-  id: string
-  nombre: string
-  descripcion: string
-  // Precio de venta con IGV incluido
-  precio: number
-  categoriaId: CategoriaId
-  disponible: boolean
-  permitePersonalizacion?: boolean
+/** Identificador de categoría; "todos" es un filtro, no una categoría real. */
+export type FiltroCategoria = string
+
+export const FILTRO_TODOS = "todos" as const
+
+/** Los precios del catálogo ya incluyen IGV: el desglose es solo informativo (el total no cambia). */
+export const IGV_TASA = 0.18
+
+/** Límite de unidades por línea en un mismo ticket. */
+export const MAX_CANTIDAD_ITEM = 99
+
+/** Máximo de caracteres de la nota de preparación que acepta la API. */
+export const MAX_NOTA_PREPARACION = 255
+
+/** Productos por página en el catálogo y mesas por página en el mapa. */
+export const PRODUCTOS_POR_PAGINA = 8
+export const MESAS_POR_PAGINA = 8
+
+/** Cada cuánto se vuelve a pedir el catálogo y las mesas (respaldo del tiempo real). */
+export const SONDEO_POS_MS = 30_000
+
+/* -------------------------------------------------------------------------- */
+/*                                    Mesas                                    */
+/* -------------------------------------------------------------------------- */
+
+export type MesaPos = MesaConPedidoDto
+
+export const FILTRO_TODAS_LAS_AREAS = "todas"
+export const AREA_SIN_ASIGNAR = "Sin área"
+
+/** Nombre del área de una mesa (las áreas son texto libre que administra el propietario). */
+export const areaDeMesa = (mesa: Pick<MesaPos, "area">): string => mesa.area?.trim() || AREA_SIN_ASIGNAR
+
+/** Áreas distintas, en el orden en que aparecen las mesas. */
+export function areasDeMesas(mesas: readonly MesaPos[]): string[] {
+  return [...new Set(mesas.map(areaDeMesa))]
+}
+
+/* -------------------------------------------------------------------------- */
+/*                                  Carrito                                    */
+/* -------------------------------------------------------------------------- */
+
+/** Opción de modificador elegida, con lo necesario para mostrarla y calcular el precio. */
+export interface SeleccionModificador {
+  id_grupo: string
+  grupo: string
+  id_opcion: string
+  opcion: string
+  /** Variación de precio con signo ("0.00", "1.50"). */
+  price_delta: string
 }
 
 export interface ItemCarrito {
+  /** Identificador de la línea en el carrito (no es el del producto: un mismo producto puede tener varias líneas). */
   uid: string
   producto: ProductoPos
   cantidad: number
-  modificadores?: ModificadoresProducto
+  modificadores: SeleccionModificador[]
+  notas?: string
 }
 
-export interface CatalogoPos {
-  categorias: CategoriaPos[]
-  productos: ProductoPos[]
-  areas: AreaPos[]
-  mesas: MesaPos[]
-}
-
+/** Todos los importes en céntimos enteros. */
 export interface TotalesCarrito {
   unidades: number
-  // Base imponible (sin IGV)
   subtotal: number
   igv: number
   total: number
 }
 
-// Tasa de IGV vigente: los precios del catálogo ya la incluyen
-export const IGV_TASA = 0.18
+export const tieneConfiguracion = (item: Pick<ItemCarrito, "modificadores" | "notas">): boolean =>
+  item.modificadores.length > 0 || Boolean(item.notas?.trim())
 
-// Límite de unidades por producto en un mismo ticket
-export const MAX_CANTIDAD_ITEM = 99
+/** Precio de una unidad: base más la variación de cada opción elegida (en céntimos). */
+export const precioUnitarioCentimos = (item: Pick<ItemCarrito, "producto" | "modificadores">): number =>
+  aCentimos(item.producto.precio) + item.modificadores.reduce((suma, m) => suma + aCentimos(m.price_delta), 0)
 
-/* -------------------------------------------------------------------------- */
-/*               RF-06: Envío Directo de Comanda a Cocina / Barra             */
-/* -------------------------------------------------------------------------- */
+export const subtotalLineaCentimos = (item: ItemCarrito): number => precioUnitarioCentimos(item) * item.cantidad
 
-export interface ComandaPayload {
-  mesaId?: string
-  mesaNombre?: string
-  tipoPedido: TipoPedido
-  mozoEmisor: string
-  items: ItemCarrito[]
-  notasGenerales?: string
+export function calcularTotales(items: readonly ItemCarrito[]): TotalesCarrito {
+  const total = items.reduce((suma, item) => suma + subtotalLineaCentimos(item), 0)
+  const subtotal = Math.round(total / (1 + IGV_TASA))
+  return {
+    unidades: items.reduce((suma, item) => suma + item.cantidad, 0),
+    subtotal,
+    igv: total - subtotal,
+    total,
+  }
 }
 
-export interface ComandaDespachada {
-  codigoComanda: string
-  mesa: string
-  mozoEmisor: string
-  horaEnvio: string
-  itemsTotal: number
-}
+/** Una línea del carrito sin configuración se agrupa con otra igual del mismo producto. */
+export const claveAgrupacion = (producto: ProductoPos): string => `base:${producto.id_producto}`
+
+/** Cuerpo de las líneas del pedido: el servidor resuelve precio, nombre y disponibilidad (solo se envían ids). */
+export const itemsParaPedido = (items: readonly ItemCarrito[]): ItemPedidoPayload[] =>
+  items.map((item) => ({
+    id_producto: item.producto.id_producto,
+    cantidad: item.cantidad,
+    ...(item.notas?.trim() ? { notas_preparacion: item.notas.trim() } : {}),
+    ...(item.modificadores.length > 0 ? { modificadores: item.modificadores.map((m) => ({ id_opcion: m.id_opcion })) } : {}),
+  }))
 
 /* -------------------------------------------------------------------------- */
-/*                                   Cobro                                    */
+/*                         Reglas de selección de opciones                      */
 /* -------------------------------------------------------------------------- */
 
-// Datos capturados en el formulario de cobro
-export const cobroSchema = z.object({
-  tipoPedido: tipoPedidoSchema,
-  mesa: z.string().trim().optional(),
-  cliente: z.string().trim().max(60, "Máximo 60 caracteres").optional(),
-  metodoPago: metodoPagoSchema,
-  montoRecibido: z.number().nonnegative().optional(),
-})
-export type CobroInput = z.infer<typeof cobroSchema>
+/** El grupo exige elegir al menos una opción (la API rechaza el pedido si falta). */
+export const grupoObligatorio = (grupo: GrupoModificadorDto): boolean => grupo.seleccion_minima > 0
 
-/**
- * Esquema tipado para React Hook Form con Zod resolver.
- * Valida reglas de negocio según tipo de pedido, método de pago y monto recibido.
- */
-export const crearCobroFormSchema = (total: number) =>
-  z
-    .object({
-      tipoPedido: tipoPedidoSchema,
-      mesa: z.string().trim().optional(),
-      cliente: z.string().trim().max(60, "Máximo 60 caracteres").optional(),
-      metodoPago: metodoPagoSchema,
-      montoRecibido: z.union([z.string(), z.number()]).optional(),
-    })
-    .superRefine((data, ctx) => {
-      if (data.tipoPedido === "mesa" && !data.mesa) {
-        ctx.addIssue({
-          code: z.ZodIssueCode.custom,
-          message: "Selecciona la mesa del pedido.",
-          path: ["mesa"],
-        })
-      }
-      if (data.metodoPago === "efectivo") {
-        const num =
-          data.montoRecibido === "" || data.montoRecibido === undefined
-            ? undefined
-            : Number(data.montoRecibido)
+/** El grupo admite una sola opción (se muestra como selector excluyente). */
+export const grupoExcluyente = (grupo: GrupoModificadorDto): boolean => grupo.seleccion_maxima === 1
 
-        if (num === undefined || Number.isNaN(num)) {
-          ctx.addIssue({
-            code: z.ZodIssueCode.custom,
-            message: "Ingresa el monto recibido.",
-            path: ["montoRecibido"],
-          })
-        } else if (num < 0) {
-          ctx.addIssue({
-            code: z.ZodIssueCode.custom,
-            message: "El monto no puede ser negativo.",
-            path: ["montoRecibido"],
-          })
-        } else if (num < total) {
-          ctx.addIssue({
-            code: z.ZodIssueCode.custom,
-            message: "El monto recibido no cubre el total.",
-            path: ["montoRecibido"],
-          })
-        }
-      }
-    })
-
-export type CobroFormValues = z.infer<ReturnType<typeof crearCobroFormSchema>>
-
-export interface VentaPayload extends CobroInput {
-  items: { productoId: string; cantidad: number; precio: number }[]
-  total: number
-}
-
-export interface VentaRegistrada {
-  codigo: string
-  total: number
-  vuelto: number
-  metodoPago: MetodoPago
-  registradaEn: string
-}
-
-/**
- * Valida las reglas de negocio del cobro que dependen del total del ticket.
- * Devuelve el mensaje de error o null si los datos son válidos.
- */
-export function validarCobro(datos: CobroInput, total: number): string | null {
-  const schema = crearCobroFormSchema(total)
-  const parsed = schema.safeParse(datos)
-  if (!parsed.success) return parsed.error.issues[0]?.message ?? "Datos de cobro inválidos."
-  if (total <= 0) return "El ticket está vacío."
+/** Mensaje de error si la selección de un grupo no cumple su mínimo o máximo; null si es válida. */
+export function errorDeSeleccion(grupo: GrupoModificadorDto, elegidas: number): string | null {
+  if (elegidas < grupo.seleccion_minima) {
+    return grupo.seleccion_minima === 1
+      ? `Elige una opción de "${grupo.nombre}".`
+      : `Elige al menos ${grupo.seleccion_minima} opciones de "${grupo.nombre}".`
+  }
+  if (grupo.seleccion_maxima > 0 && elegidas > grupo.seleccion_maxima) {
+    return `"${grupo.nombre}" admite como máximo ${grupo.seleccion_maxima}.`
+  }
   return null
 }
+
+/** El producto no se puede agregar con un solo toque: tiene grupos que exigen elegir. */
+export const requiereConfiguracion = (producto: ProductoPos): boolean =>
+  producto.grupos_modificadores.some(grupoObligatorio)
+
+/* -------------------------------------------------------------------------- */
+/*                                    Cobro                                    */
+/* -------------------------------------------------------------------------- */
+
+export const METODO_PAGO_LABELS: Record<MetodoPago, string> = {
+  efectivo: "Efectivo",
+  tarjeta: "Tarjeta",
+  yape: "Yape",
+  plin: "Plin",
+  transferencia: "Transferencia",
+}
+
+/** Máximo de líneas de pago por cobro (límite de la API). */
+export const MAX_LINEAS_PAGO = 6
