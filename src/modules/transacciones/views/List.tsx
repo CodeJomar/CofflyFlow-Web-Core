@@ -5,57 +5,44 @@ import {
   ArrowDownCircle,
   ArrowUpCircle,
   Ban,
-  Clock,
   Coins,
   Eye,
   History,
   LockKeyhole,
   LockKeyholeOpen,
-  Printer,
-  Receipt,
   ReceiptText,
   RefreshCw,
   Search,
   SearchX,
-  ShieldAlert,
-  Sparkles,
-  Store,
-  Tag,
-  User,
-  Utensils,
+  Undo2,
   X,
 } from "lucide-react"
 
+import type { MetodoPago, MovimientoHistorialDto, TipoMovimientoManual } from "@/dtos/caja"
+import type { PedidoListadoDto } from "@/dtos/pedidos"
+import { useCan } from "@/modules/auth"
 import { usePaginacionAjustada } from "@/shared/hooks"
 import { Button } from "@/shared/components/ui/button"
 import { Input } from "@/shared/components/ui/input"
 import { BarraPaginacion, GrillaAjustada } from "@/shared/components/ui/pagination"
 import { Skeleton } from "@/shared/components/ui/skeleton"
+import { ACCION, MODULO } from "@/shared/constants/permisos"
 import { cn } from "@/shared/utils/cn"
-import { formatToCurrency } from "@/shared/utils/formatters"
-import { useWorkspaceLayout } from "@/shared/context/workspace-layout-context"
-import { PERMISO, ROL_LABELS, tienePermiso } from "@/shared/constants/permisos"
+import { aCentimos, formatearCentimos, formatearDinero } from "@/shared/utils/dinero"
 
+import { useAnularPedido, useComprobante, useHistorialPedidos, useTurnoCaja } from "../hooks"
 import {
-  useComprobante,
-  useCuentasMesa,
-  useHistorialComandas,
-  useTurnoCaja,
-} from "../hooks"
-import {
+  AnularPedidoForm,
   AperturaCajaForm,
   CierreCajaForm,
-  CobroCuentaForm,
   ComprobanteModal,
-  DetalleComandaModal,
-  AnularComandaForm,
+  DevolucionForm,
   MovimientoCajaForm,
+  type CobroDevolvible,
 } from "./Form"
 import {
-  ESTADO_COMANDA_CONFIG,
-  METODO_PAGO_ICONS,
-  RESULTADO_ARQUEO_CONFIG,
-  botonPeligroClass,
+  ESTADO_PEDIDO_CONFIG,
+  GRUPO_PEDIDO_CHIPS,
   botonSecundarioClass,
   formatFechaHora,
   formatHora,
@@ -65,288 +52,46 @@ import {
   pestanaClass,
   tarjetaClass,
   textoAcento,
-  textoCuerpo,
   textoEtiqueta,
   textoSecundario,
   textoTitulo,
 } from "../components"
 import {
-  ESTADO_COMANDA_LABELS,
+  ESTADO_PEDIDO_LABELS,
+  GRUPO_PEDIDO_LABELS,
   METODO_PAGO_LABELS,
-  RESULTADO_ARQUEO_LABELS,
+  PERIODO_PEDIDOS_LABELS,
   TIPO_MOVIMIENTO_LABELS,
-  type Comanda,
-  type ComprobanteInterno,
-  type CuentaMesa,
-  type FiltroEstadoComanda,
-  type TipoMovimiento,
-  type TurnoCaja,
+  codigoPedido,
+  type FiltroGrupoPedido,
+  type PeriodoPedidos,
+  type TurnoArchivado,
 } from "../schema"
+import { devolverCobro } from "../actions/transacciones.actions"
+import { toastResponse } from "@/shared/utils/toast-response"
 
-export type PestanaTransacciones = "cajas" | "cuentas" | "historial"
+export type PestanaTransacciones = "cajas" | "historial"
 
 interface TransaccionesViewProps {
   pestanaPorDefecto?: PestanaTransacciones
 }
 
-export default function TransaccionesView({
-  pestanaPorDefecto = "cajas",
-}: TransaccionesViewProps) {
-  const { rol } = useWorkspaceLayout()
-
-  // Control granular de permisos: el empleado puede ver/operar según su asignación
-  if (!tienePermiso(rol, PERMISO.READ_CASH_SHIFT) && !tienePermiso(rol, PERMISO.READ_POS)) {
-    return <AccesoRestringido rol={ROL_LABELS[rol]} />
-  }
-
-  return (
-    <TransaccionesContenido
-      pestanaInicial={pestanaPorDefecto}
-      puedeAbrirCerrar={tienePermiso(rol, PERMISO.OPEN_CASH_SHIFT)}
-      puedeCobrar={tienePermiso(rol, PERMISO.CREATE_ORDER)}
-      puedeAnular={tienePermiso(rol, PERMISO.CANCEL_ORDER)}
-    />
-  )
-}
-
-function TransaccionesContenido({
-  pestanaInicial,
-  puedeAbrirCerrar,
-  puedeCobrar,
-  puedeAnular,
-}: {
-  pestanaInicial: PestanaTransacciones
-  puedeAbrirCerrar: boolean
-  puedeCobrar: boolean
-  puedeAnular: boolean
-}) {
-  const [pestanaActiva, setPestanaActiva] = React.useState<PestanaTransacciones>(pestanaInicial)
-
-  // Sincronización en cambios de prop (ej. al navegar entre sub-rutas de Transacciones)
-  React.useEffect(() => {
-    setPestanaActiva(pestanaInicial)
-  }, [pestanaInicial])
-
-  // Hooks de módulos
-  const {
-    turnoActivo,
-    turnosCerrados,
-    resumen,
-    isLoading: cargandoCaja,
-    error: errorCaja,
-    recargar: recargarCaja,
-    refrescar: refrescarCaja,
-    abrir: abrirCaja,
-    registrarMovimiento,
-    cerrar: cerrarCaja,
-  } = useTurnoCaja()
-
-  const {
-    cuentas,
-    totalPendiente,
-    isLoading: cargandoCuentas,
-    error: errorCuentas,
-    recargar: recargarCuentas,
-    refrescar: refrescarCuentas,
-  } = useCuentasMesa()
-
-  const {
-    comandasFiltradas,
-    conteo: conteoComandas,
-    montoCobrado,
-    montoAnulado,
-    busqueda: busquedaComandas,
-    setBusqueda: setBusquedaComandas,
-    estado: filtroEstadoComanda,
-    setEstado: setFiltroEstadoComanda,
-    isLoading: cargandoComandas,
-    error: errorComandas,
-    recargar: recargarComandas,
-    anular: anularComandaAction,
-  } = useHistorialComandas()
-
-  const {
-    comprobante,
-    esReimpresion,
-    isLoading: reimprimiendo,
-    mostrar: mostrarComprobante,
-    reimprimir: reimprimirComprobanteAction,
-    consultar: consultarComprobante,
-    cerrar: cerrarComprobante,
-  } = useComprobante()
-
-  // Modales abiertos
-  const [modalMovimiento, setModalMovimiento] = React.useState<TipoMovimiento | null>(null)
-  const [modalCierre, setModalCierre] = React.useState(false)
-  const [cuentaParaCobrar, setCuentaParaCobrar] = React.useState<CuentaMesa | null>(null)
-  const [comandaDetalle, setComandaDetalle] = React.useState<Comanda | null>(null)
-  const [comandaParaAnular, setComandaParaAnular] = React.useState<Comanda | null>(null)
-
-  // Callback ejecutado tras cobrar con éxito una cuenta por mesa (RF-14)
-  const handleCobroExitoso = (comp: ComprobanteInterno) => {
-    setCuentaParaCobrar(null)
-    mostrarComprobante(comp, false)
-    refrescarCuentas()
-    refrescarCaja()
-    recargarComandas()
-  }
+/** Cada ruta muestra una sola sección: /transacciones/cajas (turno de caja) o /transacciones/pedidos (historial). */
+export default function TransaccionesView({ pestanaPorDefecto = "cajas" }: TransaccionesViewProps) {
+  const { puede } = useCan()
 
   // Todas las vistas se ajustan al alto disponible (sin scroll en ningún dispositivo)
   return (
     <div data-sin-desborde className="flex h-full min-h-0 flex-col gap-4 overflow-hidden">
-      {/* Pestañas de Gestión de Cajas: RF-13 (Turno de Caja) y RF-14 (Cuentas por Mesa).
-          En Historial de Pedidos no se muestran: esa ventana solo presenta el historial (RF-15). */}
-      {pestanaInicial !== "historial" && (
-        <div className="flex shrink-0 flex-col gap-4 sm:flex-row sm:items-end sm:justify-end">
-          {/* Pestañas: RF-13 (Cajas) y RF-14 (Cuentas por Mesa) */}
-          <div className="flex w-full min-w-0 items-center gap-1 rounded-full bg-[#EDE5E6]/60 p-1 sm:w-auto dark:bg-stone-800">
-            <button
-              type="button"
-              id="transacciones-tab-cajas"
-              onClick={() => setPestanaActiva("cajas")}
-              className={cn(
-                "inline-flex h-8 min-w-0 flex-1 items-center justify-center gap-2 rounded-full px-3 text-xs font-semibold transition-all cursor-pointer whitespace-nowrap sm:flex-none sm:px-4",
-                pestanaClass(pestanaActiva === "cajas")
-              )}
-            >
-              <Coins className="size-3.5 shrink-0" />
-              <span className="truncate">Turno de Caja</span>
-              {turnoActivo && (
-                <span className="flex size-2 shrink-0 rounded-full bg-emerald-500 animate-pulse" />
-              )}
-            </button>
-
-            <button
-              type="button"
-              id="transacciones-tab-cuentas"
-              onClick={() => setPestanaActiva("cuentas")}
-              className={cn(
-                "inline-flex h-8 min-w-0 flex-1 items-center justify-center gap-2 rounded-full px-3 text-xs font-semibold transition-all cursor-pointer whitespace-nowrap sm:flex-none sm:px-4",
-                pestanaClass(pestanaActiva === "cuentas")
-              )}
-            >
-              <Utensils className="size-3.5 shrink-0" />
-              <span className="truncate">Cuentas por Mesa</span>
-              {cuentas.length > 0 && (
-                <span className="shrink-0 rounded-full bg-black/10 px-1.5 py-0.2 text-[10px] dark:bg-white/20">
-                  {cuentas.length}
-                </span>
-              )}
-            </button>
-          </div>
-        </div>
-      )}
-
-      {/* Renderizado de la Sección Activa */}
-      {pestanaActiva === "cajas" && (
+      {pestanaPorDefecto === "cajas" ? (
         <SeccionCajas
-          turnoActivo={turnoActivo}
-          turnosCerrados={turnosCerrados}
-          resumen={resumen}
-          cargando={cargandoCaja}
-          error={errorCaja}
-          puedeAbrirCerrar={puedeAbrirCerrar}
-          onRecargar={recargarCaja}
-          onAbrir={abrirCaja}
-          onAbrirMovimiento={(tipo) => setModalMovimiento(tipo)}
-          onAbrirCierre={() => setModalCierre(true)}
+          puedeAbrirCerrar={puede({ modulo: MODULO.TRANSACTIONS, accion: ACCION.ARQUEAR })}
+          puedeMover={puede({ modulo: MODULO.TRANSACTIONS, accion: ACCION.CREAR })}
         />
-      )}
-
-      {pestanaActiva === "cuentas" && (
-        <SeccionCuentasMesa
-          cuentas={cuentas}
-          totalPendiente={totalPendiente}
-          hayCajaAbierta={!!turnoActivo}
-          cargando={cargandoCuentas}
-          error={errorCuentas}
-          puedeCobrar={puedeCobrar}
-          onRecargar={recargarCuentas}
-          onCobrarCuenta={(cuenta) => setCuentaParaCobrar(cuenta)}
-        />
-      )}
-
-      {pestanaActiva === "historial" && (
-        <SeccionHistorialComandas
-          comandas={comandasFiltradas}
-          conteo={conteoComandas}
-          montoCobrado={montoCobrado}
-          montoAnulado={montoAnulado}
-          busqueda={busquedaComandas}
-          setBusqueda={setBusquedaComandas}
-          estado={filtroEstadoComanda}
-          setEstado={setFiltroEstadoComanda}
-          cargando={cargandoComandas}
-          error={errorComandas}
-          puedeAnular={puedeAnular}
-          onRecargar={recargarComandas}
-          onVerDetalle={(comanda) => setComandaDetalle(comanda)}
-          onAnularDirecto={(comanda) => setComandaParaAnular(comanda)}
-          onVerComprobante={consultarComprobante}
-        />
-      )}
-
-      {/* Modales funcionales */}
-      {modalMovimiento && turnoActivo && resumen && (
-        <MovimientoCajaForm
-          tipoInicial={modalMovimiento}
-          efectivoDisponible={resumen.efectivoEsperado}
-          onClose={() => setModalMovimiento(null)}
-          onRegistrar={registrarMovimiento}
-        />
-      )}
-
-      {modalCierre && turnoActivo && resumen && (
-        <CierreCajaForm
-          turno={turnoActivo}
-          resumen={resumen}
-          onClose={() => setModalCierre(false)}
-          onCerrar={cerrarCaja}
-        />
-      )}
-
-      {cuentaParaCobrar && (
-        <CobroCuentaForm
-          cuenta={cuentaParaCobrar}
-          onClose={() => setCuentaParaCobrar(null)}
-          onCobrado={handleCobroExitoso}
-        />
-      )}
-
-      {comandaDetalle && (
-        <DetalleComandaModal
-          comanda={comandaDetalle}
-          puedeAnular={puedeAnular}
-          reimprimiendo={reimprimiendo}
-          onClose={() => setComandaDetalle(null)}
-          onAnular={() => {
-            setComandaParaAnular(comandaDetalle)
-            setComandaDetalle(null)
-          }}
-          onReimprimir={async () => {
-            if (comandaDetalle.comprobante) {
-              await reimprimirComprobanteAction(comandaDetalle.comprobante)
-            }
-          }}
-        />
-      )}
-
-      {comandaParaAnular && (
-        <AnularComandaForm
-          comanda={comandaParaAnular}
-          onClose={() => setComandaParaAnular(null)}
-          onAnular={async (codigo, motivo) => {
-            await anularComandaAction(codigo, motivo)
-            refrescarCuentas()
-          }}
-        />
-      )}
-
-      {comprobante && (
-        <ComprobanteModal
-          comprobante={comprobante}
-          esReimpresion={esReimpresion}
-          onClose={cerrarComprobante}
+      ) : (
+        <SeccionHistorialPedidos
+          puedeDevolver={puede({ modulo: MODULO.TRANSACTIONS, accion: ACCION.DEVOLVER })}
+          puedeAnular={puede({ modulo: MODULO.ORDERS, accion: ACCION.ANULAR })}
         />
       )}
     </div>
@@ -357,10 +102,10 @@ function TransaccionesContenido({
 /*        Ajuste sin scroll: altos fijos y selector de paneles en móvil       */
 /* -------------------------------------------------------------------------- */
 
-// Altos fijos de filas y tarjetas: permiten calcular cuántas caben sin scroll en cualquier pantalla
+// Altos fijos de filas: permiten calcular cuántas caben sin scroll en cualquier pantalla
 const ALTO_MOVIMIENTO = 60
 const ALTO_TURNO = 76
-const ALTO_CUENTA = 292
+const ALTO_PEDIDO = 60
 // Ancho mínimo enorme = listas de una sola columna
 const UNA_COLUMNA = 100_000
 
@@ -403,49 +148,30 @@ function SelectorPaneles({
 }
 
 /* -------------------------------------------------------------------------- */
-/*                 RF-13: Vista de Apertura y Cierre de Turnos                */
+/*                         Turno de caja (apertura y cierre)                  */
 /* -------------------------------------------------------------------------- */
 
-function SeccionCajas({
-  turnoActivo,
-  turnosCerrados,
-  resumen,
-  cargando,
-  error,
-  puedeAbrirCerrar,
-  onRecargar,
-  onAbrir,
-  onAbrirMovimiento,
-  onAbrirCierre,
-}: {
-  turnoActivo: TurnoCaja | null
-  turnosCerrados: TurnoCaja[]
-  resumen: ReturnType<typeof useTurnoCaja>["resumen"]
-  cargando: boolean
-  error: string | null
-  puedeAbrirCerrar: boolean
-  onRecargar: () => void
-  onAbrir: (monto: number, nota?: string) => Promise<unknown>
-  onAbrirMovimiento: (tipo: TipoMovimiento) => void
-  onAbrirCierre: () => void
-}) {
+function SeccionCajas({ puedeAbrirCerrar, puedeMover }: { puedeAbrirCerrar: boolean; puedeMover: boolean }) {
+  const { actual, resumen, movimientos, archivados, isLoading, error, recargar, abrir, registrar, cerrar } = useTurnoCaja()
   const [panel, setPanel] = React.useState<PanelCaja>("principal")
+  const [modalMovimiento, setModalMovimiento] = React.useState<TipoMovimientoManual | null>(null)
+  const [modalCierre, setModalCierre] = React.useState(false)
 
-  if (cargando) return <TransaccionesSkeleton />
-  if (error) return <ErrorState message={error} onRetry={onRecargar} />
+  if (isLoading) return <TransaccionesSkeleton />
+  if (error) return <ErrorState message={error} onRetry={recargar} />
 
   // En móvil/tablet solo se muestra el panel elegido; en escritorio (xl) se muestran todos
   const visibilidad = (id: PanelCaja) => (panel === id ? "flex" : "hidden xl:flex")
 
   /* Sin turno activo: formulario de apertura + turnos anteriores */
-  if (!turnoActivo) {
+  if (!actual || !resumen) {
     const activo = panel === "movimientos" ? "principal" : panel
     return (
       <div className="flex min-h-0 flex-1 flex-col gap-4 overflow-hidden">
         <SelectorPaneles
           opciones={[
             { id: "principal", label: "Apertura" },
-            { id: "turnos", label: "Turnos anteriores", total: turnosCerrados.length },
+            { id: "turnos", label: "Turnos anteriores", total: archivados.length },
           ]}
           activo={activo}
           onChange={setPanel}
@@ -453,19 +179,20 @@ function SeccionCajas({
         <div className="grid min-h-0 flex-1 grid-cols-1 gap-4 xl:grid-cols-[minmax(0,1fr)_360px]">
           <div className={cn("min-h-0 flex-col", activo === "principal" ? "flex" : "hidden xl:flex")}>
             <AperturaCajaForm
-              cajero="Jomar Peralta"
-              ultimoTurno={turnosCerrados[0]}
+              ultimoTurno={archivados[0]}
               puedeAbrir={puedeAbrirCerrar}
-              onAbrir={onAbrir}
+              onAbrir={async (monto) => (await abrir({ monto_inicial: monto })).isOk()}
             />
           </div>
-          <PanelTurnos turnos={turnosCerrados} titulo="Turnos anteriores" className={visibilidad("turnos")} />
+          <PanelTurnos turnos={archivados} titulo="Turnos anteriores" className={visibilidad("turnos")} />
         </div>
       </div>
     )
   }
 
-  /* Turno abierto: estado, acciones y métricas + movimientos en vivo + turnos archivados */
+  const { turno } = actual
+
+  /* Turno abierto: estado, acciones y métricas + movimientos + turnos anteriores */
   return (
     <div className="flex min-h-0 flex-1 flex-col gap-4 overflow-hidden">
       <div className={cn(tarjetaClass, "flex shrink-0 flex-col gap-4 p-4 xl:gap-5 xl:p-5")}>
@@ -476,67 +203,74 @@ function SeccionCajas({
             </span>
             <div className="flex min-w-0 flex-col gap-0.5">
               <div className="flex min-w-0 items-center gap-2">
-                <h2 className={cn("truncate text-base font-bold sm:text-lg", textoTitulo)}>Turno {turnoActivo.codigo}</h2>
+                <h2 className={cn("truncate text-base font-bold sm:text-lg", textoTitulo)}>
+                  Turno {turno.id_turno_caja.slice(0, 8).toUpperCase()}
+                </h2>
                 <span className="inline-flex shrink-0 items-center gap-1.5 rounded-full bg-emerald-100 px-2.5 py-0.5 text-xs font-semibold text-emerald-800 dark:bg-emerald-500/20 dark:text-emerald-300">
                   <span className="size-1.5 rounded-full bg-emerald-500 animate-pulse" />
                   Abierto
                 </span>
               </div>
               <p className={cn("truncate text-xs", textoSecundario)}>
-                Responsable: <strong>{turnoActivo.cajero}</strong> · Abierto hace{" "}
-                <strong>{formatTranscurrido(turnoActivo.abiertoEn)}</strong> ({formatHora(turnoActivo.abiertoEn)})
+                Responsable: <strong>{turno.abierto_por}</strong> · Abierto hace{" "}
+                <strong>{formatTranscurrido(turno.fecha_apertura)}</strong> ({formatHora(turno.fecha_apertura)})
               </p>
             </div>
           </div>
 
           {/* Acciones del turno: Entradas, Salidas y Arqueo/Cierre */}
           <div className="grid shrink-0 grid-cols-3 gap-2 sm:flex sm:items-center">
-            <Button
-              id="caja-btn-entrada"
-              type="button"
-              variant="outline"
-              size="sm"
-              onClick={() => onAbrirMovimiento("ingreso")}
-              leftIcon={<ArrowDownCircle className="size-4" />}
-              className={cn("w-full gap-1.5 px-2 sm:w-auto sm:px-4", botonSecundarioClass)}
-            >
-              Entrada
-            </Button>
-            <Button
-              id="caja-btn-salida"
-              type="button"
-              variant="outline"
-              size="sm"
-              onClick={() => onAbrirMovimiento("egreso")}
-              leftIcon={<ArrowUpCircle className="size-4" />}
-              className={cn("w-full gap-1.5 px-2 sm:w-auto sm:px-4", botonSecundarioClass)}
-            >
-              Salida
-            </Button>
-            <Button
-              id="caja-btn-cerrar"
-              type="button"
-              size="sm"
-              disabled={!puedeAbrirCerrar}
-              onClick={onAbrirCierre}
-              leftIcon={<LockKeyhole className="size-4" />}
-              className="w-full gap-1.5 bg-[#4C0107] px-2 text-white hover:bg-[#4C0107]/90 sm:w-auto sm:px-4 dark:bg-stone-100 dark:text-stone-900"
-            >
-              <span className="sm:hidden">Cierre</span>
-              <span className="hidden sm:inline">Arqueo y Cierre</span>
-            </Button>
+            {puedeMover && (
+              <>
+                <Button
+                  id="caja-btn-entrada"
+                  type="button"
+                  variant="outline"
+                  size="sm"
+                  onClick={() => setModalMovimiento("ingreso_manual")}
+                  leftIcon={<ArrowDownCircle className="size-4" />}
+                  className={cn("w-full gap-1.5 px-2 sm:w-auto sm:px-4", botonSecundarioClass)}
+                >
+                  Entrada
+                </Button>
+                <Button
+                  id="caja-btn-salida"
+                  type="button"
+                  variant="outline"
+                  size="sm"
+                  onClick={() => setModalMovimiento("retiro_manual")}
+                  leftIcon={<ArrowUpCircle className="size-4" />}
+                  className={cn("w-full gap-1.5 px-2 sm:w-auto sm:px-4", botonSecundarioClass)}
+                >
+                  Salida
+                </Button>
+              </>
+            )}
+            {puedeAbrirCerrar && (
+              <Button
+                id="caja-btn-cerrar"
+                type="button"
+                size="sm"
+                onClick={() => setModalCierre(true)}
+                leftIcon={<LockKeyhole className="size-4" />}
+                className="w-full gap-1.5 bg-[#4C0107] px-2 text-white hover:bg-[#4C0107]/90 sm:w-auto sm:px-4 dark:bg-stone-100 dark:text-stone-900"
+              >
+                <span className="sm:hidden">Cierre</span>
+                <span className="hidden sm:inline">Arqueo y Cierre</span>
+              </Button>
+            )}
           </div>
         </div>
 
         {/* En escritorio las métricas viven en la tarjeta del turno */}
-        {resumen && <MetricasTurno turno={turnoActivo} resumen={resumen} className="hidden xl:grid" />}
+        <MetricasTurno fondo={turno.monto_inicial} resumen={resumen} className="hidden xl:grid" />
       </div>
 
       <SelectorPaneles
         opciones={[
           { id: "principal", label: "Resumen" },
-          { id: "movimientos", label: "Movimientos", total: turnoActivo.movimientos.length },
-          { id: "turnos", label: "Turnos", total: turnosCerrados.length },
+          { id: "movimientos", label: "Movimientos", total: movimientos.length },
+          { id: "turnos", label: "Turnos", total: archivados.length },
         ]}
         activo={panel}
         onChange={setPanel}
@@ -544,57 +278,74 @@ function SeccionCajas({
 
       <div className="grid min-h-0 flex-1 grid-cols-1 gap-4 xl:grid-cols-[minmax(0,1fr)_340px]">
         {/* En móvil y tablet las métricas son un panel propio */}
-        {resumen && (
-          <div
-            data-sin-desborde
-            className={cn("min-h-0 flex-col overflow-hidden xl:hidden", panel === "principal" ? "flex" : "hidden")}
-          >
-            <MetricasTurno turno={turnoActivo} resumen={resumen} className="grid" />
-          </div>
-        )}
-        <PanelMovimientos movimientos={turnoActivo.movimientos} className={visibilidad("movimientos")} />
-        <PanelTurnos turnos={turnosCerrados} titulo="Turnos archivados" className={visibilidad("turnos")} />
+        <div
+          data-sin-desborde
+          className={cn("min-h-0 flex-col overflow-hidden xl:hidden", panel === "principal" ? "flex" : "hidden")}
+        >
+          <MetricasTurno fondo={turno.monto_inicial} resumen={resumen} className="grid" />
+        </div>
+        <PanelMovimientos movimientos={movimientos} className={visibilidad("movimientos")} />
+        <PanelTurnos turnos={archivados} titulo="Turnos anteriores" className={visibilidad("turnos")} />
       </div>
+
+      {modalMovimiento && (
+        <MovimientoCajaForm
+          tipoInicial={modalMovimiento}
+          efectivoDisponibleCentimos={resumen.efectivoEsperado}
+          onClose={() => setModalMovimiento(null)}
+          onRegistrar={async (tipo, concepto, monto) =>
+            (await registrar({ tipo_movimiento: tipo, metodo_pago: "efectivo", monto, notas: concepto })).isOk()
+          }
+        />
+      )}
+
+      {modalCierre && (
+        <CierreCajaForm
+          turno={turno}
+          resumen={resumen}
+          onClose={() => setModalCierre(false)}
+          onCerrar={async (montoFinalReal, observaciones) => {
+            const respuesta = await cerrar({ monto_final_real: montoFinalReal, notas_cierre: observaciones })
+            return respuesta?.isOk() ? respuesta.data : null
+          }}
+        />
+      )}
     </div>
   )
 }
 
 function MetricasTurno({
-  turno,
+  fondo,
   resumen,
   className,
 }: {
-  turno: TurnoCaja
+  fondo: string
   resumen: NonNullable<ReturnType<typeof useTurnoCaja>["resumen"]>
   className?: string
 }) {
   return (
     <div className={cn("grid-cols-2 content-start gap-2 sm:grid-cols-3 lg:gap-3 xl:grid-cols-5", className)}>
-      <MetricCard
-        label="Fondo Inicial"
-        valor={formatToCurrency(turno.montoInicial)}
-        sub={turno.notaApertura || "Efectivo de apertura"}
-      />
+      <MetricCard label="Fondo Inicial" valor={formatearDinero(fondo)} sub="Efectivo de apertura" />
       <MetricCard
         label="Efectivo en Caja"
-        valor={formatToCurrency(resumen.efectivoEsperado)}
-        sub="Fondo + ventas - salidas"
+        valor={formatearCentimos(resumen.efectivoEsperado)}
+        sub="Fondo + ventas + entradas − salidas"
         destacado
       />
       <MetricCard
         label="Ventas Efectivo"
-        valor={formatToCurrency(resumen.ventasEfectivo)}
-        sub={`${resumen.cuentasCobradas} cuentas cobradas`}
+        valor={formatearCentimos(resumen.ventasEfectivo)}
+        sub={`${resumen.cuentasCobradas} cobros registrados`}
       />
       <MetricCard
         label="Digital / Tarjeta"
-        valor={formatToCurrency(resumen.ventasTarjeta + resumen.ventasBilletera)}
-        sub={`Tarj: ${formatToCurrency(resumen.ventasTarjeta)} · Bill: ${formatToCurrency(resumen.ventasBilletera)}`}
+        valor={formatearCentimos(resumen.ventasTarjeta + resumen.ventasDigitales)}
+        sub={`Tarj: ${formatearCentimos(resumen.ventasTarjeta)} · Dig: ${formatearCentimos(resumen.ventasDigitales)}`}
       />
       <MetricCard
         label="Entradas / Salidas"
-        valor={`${formatToCurrency(resumen.ingresos)} / ${formatToCurrency(resumen.egresos)}`}
-        sub={`Neto: ${formatToCurrency(resumen.ingresos - resumen.egresos)}`}
+        valor={`${formatearCentimos(resumen.ingresos)} / ${formatearCentimos(resumen.retiros)}`}
+        sub={`Devoluciones: ${formatearCentimos(resumen.devoluciones)}`}
       />
     </div>
   )
@@ -662,16 +413,15 @@ function PanelVacio({ icono: Icono, titulo, texto }: { icono: typeof Coins; titu
   )
 }
 
-// Registro en vivo de movimientos del turno, paginado según el alto disponible
+// Registro de movimientos del turno, paginado según el alto disponible
 function PanelMovimientos({
   movimientos,
   className,
 }: {
-  movimientos: TurnoCaja["movimientos"]
+  movimientos: MovimientoHistorialDto[]
   className?: string
 }) {
-  const recientes = React.useMemo(() => [...movimientos].reverse(), [movimientos])
-  const paginacion = usePaginacionAjustada(recientes, { altoItem: ALTO_MOVIMIENTO, anchoMinimo: UNA_COLUMNA, gap: 0 })
+  const paginacion = usePaginacionAjustada(movimientos, { altoItem: ALTO_MOVIMIENTO, anchoMinimo: UNA_COLUMNA, gap: 0 })
 
   return (
     <section
@@ -683,13 +433,13 @@ function PanelMovimientos({
         <PanelVacio
           icono={Coins}
           titulo="Sin movimientos aún"
-          texto="Al cobrar cuentas o registrar entradas/salidas se listarán en tiempo real."
+          texto="Al cobrar cuentas o registrar entradas/salidas se listarán aquí."
         />
       ) : (
         <>
           <GrillaAjustada paginacion={paginacion} etiqueta="Movimientos del turno">
             {paginacion.visibles.map((mov) => (
-              <li key={mov.id} className="min-h-0">
+              <li key={mov.id_transaccion_caja} className="min-h-0">
                 <MovimientoItem movimiento={mov} />
               </li>
             ))}
@@ -701,15 +451,15 @@ function PanelMovimientos({
   )
 }
 
-// Turnos cerrados archivados, paginados según el alto disponible
-function PanelTurnos({ turnos, titulo, className }: { turnos: TurnoCaja[]; titulo: string; className?: string }) {
+// Turnos anteriores (reconstruidos del libro de caja), paginados según el alto disponible
+function PanelTurnos({ turnos, titulo, className }: { turnos: TurnoArchivado[]; titulo: string; className?: string }) {
   const paginacion = usePaginacionAjustada(turnos, { altoItem: ALTO_TURNO, anchoMinimo: UNA_COLUMNA, gap: 0 })
 
   return (
     <section className={cn(panelClass, "min-h-0 flex-col gap-3 overflow-hidden p-4", className)} aria-label={titulo}>
-      <EncabezadoPanel titulo={titulo} detalle={`${turnos.length} cerrados`} />
+      <EncabezadoPanel titulo={titulo} detalle={`${turnos.length} turnos`} />
       {turnos.length === 0 ? (
-        <PanelVacio icono={History} titulo="Sin turnos archivados" texto="Los turnos cerrados aparecerán aquí." />
+        <PanelVacio icono={History} titulo="Sin turnos anteriores" texto="Los turnos con movimientos aparecerán aquí." />
       ) : (
         <>
           <GrillaAjustada paginacion={paginacion} etiqueta={titulo}>
@@ -726,22 +476,26 @@ function PanelTurnos({ turnos, titulo, className }: { turnos: TurnoCaja[]; titul
   )
 }
 
-function MovimientoItem({ movimiento }: { movimiento: TurnoCaja["movimientos"][number] }) {
-  const esVenta = movimiento.tipo === "venta"
-  const esIngreso = movimiento.tipo === "ingreso"
-  const Icono = esVenta
-    ? ReceiptText
-    : esIngreso
-      ? ArrowDownCircle
-      : ArrowUpCircle
+function MovimientoItem({ movimiento }: { movimiento: MovimientoHistorialDto }) {
+  const suma = movimiento.tipo_movimiento === "venta" || movimiento.tipo_movimiento === "ingreso_manual"
+  const Icono =
+    movimiento.tipo_movimiento === "venta"
+      ? ReceiptText
+      : movimiento.tipo_movimiento === "devolucion"
+        ? Undo2
+        : suma
+          ? ArrowDownCircle
+          : ArrowUpCircle
 
-  const colorIcono = esVenta
-    ? "bg-purple-100 text-purple-800 dark:bg-purple-500/20 dark:text-purple-300"
-    : esIngreso
-      ? "bg-emerald-100 text-emerald-800 dark:bg-emerald-500/20 dark:text-emerald-300"
-      : "bg-red-100 text-red-700 dark:bg-red-500/20 dark:text-red-300"
+  const colorIcono =
+    movimiento.tipo_movimiento === "venta"
+      ? "bg-purple-100 text-purple-800 dark:bg-purple-500/20 dark:text-purple-300"
+      : suma
+        ? "bg-emerald-100 text-emerald-800 dark:bg-emerald-500/20 dark:text-emerald-300"
+        : "bg-red-100 text-red-700 dark:bg-red-500/20 dark:text-red-300"
 
-  const signo = esVenta || esIngreso ? "+" : "-"
+  const concepto =
+    movimiento.notas || (movimiento.id_pedido ? `Cobro ${codigoPedido(movimiento.id_pedido)}` : TIPO_MOVIMIENTO_LABELS[movimiento.tipo_movimiento])
 
   return (
     <div className="flex h-full items-center justify-between gap-3 border-b border-slate-100 text-sm dark:border-stone-800">
@@ -750,10 +504,10 @@ function MovimientoItem({ movimiento }: { movimiento: TurnoCaja["movimientos"][n
           <Icono className="size-4" />
         </span>
         <div className="flex min-w-0 flex-col">
-          <span className={cn("truncate font-semibold", textoTitulo)}>{movimiento.concepto}</span>
+          <span className={cn("truncate font-semibold", textoTitulo)}>{concepto}</span>
           <span className={cn("truncate text-xs", textoSecundario)}>
-            {formatHora(movimiento.registradoEn)} · {METODO_PAGO_LABELS[movimiento.metodoPago]} · Por{" "}
-            {movimiento.registradoPor}
+            {formatHora(movimiento.fecha_creacion)} · {METODO_PAGO_LABELS[movimiento.metodo_pago as MetodoPago]} · Por{" "}
+            {movimiento.registrado_por}
           </span>
         </div>
       </div>
@@ -762,301 +516,118 @@ function MovimientoItem({ movimiento }: { movimiento: TurnoCaja["movimientos"][n
         <span
           className={cn(
             "font-bold tabular-nums",
-            esVenta || esIngreso ? "text-emerald-700 dark:text-emerald-400" : "text-red-600 dark:text-red-400"
+            suma ? "text-emerald-700 dark:text-emerald-400" : "text-red-600 dark:text-red-400"
           )}
         >
-          {signo} {formatToCurrency(movimiento.monto)}
+          {suma ? "+" : "-"} {formatearDinero(movimiento.monto)}
         </span>
-        {movimiento.referencia && (
-          <span className={cn("text-[11px] font-mono", textoSecundario)}>{movimiento.referencia}</span>
+        {movimiento.id_pedido && (
+          <span className={cn("text-[11px] font-mono", textoSecundario)}>{codigoPedido(movimiento.id_pedido)}</span>
         )}
       </div>
     </div>
   )
 }
 
-function TurnoItem({ turno }: { turno: TurnoCaja }) {
-  const arqueo = turno.arqueo
-  const resultadoConf = arqueo ? RESULTADO_ARQUEO_CONFIG[arqueo.resultado] : null
-
+function TurnoItem({ turno }: { turno: TurnoArchivado }) {
   return (
     <div className="flex h-full flex-col justify-center gap-0.5 border-b border-slate-100 text-xs dark:border-stone-800">
       <div className="flex items-center justify-between gap-2">
         <span className={cn("truncate text-sm font-bold", textoTitulo)}>{turno.codigo}</span>
-        {arqueo && resultadoConf && (
-          <span className={cn("shrink-0 rounded-full px-2 py-0.5 text-[10px] font-bold uppercase", resultadoConf.badge)}>
-            {RESULTADO_ARQUEO_LABELS[arqueo.resultado]}
-          </span>
-        )}
+        <span className={cn("shrink-0 tabular-nums", textoSecundario)}>{turno.movimientos} mov.</span>
       </div>
       <div className={cn("flex items-center justify-between gap-2", textoSecundario)}>
-        <span className="truncate">{formatFechaHora(turno.abiertoEn)}</span>
-        <span className="truncate">Cajero: {turno.cajero}</span>
+        <span className="truncate">{formatFechaHora(turno.desde)}</span>
+        <span className="truncate">Registró: {turno.registradoPor}</span>
       </div>
-      {arqueo && (
-        <div className="flex items-center justify-between gap-2">
-          <span className={textoSecundario}>Arqueo contado:</span>
-          <span className={cn("font-semibold tabular-nums", textoTitulo)}>
-            {formatToCurrency(arqueo.efectivoContado)}
-          </span>
-        </div>
-      )}
+      <div className="flex items-center justify-between gap-2">
+        <span className={textoSecundario}>Ventas del turno:</span>
+        <span className={cn("font-semibold tabular-nums", textoTitulo)}>{formatearCentimos(turno.ventasCentimos)}</span>
+      </div>
     </div>
   )
 }
 
 /* -------------------------------------------------------------------------- */
-/*                 RF-14: Cobro y Cierre de Cuentas por Mesa                  */
+/*                            Historial de pedidos                            */
 /* -------------------------------------------------------------------------- */
-
-// Productos visibles por tarjeta; el detalle completo se ve al cobrar
-const MAX_ITEMS_CUENTA = 2
-
-function SeccionCuentasMesa({
-  cuentas,
-  totalPendiente,
-  hayCajaAbierta,
-  cargando,
-  error,
-  puedeCobrar,
-  onRecargar,
-  onCobrarCuenta,
-}: {
-  cuentas: CuentaMesa[]
-  totalPendiente: number
-  hayCajaAbierta: boolean
-  cargando: boolean
-  error: string | null
-  puedeCobrar: boolean
-  onRecargar: () => void
-  onCobrarCuenta: (cuenta: CuentaMesa) => void
-}) {
-  const paginacion = usePaginacionAjustada(cuentas, { altoItem: ALTO_CUENTA, anchoMinimo: 290 })
-
-  if (cargando) return <TransaccionesSkeleton />
-  if (error) return <ErrorState message={error} onRetry={onRecargar} />
-
-  return (
-    <div className="flex min-h-0 flex-1 flex-col gap-4 overflow-hidden">
-      {/* Resumen superior (incluye el aviso de caja cerrada) */}
-      <div className={cn(tarjetaClass, "flex shrink-0 items-center justify-between gap-3 p-4")}>
-        <div className="flex min-w-0 flex-col gap-0.5">
-          <h2 className={cn("truncate text-sm font-bold sm:text-base", textoTitulo)}>Consumos pendientes por mesa</h2>
-          {hayCajaAbierta ? (
-            <p className={cn("truncate text-xs", textoSecundario)}>
-              {cuentas.length} {cuentas.length === 1 ? "mesa con orden activa" : "mesas con órdenes activas"} listas para
-              liquidar.
-            </p>
-          ) : (
-            <p className="flex min-w-0 items-center gap-1.5 text-xs font-semibold text-amber-700 dark:text-amber-300">
-              <LockKeyhole className="size-3.5 shrink-0" />
-              <span className="truncate">Caja cerrada: abre un turno para registrar cobros.</span>
-            </p>
-          )}
-        </div>
-        <div className="flex shrink-0 flex-col items-end">
-          <span className={cn("text-[11px]", textoSecundario)}>Total por cobrar</span>
-          <span className={cn("text-xl font-bold tabular-nums sm:text-2xl", textoAcento)}>
-            {formatToCurrency(totalPendiente)}
-          </span>
-        </div>
-      </div>
-
-      {/* Grid de mesas con cuentas consolidadas: solo las que caben, el resto se pagina */}
-      {cuentas.length === 0 ? (
-        <div className="flex min-h-0 flex-1 flex-col items-center justify-center gap-3 rounded-2xl border-2 border-dashed border-slate-200 p-6 text-center dark:border-stone-700">
-          <span className="flex size-12 items-center justify-center rounded-full bg-emerald-100 text-emerald-800 dark:bg-emerald-500/20 dark:text-emerald-300">
-            <Utensils className="size-6" />
-          </span>
-          <p className={cn("text-base font-bold", textoTitulo)}>Todas las mesas al día</p>
-          <p className={cn("max-w-sm text-xs", textoSecundario)}>
-            No hay comandas pendientes de cobro en este momento. Las nuevas comandas enviadas desde el POS aparecerán aquí.
-          </p>
-        </div>
-      ) : (
-        <>
-          <GrillaAjustada paginacion={paginacion} etiqueta="Cuentas por mesa">
-            {paginacion.visibles.map((cuenta) => (
-              <li key={cuenta.mesaId} className="min-h-0">
-                <CuentaMesaCard
-                  cuenta={cuenta}
-                  puedeCobrar={puedeCobrar && hayCajaAbierta}
-                  onCobrar={() => onCobrarCuenta(cuenta)}
-                />
-              </li>
-            ))}
-          </GrillaAjustada>
-          <BarraPaginacion paginacion={paginacion} etiqueta="mesas" />
-        </>
-      )}
-    </div>
-  )
-}
-
-function CuentaMesaCard({
-  cuenta,
-  puedeCobrar,
-  onCobrar,
-}: {
-  cuenta: CuentaMesa
-  puedeCobrar: boolean
-  onCobrar: () => void
-}) {
-  const visibles = cuenta.items.slice(0, MAX_ITEMS_CUENTA)
-  const restantes = cuenta.items.length - visibles.length
-
-  return (
-    <article
-      className={cn(
-        tarjetaClass,
-        "flex h-full min-w-0 flex-col gap-2.5 overflow-hidden p-4 shadow-xs transition-all hover:border-[#4C0107]/40 dark:hover:border-stone-600"
-      )}
-    >
-      {/* Cabecera de la Mesa */}
-      <div className="flex shrink-0 items-start justify-between gap-2 border-b border-slate-100 pb-2.5 dark:border-stone-800">
-        <div className="flex min-w-0 flex-col gap-0.5">
-          <div className="flex min-w-0 items-center gap-2">
-            <span className={cn("truncate text-lg font-bold", textoTitulo)}>{cuenta.mesaNombre}</span>
-            <span className="shrink-0 rounded-full bg-slate-100 px-2 py-0.5 text-[10px] font-semibold text-slate-700 dark:bg-stone-800 dark:text-stone-300">
-              {cuenta.area}
-            </span>
-          </div>
-          <span className={cn("truncate text-xs", textoSecundario)}>
-            Mozo: <strong>{cuenta.mozo}</strong> · Abierta hace {formatTranscurrido(cuenta.abiertaEn)}
-          </span>
-        </div>
-
-        <span className="shrink-0 rounded-full bg-purple-100 px-2.5 py-0.5 text-xs font-semibold text-purple-800 dark:bg-purple-500/20 dark:text-purple-300">
-          {cuenta.comandas.length} {cuenta.comandas.length === 1 ? "comanda" : "comandas"}
-        </span>
-      </div>
-
-      {/* Consumo consolidado (RF-14) */}
-      <div className="flex min-h-0 flex-1 flex-col gap-1 overflow-hidden">
-        <span className={textoEtiqueta}>Consumo consolidado</span>
-        <ul className="flex flex-col divide-y divide-slate-100 text-xs dark:divide-stone-800">
-          {visibles.map((item) => (
-            <li key={`${item.productoId}-${item.precioUnitario}`} className="flex justify-between gap-2 py-1">
-              <span className={cn("truncate font-medium", textoTitulo)}>
-                {item.cantidad} × {item.nombre}
-              </span>
-              <span className={cn("shrink-0 font-semibold tabular-nums", textoTitulo)}>
-                {formatToCurrency(item.cantidad * item.precioUnitario)}
-              </span>
-            </li>
-          ))}
-        </ul>
-        {restantes > 0 && (
-          <span className={cn("text-[11px] font-medium", textoSecundario)}>
-            + {restantes} {restantes === 1 ? "producto más" : "productos más"}
-          </span>
-        )}
-      </div>
-
-      {/* Pie con Total y Botón de Cobro */}
-      <div className="flex shrink-0 flex-col gap-2 border-t border-slate-100 pt-2.5 dark:border-stone-800">
-        <div className="flex items-center justify-between">
-          <span className={cn("text-xs font-semibold uppercase", textoSecundario)}>Total a cobrar</span>
-          <span className={cn("text-xl font-bold tabular-nums", textoAcento)}>{formatToCurrency(cuenta.total)}</span>
-        </div>
-
-        <Button
-          type="button"
-          size="sm"
-          disabled={!puedeCobrar}
-          onClick={onCobrar}
-          leftIcon={<ReceiptText className="size-4" />}
-          className="w-full bg-[#4C0107] text-white hover:bg-[#4C0107]/90 dark:bg-stone-100 dark:text-stone-900"
-        >
-          Cobrar y liberar mesa
-        </Button>
-      </div>
-    </article>
-  )
-}
-
-/* -------------------------------------------------------------------------- */
-/*                   RF-15: Historial y Auditoría de Comandas                 */
-/* -------------------------------------------------------------------------- */
-
-// Alto fijo de cada fila: permite calcular cuántas comandas caben sin scroll
-const ALTO_COMANDA = 60
 
 // Columnas de la lista: en tablet se muestran las esenciales y en escritorio amplio, todas
-const columnasComanda =
-  "md:grid md:items-center md:gap-3 md:grid-cols-[84px_minmax(0,1fr)_118px_88px_96px_92px] xl:grid-cols-[84px_92px_minmax(0,1fr)_124px_minmax(0,1.5fr)_92px_100px_164px]"
+const columnasPedido =
+  "md:grid md:items-center md:gap-3 md:grid-cols-[84px_minmax(0,1fr)_118px_88px_100px_96px] xl:grid-cols-[84px_minmax(0,1fr)_124px_70px_100px_150px_120px]"
 
-function SeccionHistorialComandas({
-  comandas,
-  conteo,
-  montoCobrado,
-  montoAnulado,
-  busqueda,
-  setBusqueda,
-  estado,
-  setEstado,
-  cargando,
-  error,
-  puedeAnular,
-  onRecargar,
-  onVerDetalle,
-  onAnularDirecto,
-  onVerComprobante,
-}: {
-  comandas: Comanda[]
-  conteo: Record<FiltroEstadoComanda, number> | Record<string, number>
-  montoCobrado: number
-  montoAnulado: number
-  busqueda: string
-  setBusqueda: (b: string) => void
-  estado: FiltroEstadoComanda
-  setEstado: (e: FiltroEstadoComanda) => void
-  cargando: boolean
-  error: string | null
-  puedeAnular: boolean
-  onRecargar: () => void
-  onVerDetalle: (comanda: Comanda) => void
-  onAnularDirecto: (comanda: Comanda) => void
-  onVerComprobante: (codigo: string) => void
-}) {
-  // Lista de una sola columna; al cambiar búsqueda o filtro se vuelve a la primera página
-  const paginacion = usePaginacionAjustada(comandas, {
-    altoItem: ALTO_COMANDA,
+function SeccionHistorialPedidos({ puedeDevolver, puedeAnular }: { puedeDevolver: boolean; puedeAnular: boolean }) {
+  const {
+    pedidosFiltrados,
+    conteo,
+    cobradoCentimos,
+    porCobrarCentimos,
+    periodo,
+    setPeriodo,
+    busqueda,
+    setBusqueda,
+    grupo,
+    setGrupo,
+    isLoading,
+    error,
+    recargar,
+  } = useHistorialPedidos()
+  const { comprobante, consultar, actualizar, cerrar: cerrarComprobante } = useComprobante()
+  const anular = useAnularPedido()
+
+  const [cobroADevolver, setCobroADevolver] = React.useState<CobroDevolvible | null>(null)
+  const [pedidoAAnular, setPedidoAAnular] = React.useState<{ id: string; detalle: string } | null>(null)
+
+  // Lista de una sola columna; al cambiar búsqueda o filtros se vuelve a la primera página
+  const paginacion = usePaginacionAjustada(pedidosFiltrados, {
+    altoItem: ALTO_PEDIDO,
     anchoMinimo: UNA_COLUMNA,
     gap: 0,
-    clave: `${busqueda}|${estado}`,
+    clave: `${busqueda}|${grupo}|${periodo}`,
   })
 
-  if (cargando) return <TransaccionesSkeleton />
-  if (error) return <ErrorState message={error} onRetry={onRecargar} />
+  if (isLoading) return <TransaccionesSkeleton />
+  if (error) return <ErrorState message={error} onRetry={recargar} />
 
-  const totalComandas = (conteo.emitida ?? 0) + (conteo.cobrada ?? 0) + (conteo.anulada ?? 0)
+  const total = conteo.activo + conteo.pagado + conteo.anulado
+
+  const devolver = async (payload: { id_transaccion_origen: string; monto: string; motivo: string }, clave: string) => {
+    const respuesta = await toastResponse(devolverCobro(payload, clave), {
+      loading: "Registrando la devolución…",
+      success: "Devolución registrada",
+      error: "No se pudo registrar la devolución",
+    })
+    if (respuesta.isOk()) {
+      if (comprobante) await actualizar(comprobante.id_pedido)
+      recargar()
+    }
+    return respuesta.isOk()
+  }
 
   return (
     <div className="flex min-h-0 flex-1 flex-col gap-4 overflow-hidden">
-      {/* KPIs Rápidos de Auditoría */}
+      {/* Resumen del periodo */}
       <div className="grid shrink-0 grid-cols-2 gap-2 sm:grid-cols-4 lg:gap-3">
-        <MetricCard label="Comandas Totales" valor={String(totalComandas)} sub="Registro inmutable" />
-        <MetricCard label="Cobradas" valor={formatToCurrency(montoCobrado)} sub={`${conteo.cobrada ?? 0} tickets`} />
-        <MetricCard label="Pendientes" valor={String(conteo.emitida ?? 0)} sub="En consumo" destacado />
-        <MetricCard label="Anuladas" valor={formatToCurrency(montoAnulado)} sub={`${conteo.anulada ?? 0} registradas`} />
+        <MetricCard label="Pedidos" valor={String(total)} sub={PERIODO_PEDIDOS_LABELS[periodo]} />
+        <MetricCard label="Cobrado" valor={formatearCentimos(cobradoCentimos)} sub={`${conteo.pagado} pagados`} />
+        <MetricCard label="Por cobrar" valor={formatearCentimos(porCobrarCentimos)} sub={`${conteo.activo} en curso`} destacado />
+        <MetricCard label="Anulados" valor={String(conteo.anulado)} sub="Quedan registrados" />
       </div>
 
-      {/* Panel de Filtros, Búsqueda y Lista */}
       <section
         className={cn(panelClass, "flex min-h-0 flex-1 flex-col gap-3 overflow-hidden p-4")}
-        aria-label="Historial de comandas"
+        aria-label="Historial de pedidos"
       >
-        <div className="flex shrink-0 flex-col gap-2 md:flex-row md:items-center md:justify-between md:gap-3">
-          {/* Buscador de Comandas */}
+        <div className="flex shrink-0 flex-col gap-2 lg:flex-row lg:items-center lg:justify-between lg:gap-3">
+          {/* Buscador */}
           <div className="relative min-w-0 flex-1">
             <Search className="pointer-events-none absolute left-3.5 top-1/2 size-4 -translate-y-1/2 text-slate-400 dark:text-stone-500" />
             <Input
-              id="historial-buscar-comanda"
+              id="historial-buscar-pedido"
               type="text"
               value={busqueda}
               onChange={(e) => setBusqueda(e.target.value)}
-              placeholder="Buscar por código, mesa, mozo, comprobante o producto…"
+              placeholder="Buscar por código, mesa o estado…"
               className="h-10 rounded-full pl-9 pr-9 text-xs"
             />
             {busqueda && (
@@ -1071,32 +642,48 @@ function SeccionHistorialComandas({
             )}
           </div>
 
-          {/* Chips de filtro por estado (RF-15): se reparten el ancho sin desbordar */}
-          <div className="grid shrink-0 grid-cols-4 gap-1.5 md:flex">
-            {(["todas", "emitida", "cobrada", "anulada"] as FiltroEstadoComanda[]).map((est) => {
-              const activo = estado === est
-              const total = est === "todas" ? totalComandas : conteo[est] ?? 0
+          <div className="flex shrink-0 flex-wrap gap-1.5">
+            {/* Periodo consultado a la API */}
+            {(Object.keys(PERIODO_PEDIDOS_LABELS) as PeriodoPedidos[]).map((p) => (
+              <button
+                key={p}
+                type="button"
+                onClick={() => setPeriodo(p)}
+                aria-pressed={periodo === p}
+                className={cn(
+                  "inline-flex h-8 cursor-pointer items-center justify-center rounded-full border px-3 text-xs font-semibold whitespace-nowrap transition-colors",
+                  opcionClass(periodo === p)
+                )}
+              >
+                {PERIODO_PEDIDOS_LABELS[p]}
+              </button>
+            ))}
+            <span className="mx-1 hidden w-px self-stretch bg-slate-200 lg:block dark:bg-stone-700" />
+            {/* Filtro por estado */}
+            {GRUPO_PEDIDO_CHIPS.map((g: FiltroGrupoPedido) => {
+              const activo = grupo === g
+              const cantidad = g === "todos" ? total : conteo[g]
               return (
                 <button
-                  key={est}
+                  key={g}
                   type="button"
-                  onClick={() => setEstado(est)}
+                  onClick={() => setGrupo(g)}
                   aria-pressed={activo}
                   className={cn(
-                    "inline-flex h-8 min-w-0 cursor-pointer items-center justify-center gap-1 rounded-full border px-1.5 text-xs font-semibold whitespace-nowrap transition-colors md:gap-1.5 md:px-3",
+                    "inline-flex h-8 cursor-pointer items-center justify-center gap-1.5 rounded-full border px-3 text-xs font-semibold whitespace-nowrap transition-colors",
                     opcionClass(activo)
                   )}
                 >
-                  <span className="truncate capitalize">{est === "todas" ? "Todas" : ESTADO_COMANDA_LABELS[est]}</span>
+                  <span>{g === "todos" ? "Todos" : GRUPO_PEDIDO_LABELS[g]}</span>
                   <span
                     className={cn(
-                      "hidden shrink-0 rounded-full px-1.5 py-0.2 text-[10px] tabular-nums md:inline",
+                      "rounded-full px-1.5 text-[10px] tabular-nums",
                       activo
                         ? "bg-white/20 text-white dark:bg-stone-900/20 dark:text-stone-900"
                         : "bg-slate-100 text-slate-600 dark:bg-stone-800 dark:text-stone-300"
                     )}
                   >
-                    {total}
+                    {cantidad}
                   </span>
                 </button>
               )
@@ -1104,12 +691,11 @@ function SeccionHistorialComandas({
           </div>
         </div>
 
-        {/* Lista de Comandas */}
-        {comandas.length === 0 ? (
+        {pedidosFiltrados.length === 0 ? (
           <div className="flex min-h-0 flex-1 flex-col items-center justify-center gap-2 rounded-2xl border-2 border-dashed border-slate-200 p-6 text-center dark:border-stone-700">
             <SearchX className="size-6 text-slate-400 dark:text-stone-500" />
-            <p className={cn("text-sm font-semibold", textoTitulo)}>No se encontraron comandas</p>
-            <p className={cn("text-xs", textoSecundario)}>Intenta cambiar los términos de búsqueda o el filtro de estado.</p>
+            <p className={cn("text-sm font-semibold", textoTitulo)}>No se encontraron pedidos</p>
+            <p className={cn("text-xs", textoSecundario)}>Prueba con otro periodo, filtro o término de búsqueda.</p>
           </div>
         ) : (
           <>
@@ -1117,57 +703,100 @@ function SeccionHistorialComandas({
             <div
               className={cn(
                 "hidden shrink-0 border-b border-slate-200 pb-2 text-xs font-semibold text-slate-500 dark:border-stone-800 dark:text-stone-400",
-                columnasComanda
+                columnasPedido
               )}
             >
-              <span>Comanda</span>
-              <span>Mesa</span>
-              <span className="hidden xl:block">Mozo</span>
+              <span>Pedido</span>
+              <span>Lugar</span>
               <span>Fecha / Hora</span>
-              <span className="hidden xl:block">Productos</span>
+              <span className="hidden xl:block">Items</span>
               <span className="text-right">Total</span>
               <span className="text-center">Estado</span>
               <span className="text-right">Acciones</span>
             </div>
 
-            <GrillaAjustada paginacion={paginacion} etiqueta="Comandas del historial">
-              {paginacion.visibles.map((comanda) => (
-                <li key={comanda.codigo} className="min-h-0">
-                  <FilaComanda
-                    comanda={comanda}
+            <GrillaAjustada paginacion={paginacion} etiqueta="Pedidos del historial">
+              {paginacion.visibles.map((pedido) => (
+                <li key={pedido.id_pedido} className="min-h-0">
+                  <FilaPedido
+                    pedido={pedido}
                     puedeAnular={puedeAnular}
-                    onVerDetalle={onVerDetalle}
-                    onAnularDirecto={onAnularDirecto}
-                    onVerComprobante={onVerComprobante}
+                    onVerDetalle={() => void consultar(pedido.id_pedido)}
+                    onAnular={() =>
+                      setPedidoAAnular({
+                        id: pedido.id_pedido,
+                        detalle: `${lugarDe(pedido)} · ${formatearDinero(pedido.total_calculado)}`,
+                      })
+                    }
                   />
                 </li>
               ))}
             </GrillaAjustada>
-            <BarraPaginacion paginacion={paginacion} etiqueta="comandas" />
+            <BarraPaginacion paginacion={paginacion} etiqueta="pedidos" />
           </>
         )}
       </section>
+
+      {comprobante && (
+        <ComprobanteModal
+          comprobante={comprobante}
+          puedeDevolver={puedeDevolver}
+          puedeAnular={puedeAnular}
+          onClose={cerrarComprobante}
+          onDevolver={setCobroADevolver}
+          onAnular={() => {
+            setPedidoAAnular({ id: comprobante.id_pedido, detalle: `${comprobante.numero} · ${formatearDinero(comprobante.total)}` })
+          }}
+        />
+      )}
+
+      {comprobante && cobroADevolver && (
+        <DevolucionForm
+          cobro={cobroADevolver}
+          codigo={comprobante.numero}
+          onClose={() => setCobroADevolver(null)}
+          onDevolver={devolver}
+        />
+      )}
+
+      {pedidoAAnular && (
+        <AnularPedidoForm
+          idPedido={pedidoAAnular.id}
+          detalle={pedidoAAnular.detalle}
+          onClose={() => setPedidoAAnular(null)}
+          onAnular={async (id, motivo) => {
+            const respuesta = await anular(id, motivo)
+            if (respuesta.isOk()) {
+              cerrarComprobante()
+              recargar()
+            }
+            return respuesta.isOk()
+          }}
+        />
+      )}
     </div>
   )
 }
 
-function FilaComanda({
-  comanda,
+const lugarDe = (p: Pick<PedidoListadoDto, "tipo_pedido" | "mesa_numero">): string =>
+  p.tipo_pedido === "salon" && p.mesa_numero ? `Mesa ${p.mesa_numero}` : p.tipo_pedido === "delivery" ? "Delivery" : "Para llevar"
+
+function FilaPedido({
+  pedido,
   puedeAnular,
   onVerDetalle,
-  onAnularDirecto,
-  onVerComprobante,
+  onAnular,
 }: {
-  comanda: Comanda
+  pedido: PedidoListadoDto
   puedeAnular: boolean
-  onVerDetalle: (comanda: Comanda) => void
-  onAnularDirecto: (comanda: Comanda) => void
-  onVerComprobante: (codigo: string) => void
+  onVerDetalle: () => void
+  onAnular: () => void
 }) {
-  const conf = ESTADO_COMANDA_CONFIG[comanda.estado]
-  const productos = comanda.items.map((i) => `${i.cantidad} ${i.nombre}`).join(", ")
-  const puedeAnularla = comanda.estado === "emitida" && puedeAnular
-  const comprobante = comanda.estado === "cobrada" ? comanda.comprobante : undefined
+  const conf = ESTADO_PEDIDO_CONFIG[pedido.estado]
+  const codigo = codigoPedido(pedido.id_pedido)
+  // Solo se anula lo que está en curso y todavía no tiene cobros
+  const sePuedeAnular = puedeAnular && pedido.estado !== "anulado" && pedido.estado !== "pagado" && aCentimos(pedido.total_pagado) === 0
+  const conSaldo = pedido.estado !== "anulado" && aCentimos(pedido.saldo_pendiente) > 0 && aCentimos(pedido.total_pagado) > 0
 
   const badgeEstado = (
     <span
@@ -1177,7 +806,11 @@ function FilaComanda({
       )}
     >
       <span className={cn("size-1.5 rounded-full", conf.dot)} />
-      {ESTADO_COMANDA_LABELS[comanda.estado]}
+      {ESTADO_PEDIDO_LABELS[pedido.estado]}
+      {conSaldo && <span className="opacity-70">· parcial</span>}
+      {pedido.estado_pago === "devuelto" || pedido.estado_pago === "devuelto_parcial" ? (
+        <span className="opacity-70">· {pedido.estado_pago === "devuelto" ? "devuelto" : "dev. parcial"}</span>
+      ) : null}
     </span>
   )
 
@@ -1190,45 +823,35 @@ function FilaComanda({
       <div className="flex h-full flex-col justify-center gap-1 md:hidden">
         <div className="flex min-w-0 items-center justify-between gap-2">
           <span className="flex min-w-0 items-center gap-2">
-            <span className="shrink-0 font-bold text-slate-900 dark:text-stone-100">{comanda.codigo}</span>
-            <span className="truncate text-slate-700 dark:text-stone-300">{comanda.mesaNombre}</span>
+            <span className="shrink-0 font-bold text-slate-900 dark:text-stone-100">{codigo}</span>
+            <span className="truncate text-slate-700 dark:text-stone-300">{lugarDe(pedido)}</span>
           </span>
           <span className="shrink-0 font-bold tabular-nums text-slate-900 dark:text-stone-100">
-            {formatToCurrency(comanda.total)}
+            {formatearDinero(pedido.total_calculado)}
           </span>
         </div>
         <div className="flex min-w-0 items-center justify-between gap-2">
           <span className="flex min-w-0 items-center gap-2">
             {badgeEstado}
-            <span className="truncate text-slate-500 dark:text-stone-400">{formatFechaHora(comanda.emitidaEn)}</span>
+            <span className="truncate text-slate-500 dark:text-stone-400">{formatFechaHora(pedido.fecha_creacion)}</span>
           </span>
           <span className="flex shrink-0 items-center gap-0.5">
             <button
               type="button"
-              onClick={() => onVerDetalle(comanda)}
-              aria-label={`Auditoría de ${comanda.codigo}`}
+              onClick={onVerDetalle}
+              aria-label={`Detalle de ${codigo}`}
               className={cn(botonIcono, "text-slate-600 hover:bg-slate-200/60 dark:text-stone-300 dark:hover:bg-stone-800")}
             >
               <Eye className="size-4" />
             </button>
-            {puedeAnularla && (
+            {sePuedeAnular && (
               <button
                 type="button"
-                onClick={() => onAnularDirecto(comanda)}
-                aria-label={`Anular ${comanda.codigo}`}
+                onClick={onAnular}
+                aria-label={`Anular ${codigo}`}
                 className={cn(botonIcono, "text-red-600 hover:bg-red-50 dark:text-red-400 dark:hover:bg-red-500/15")}
               >
                 <Ban className="size-4" />
-              </button>
-            )}
-            {comprobante && (
-              <button
-                type="button"
-                onClick={() => onVerComprobante(comprobante)}
-                aria-label={`Ticket de ${comanda.codigo}`}
-                className={cn(botonIcono, "text-sky-700 hover:bg-sky-50 dark:text-sky-300 dark:hover:bg-sky-500/15")}
-              >
-                <Receipt className="size-4" />
               </button>
             )}
           </span>
@@ -1236,76 +859,53 @@ function FilaComanda({
       </div>
 
       {/* Tablet y escritorio: una fila con columnas */}
-      <div className={cn("hidden h-full", columnasComanda)}>
-        <span className="truncate font-bold text-slate-900 dark:text-stone-100">{comanda.codigo}</span>
-        <span className="truncate text-slate-700 dark:text-stone-300">{comanda.mesaNombre}</span>
-        <span className="hidden truncate text-slate-600 xl:block dark:text-stone-400">{comanda.mozo}</span>
-        <span className="truncate text-slate-600 dark:text-stone-400">{formatFechaHora(comanda.emitidaEn)}</span>
-        <span className="hidden truncate text-slate-600 xl:block dark:text-stone-400" title={productos}>
-          {productos}
-        </span>
+      <div className={cn("hidden h-full", columnasPedido)}>
+        <span className="truncate font-bold text-slate-900 dark:text-stone-100">{codigo}</span>
+        <span className="truncate text-slate-700 dark:text-stone-300">{lugarDe(pedido)}</span>
+        <span className="truncate text-slate-600 dark:text-stone-400">{formatFechaHora(pedido.fecha_creacion)}</span>
+        <span className="hidden truncate text-slate-600 xl:block dark:text-stone-400">{pedido.total_items}</span>
         <span className="truncate text-right font-bold tabular-nums text-slate-900 dark:text-stone-100">
-          {formatToCurrency(comanda.total)}
+          {formatearDinero(pedido.total_calculado)}
         </span>
         <span className="text-center">{badgeEstado}</span>
         {/* Entre tablet y laptop: acciones como íconos para dar espacio a las columnas */}
         <span className="flex items-center justify-end gap-0.5 xl:hidden">
           <button
             type="button"
-            onClick={() => onVerDetalle(comanda)}
-            aria-label={`Auditoría de ${comanda.codigo}`}
-            title="Auditoría"
+            onClick={onVerDetalle}
+            aria-label={`Detalle de ${codigo}`}
+            title="Detalle"
             className={cn(botonIcono, "text-slate-600 hover:bg-slate-200/60 dark:text-stone-300 dark:hover:bg-stone-800")}
           >
             <Eye className="size-4" />
           </button>
-          {puedeAnularla && (
+          {sePuedeAnular && (
             <button
               type="button"
-              onClick={() => onAnularDirecto(comanda)}
-              aria-label={`Anular ${comanda.codigo}`}
+              onClick={onAnular}
+              aria-label={`Anular ${codigo}`}
               title="Anular"
               className={cn(botonIcono, "text-red-600 hover:bg-red-50 dark:text-red-400 dark:hover:bg-red-500/15")}
             >
               <Ban className="size-4" />
             </button>
           )}
-          {comprobante && (
-            <button
-              type="button"
-              onClick={() => onVerComprobante(comprobante)}
-              aria-label={`Ticket de ${comanda.codigo}`}
-              title="Ticket"
-              className={cn(botonIcono, "text-sky-700 hover:bg-sky-50 dark:text-sky-300 dark:hover:bg-sky-500/15")}
-            >
-              <Receipt className="size-4" />
-            </button>
-          )}
         </span>
         <span className="hidden items-center justify-end gap-1 xl:flex">
           <button
             type="button"
-            onClick={() => onVerDetalle(comanda)}
+            onClick={onVerDetalle}
             className={cn(botonTexto, "text-slate-700 hover:bg-slate-200/60 dark:text-stone-300 dark:hover:bg-stone-800")}
           >
-            Auditoría
+            Detalle
           </button>
-          {puedeAnularla && (
+          {sePuedeAnular && (
             <button
               type="button"
-              onClick={() => onAnularDirecto(comanda)}
+              onClick={onAnular}
               className={cn(botonTexto, "text-red-600 hover:bg-red-50 dark:text-red-400 dark:hover:bg-red-500/15")}
             >
               Anular
-            </button>
-          )}
-          {comprobante && (
-            <button
-              type="button"
-              onClick={() => onVerComprobante(comprobante)}
-              className={cn(botonTexto, "text-sky-700 hover:bg-sky-50 dark:text-sky-300 dark:hover:bg-sky-500/15")}
-            >
-              Ticket
             </button>
           )}
         </span>
@@ -1317,23 +917,6 @@ function FilaComanda({
 /* -------------------------------------------------------------------------- */
 /*                               Estados auxiliares                           */
 /* -------------------------------------------------------------------------- */
-
-function AccesoRestringido({ rol }: { rol: string }) {
-  return (
-    <div className="flex flex-col items-center justify-center gap-3 rounded-2xl border-2 border-dashed border-slate-200 p-10 text-center dark:border-stone-700">
-      <span className="flex size-12 items-center justify-center rounded-full bg-[#EDE5E6] text-[#4C0107] dark:bg-stone-800 dark:text-[#E7B7BC]">
-        <ShieldAlert className="size-6" />
-      </span>
-      <div className="flex flex-col gap-1">
-        <h1 className={cn("text-lg font-bold", textoTitulo)}>Acceso restringido</h1>
-        <p className={cn("max-w-sm text-sm", textoSecundario)}>
-          Tu rol actual <span className={cn("font-semibold", textoTitulo)}>{rol}</span> no tiene permisos
-          para gestionar transacciones o turnos de caja.
-        </p>
-      </div>
-    </div>
-  )
-}
 
 function ErrorState({ message, onRetry }: { message: string; onRetry: () => void }) {
   return (

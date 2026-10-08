@@ -3,12 +3,15 @@ import {
   Banknote,
   CircleCheck,
   CreditCard,
-  Printer,
-  Receipt,
+  Landmark,
   Smartphone,
+  Undo2,
   type LucideIcon,
 } from "lucide-react"
-import type { AccionAuditoria, EstadoComanda, MetodoPago, ResultadoArqueo } from "../schema"
+
+import type { MetodoPago } from "@/dtos/caja"
+import type { EstadoPedido } from "@/dtos/pedidos"
+import type { GrupoPedido, ResultadoArqueo } from "../schema"
 
 /* -------------------------------------------------------------------------- */
 /*                Superficies y textos legibles en claro / oscuro             */
@@ -62,32 +65,36 @@ export const pestanaClass = (activa: boolean) =>
 export const METODO_PAGO_ICONS: Record<MetodoPago, LucideIcon> = {
   efectivo: Banknote,
   tarjeta: CreditCard,
-  billetera: Smartphone,
+  yape: Smartphone,
+  plin: Smartphone,
+  transferencia: Landmark,
 }
 
-export const METODO_PAGO_AYUDA: Record<MetodoPago, string> = {
-  efectivo: "Calcula el vuelto",
-  tarjeta: "Visa / Mastercard",
-  billetera: "Yape / Plin",
-}
-
-// Montos sugeridos para cobros en efectivo (billetes de uso común en soles)
-export const BILLETES_SUGERIDOS = [10, 20, 50, 100, 200] as const
-
-export const ESTADO_COMANDA_CONFIG: Record<EstadoComanda, { badge: string; dot: string }> = {
-  emitida: {
+// Estilo del estado de un pedido en el historial
+export const ESTADO_PEDIDO_CONFIG: Record<EstadoPedido, { badge: string; dot: string }> = {
+  pendiente: {
+    badge: "bg-slate-100 text-slate-700 dark:bg-stone-800 dark:text-stone-200",
+    dot: "bg-slate-400",
+  },
+  en_preparacion: {
     badge: "bg-amber-100 text-amber-800 dark:bg-amber-500/20 dark:text-amber-300",
     dot: "bg-amber-500",
   },
-  cobrada: {
+  listo: {
+    badge: "bg-sky-100 text-sky-800 dark:bg-sky-500/20 dark:text-sky-300",
+    dot: "bg-sky-500",
+  },
+  pagado: {
     badge: "bg-emerald-100 text-emerald-800 dark:bg-emerald-500/20 dark:text-emerald-300",
     dot: "bg-emerald-500",
   },
-  anulada: {
+  anulado: {
     badge: "bg-red-100 text-red-700 dark:bg-red-500/20 dark:text-red-300",
     dot: "bg-red-500",
   },
 }
+
+export const GRUPO_PEDIDO_CHIPS: Array<GrupoPedido | "todos"> = ["todos", "activo", "pagado", "anulado"]
 
 export const RESULTADO_ARQUEO_CONFIG: Record<ResultadoArqueo, { badge: string; texto: string }> = {
   cuadrado: {
@@ -104,24 +111,19 @@ export const RESULTADO_ARQUEO_CONFIG: Record<ResultadoArqueo, { badge: string; t
   },
 }
 
-export const ACCION_AUDITORIA_CONFIG: Record<AccionAuditoria, { icon: LucideIcon; className: string }> = {
-  emitida: {
-    icon: Receipt,
-    className: "bg-amber-100 text-amber-800 dark:bg-amber-500/20 dark:text-amber-300",
-  },
-  cobrada: {
+// Línea de tiempo del comprobante: cobros y devoluciones
+export const EVENTO_PAGO_CONFIG: Record<"pago" | "devolucion", { icon: LucideIcon; className: string }> = {
+  pago: {
     icon: CircleCheck,
     className: "bg-emerald-100 text-emerald-800 dark:bg-emerald-500/20 dark:text-emerald-300",
   },
-  anulada: {
-    icon: Ban,
+  devolucion: {
+    icon: Undo2,
     className: "bg-red-100 text-red-700 dark:bg-red-500/20 dark:text-red-300",
   },
-  reimpresa: {
-    icon: Printer,
-    className: "bg-sky-100 text-sky-800 dark:bg-sky-500/20 dark:text-sky-300",
-  },
 }
+
+export const ICONO_ANULADO = Ban
 
 /* -------------------------------------------------------------------------- */
 /*                               Formato de fechas                            */

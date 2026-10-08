@@ -1,55 +1,49 @@
 import { z } from "zod"
 
+import type { MetodoPago, MovimientoHistorialDto, TipoMovimiento, TipoMovimientoManual, TurnoActualDto } from "@/dtos/caja"
+import type { EstadoPedido } from "@/dtos/pedidos"
+import { aCentimos, desdeCentimos } from "@/shared/utils/dinero"
+
 /* -------------------------------------------------------------------------- */
 /*                                  Generales                                 */
 /* -------------------------------------------------------------------------- */
 
-// Tasa de IGV vigente: los precios del catálogo ya la incluyen
-export const IGV_TASA = 0.18
-
-// Métodos de pago aceptados al cerrar una cuenta (RF-14)
-export const metodoPagoSchema = z.enum(["efectivo", "tarjeta", "billetera"])
-export type MetodoPago = z.infer<typeof metodoPagoSchema>
-
 export const METODO_PAGO_LABELS: Record<MetodoPago, string> = {
   efectivo: "Efectivo",
   tarjeta: "Tarjeta",
-  billetera: "Billetera digital",
+  yape: "Yape",
+  plin: "Plin",
+  transferencia: "Transferencia",
 }
 
-export interface LineaConsumo {
-  productoId: string
-  nombre: string
-  cantidad: number
-  precioUnitario: number
+// Límite razonable para un movimiento o el fondo de apertura de una cafetería
+export const MAX_MONTO_CAJA = 10000
+
+// Cuántos pedidos se piden a la API por consulta (máximo que acepta el listado)
+export const LIMITE_PEDIDOS = 100
+
+// Refresco automático de la caja mientras la pestaña está visible
+export const REFRESCO_CAJA_MS = 20_000
+
+/** Texto → céntimos aceptando coma o punto decimal; NaN si no es un importe. */
+export const centimosDeTexto = (valor: string | number | undefined): number => {
+  const texto = String(valor ?? "").trim().replace(",", ".")
+  if (!/^\d+(\.\d{1,2})?$/.test(texto)) return Number.NaN
+  return aCentimos(texto)
 }
 
 /* -------------------------------------------------------------------------- */
-/*                 RF-13: Apertura y Cierre de Turnos de Caja                 */
+/*                       Turno de caja: apertura, movimientos, cierre         */
 /* -------------------------------------------------------------------------- */
 
-export const tipoMovimientoSchema = z.enum(["ingreso", "egreso"])
-export type TipoMovimiento = z.infer<typeof tipoMovimientoSchema>
-
-export const TIPO_MOVIMIENTO_LABELS: Record<TipoMovimiento | "venta", string> = {
-  ingreso: "Entrada de dinero",
-  egreso: "Salida de dinero",
+export const TIPO_MOVIMIENTO_LABELS: Record<TipoMovimiento, string> = {
   venta: "Cobro de cuenta",
+  ingreso_manual: "Entrada de dinero",
+  retiro_manual: "Salida de dinero",
+  devolucion: "Devolución",
 }
 
-export interface MovimientoCaja {
-  id: string
-  tipo: TipoMovimiento | "venta"
-  concepto: string
-  monto: number
-  metodoPago: MetodoPago
-  registradoEn: string
-  registradoPor: string
-  // Código del comprobante interno cuando el movimiento proviene de un cobro
-  referencia?: string
-}
-
-export type EstadoTurno = "abierto" | "cerrado"
+export const TIPOS_MOVIMIENTO_MANUAL: TipoMovimientoManual[] = ["ingreso_manual", "retiro_manual"]
 
 export type ResultadoArqueo = "cuadrado" | "sobrante" | "faltante"
 
@@ -59,110 +53,133 @@ export const RESULTADO_ARQUEO_LABELS: Record<ResultadoArqueo, string> = {
   faltante: "Faltante",
 }
 
-export interface ArqueoCaja {
-  // Cantidad contada por denominación (clave = valor de la denominación)
-  conteo: Record<string, number>
-  efectivoContado: number
-  efectivoEsperado: number
-  diferencia: number
-  resultado: ResultadoArqueo
-  observaciones?: string
-}
-
-export interface TurnoCaja {
-  id: string
-  codigo: string
-  cajero: string
-  abiertoEn: string
-  cerradoEn?: string
-  montoInicial: number
-  notaApertura?: string
-  estado: EstadoTurno
-  movimientos: MovimientoCaja[]
-  arqueo?: ArqueoCaja
-}
-
-export interface ResumenTurno {
-  ventasEfectivo: number
-  ventasTarjeta: number
-  ventasBilletera: number
-  ventasTotales: number
-  ingresos: number
-  egresos: number
-  cuentasCobradas: number
-  // Fondo inicial + ventas en efectivo + entradas - salidas
-  efectivoEsperado: number
+export function obtenerResultadoArqueo(diferenciaCentimos: number): ResultadoArqueo {
+  if (diferenciaCentimos === 0) return "cuadrado"
+  return diferenciaCentimos > 0 ? "sobrante" : "faltante"
 }
 
 // Denominaciones en soles para el arqueo físico de caja.
 // La clave no usa puntos para que React Hook Form no la interprete como ruta anidada.
 export const DENOMINACIONES = [
-  { clave: "b200", valor: 200, tipo: "billete" },
-  { clave: "b100", valor: 100, tipo: "billete" },
-  { clave: "b50", valor: 50, tipo: "billete" },
-  { clave: "b20", valor: 20, tipo: "billete" },
-  { clave: "b10", valor: 10, tipo: "billete" },
-  { clave: "m5", valor: 5, tipo: "moneda" },
-  { clave: "m2", valor: 2, tipo: "moneda" },
-  { clave: "m1", valor: 1, tipo: "moneda" },
-  { clave: "m050", valor: 0.5, tipo: "moneda" },
-  { clave: "m020", valor: 0.2, tipo: "moneda" },
-  { clave: "m010", valor: 0.1, tipo: "moneda" },
+  { clave: "b200", centimos: 20000, tipo: "billete" },
+  { clave: "b100", centimos: 10000, tipo: "billete" },
+  { clave: "b50", centimos: 5000, tipo: "billete" },
+  { clave: "b20", centimos: 2000, tipo: "billete" },
+  { clave: "b10", centimos: 1000, tipo: "billete" },
+  { clave: "m5", centimos: 500, tipo: "moneda" },
+  { clave: "m2", centimos: 200, tipo: "moneda" },
+  { clave: "m1", centimos: 100, tipo: "moneda" },
+  { clave: "m050", centimos: 50, tipo: "moneda" },
+  { clave: "m020", centimos: 20, tipo: "moneda" },
+  { clave: "m010", centimos: 10, tipo: "moneda" },
 ] as const
 
-export type ClaveDenominacion = (typeof DENOMINACIONES)[number]["clave"]
+/** Total contado (en céntimos) a partir de la cantidad de billetes y monedas de cada denominación. */
+export function calcularContadoCentimos(conteo: Record<string, number | string>): number {
+  return DENOMINACIONES.reduce((acc, d) => acc + d.centimos * (Number(conteo[d.clave]) || 0), 0)
+}
 
-// Límite razonable para el fondo de apertura de una cafetería
-export const MAX_MONTO_CAJA = 10000
+/** Resumen del turno abierto, en céntimos, armado con el resumen por tipo y método que entrega la API. */
+export interface ResumenTurno {
+  ventasEfectivo: number
+  ventasTarjeta: number
+  ventasDigitales: number
+  ventasTotales: number
+  ingresos: number
+  retiros: number
+  devoluciones: number
+  cuentasCobradas: number
+  efectivoEsperado: number
+}
 
-const montoTexto = z.union([z.string(), z.number()])
+const DIGITALES: MetodoPago[] = ["yape", "plin", "transferencia"]
 
-const aNumero = (valor: string | number | undefined) =>
-  valor === "" || valor === undefined ? Number.NaN : Number(valor)
+export function resumirTurno(actual: TurnoActualDto): ResumenTurno {
+  const suma = (filtro: (m: TurnoActualDto["resumen_movimientos"][number]) => boolean) =>
+    actual.resumen_movimientos.filter(filtro).reduce((acc, m) => acc + aCentimos(m.total), 0)
 
-export const aperturaCajaSchema = z
-  .object({
-    montoInicial: montoTexto,
-    notaApertura: z.string().trim().max(120, "Máximo 120 caracteres").optional(),
-  })
-  .superRefine((data, ctx) => {
-    const monto = aNumero(data.montoInicial)
-    if (Number.isNaN(monto)) {
-      ctx.addIssue({ code: z.ZodIssueCode.custom, message: "Ingresa el monto inicial en efectivo.", path: ["montoInicial"] })
-    } else if (monto < 0) {
-      ctx.addIssue({ code: z.ZodIssueCode.custom, message: "El monto no puede ser negativo.", path: ["montoInicial"] })
-    } else if (monto > MAX_MONTO_CAJA) {
-      ctx.addIssue({
-        code: z.ZodIssueCode.custom,
-        message: `El fondo inicial no puede superar S/ ${MAX_MONTO_CAJA.toLocaleString("es-PE")}.`,
-        path: ["montoInicial"],
-      })
-    }
-  })
+  const ventasEfectivo = suma((m) => m.tipo_movimiento === "venta" && m.metodo_pago === "efectivo")
+  const ventasTarjeta = suma((m) => m.tipo_movimiento === "venta" && m.metodo_pago === "tarjeta")
+  const ventasDigitales = suma((m) => m.tipo_movimiento === "venta" && DIGITALES.includes(m.metodo_pago))
+
+  return {
+    ventasEfectivo,
+    ventasTarjeta,
+    ventasDigitales,
+    ventasTotales: ventasEfectivo + ventasTarjeta + ventasDigitales,
+    ingresos: suma((m) => m.tipo_movimiento === "ingreso_manual"),
+    retiros: suma((m) => m.tipo_movimiento === "retiro_manual"),
+    devoluciones: suma((m) => m.tipo_movimiento === "devolucion"),
+    cuentasCobradas: actual.resumen_movimientos
+      .filter((m) => m.tipo_movimiento === "venta")
+      .reduce((acc, m) => acc + m.transacciones, 0),
+    // El efectivo esperado lo calcula la API (solo cuenta lo que entra o sale de la gaveta)
+    efectivoEsperado: aCentimos(actual.efectivo_esperado),
+  }
+}
+
+/** Turno ya cerrado (o de otro día) reconstruido a partir del libro de caja, porque la API no lista turnos. */
+export interface TurnoArchivado {
+  id: string
+  codigo: string
+  desde: string
+  movimientos: number
+  ventasCentimos: number
+  registradoPor: string
+}
+
+export function agruparTurnosArchivados(historial: MovimientoHistorialDto[], idTurnoActual: string | null): TurnoArchivado[] {
+  const porTurno = new Map<string, MovimientoHistorialDto[]>()
+  for (const mov of historial) {
+    if (mov.id_turno_caja === idTurnoActual) continue
+    porTurno.set(mov.id_turno_caja, [...(porTurno.get(mov.id_turno_caja) ?? []), mov])
+  }
+  return [...porTurno.entries()]
+    .map(([id, movs]) => {
+      const ordenados = [...movs].sort((a, b) => a.fecha_creacion.localeCompare(b.fecha_creacion))
+      return {
+        id,
+        codigo: id.slice(0, 8).toUpperCase(),
+        desde: ordenados[0].fecha_creacion,
+        movimientos: movs.length,
+        ventasCentimos: movs.filter((m) => m.tipo_movimiento === "venta").reduce((acc, m) => acc + aCentimos(m.monto), 0),
+        registradoPor: ordenados[0].registrado_por,
+      }
+    })
+    .sort((a, b) => b.desde.localeCompare(a.desde))
+}
+
+const textoMonto = z.union([z.string(), z.number()])
+
+export const aperturaCajaSchema = z.object({ montoInicial: textoMonto }).superRefine((data, ctx) => {
+  const monto = centimosDeTexto(data.montoInicial)
+  if (Number.isNaN(monto)) {
+    ctx.addIssue({ code: z.ZodIssueCode.custom, message: "Ingresa el monto inicial en efectivo.", path: ["montoInicial"] })
+  } else if (monto > MAX_MONTO_CAJA * 100) {
+    ctx.addIssue({
+      code: z.ZodIssueCode.custom,
+      message: `El fondo inicial no puede superar S/ ${MAX_MONTO_CAJA.toLocaleString("es-PE")}.`,
+      path: ["montoInicial"],
+    })
+  }
+})
 export type AperturaCajaValues = z.infer<typeof aperturaCajaSchema>
 
-/**
- * Esquema de entradas/salidas de dinero. Las salidas no pueden superar
- * el efectivo disponible en caja en ese momento.
- */
-export const crearMovimientoSchema = (efectivoDisponible: number) =>
+/** Entradas y salidas de efectivo. Las salidas no pueden superar el efectivo que hay en la gaveta. */
+export const crearMovimientoSchema = (efectivoDisponibleCentimos: number) =>
   z
     .object({
-      tipo: tipoMovimientoSchema,
-      concepto: z
-        .string()
-        .trim()
-        .min(3, "Describe el motivo (mínimo 3 caracteres).")
-        .max(80, "Máximo 80 caracteres"),
-      monto: montoTexto,
+      tipo: z.enum(["ingreso_manual", "retiro_manual"]),
+      concepto: z.string().trim().min(3, "Describe el motivo (mínimo 3 caracteres).").max(255, "Máximo 255 caracteres"),
+      monto: textoMonto,
     })
     .superRefine((data, ctx) => {
-      const monto = aNumero(data.monto)
+      const monto = centimosDeTexto(data.monto)
       if (Number.isNaN(monto) || monto <= 0) {
         ctx.addIssue({ code: z.ZodIssueCode.custom, message: "Ingresa un monto mayor a cero.", path: ["monto"] })
-      } else if (monto > MAX_MONTO_CAJA) {
+      } else if (monto > MAX_MONTO_CAJA * 100) {
         ctx.addIssue({ code: z.ZodIssueCode.custom, message: "El monto excede el límite permitido.", path: ["monto"] })
-      } else if (data.tipo === "egreso" && monto > efectivoDisponible) {
+      } else if (data.tipo === "retiro_manual" && monto > efectivoDisponibleCentimos) {
         ctx.addIssue({
           code: z.ZodIssueCode.custom,
           message: "La salida supera el efectivo disponible en caja.",
@@ -172,14 +189,12 @@ export const crearMovimientoSchema = (efectivoDisponible: number) =>
     })
 export type MovimientoValues = z.infer<ReturnType<typeof crearMovimientoSchema>>
 
-/**
- * Esquema del arqueo de cierre. Si existe diferencia, se exige justificarla.
- */
-export const crearCierreCajaSchema = (efectivoEsperado: number) =>
+/** Arqueo de cierre. Si hay diferencia se exige justificarla. */
+export const crearCierreCajaSchema = (efectivoEsperadoCentimos: number) =>
   z
     .object({
-      conteo: z.record(z.string(), montoTexto),
-      observaciones: z.string().trim().max(160, "Máximo 160 caracteres").optional(),
+      conteo: z.record(z.string(), textoMonto),
+      observaciones: z.string().trim().max(255, "Máximo 255 caracteres").optional(),
     })
     .superRefine((data, ctx) => {
       for (const d of DENOMINACIONES) {
@@ -195,8 +210,7 @@ export const crearCierreCajaSchema = (efectivoEsperado: number) =>
           return
         }
       }
-      const contado = calcularEfectivoContado(data.conteo)
-      const diferencia = redondear(contado - efectivoEsperado)
+      const diferencia = calcularContadoCentimos(data.conteo) - efectivoEsperadoCentimos
       if (diferencia !== 0 && (data.observaciones?.length ?? 0) < 5) {
         ctx.addIssue({
           code: z.ZodIssueCode.custom,
@@ -208,166 +222,69 @@ export const crearCierreCajaSchema = (efectivoEsperado: number) =>
 export type CierreCajaValues = z.infer<ReturnType<typeof crearCierreCajaSchema>>
 
 /* -------------------------------------------------------------------------- */
-/*                 RF-14: Cobro y Cierre de Cuentas por Mesa                  */
+/*                         Historial de pedidos y devoluciones                */
 /* -------------------------------------------------------------------------- */
 
-export interface CuentaMesa {
-  mesaId: string
-  mesaNombre: string
-  area: string
-  mozo: string
-  abiertaEn: string
-  // Comandas vigentes (no anuladas ni cobradas) que componen la cuenta
-  comandas: string[]
-  // Consumos consolidados de todas las comandas de la mesa
-  items: LineaConsumo[]
-  total: number
+export type PeriodoPedidos = "hoy" | "semana" | "mes"
+
+export const PERIODO_PEDIDOS_LABELS: Record<PeriodoPedidos, string> = {
+  hoy: "Hoy",
+  semana: "7 días",
+  mes: "30 días",
 }
 
-export const crearCobroCuentaSchema = (total: number) =>
-  z
-    .object({
-      metodoPago: metodoPagoSchema,
-      montoRecibido: montoTexto.optional(),
-      referenciaPago: z.string().trim().max(30, "Máximo 30 caracteres").optional(),
-    })
-    .superRefine((data, ctx) => {
-      if (data.metodoPago === "efectivo") {
-        const monto = aNumero(data.montoRecibido)
-        if (Number.isNaN(monto)) {
-          ctx.addIssue({ code: z.ZodIssueCode.custom, message: "Ingresa el monto recibido.", path: ["montoRecibido"] })
-        } else if (monto < total) {
-          ctx.addIssue({
-            code: z.ZodIssueCode.custom,
-            message: "El monto recibido no cubre el total.",
-            path: ["montoRecibido"],
-          })
-        }
-      }
-    })
-export type CobroCuentaValues = z.infer<ReturnType<typeof crearCobroCuentaSchema>>
+export const DIAS_PERIODO_PEDIDOS: Record<PeriodoPedidos, number> = { hoy: 1, semana: 7, mes: 30 }
 
-export interface CobroCuentaPayload {
-  mesaId: string
-  metodoPago: MetodoPago
-  montoRecibido?: number
-  referenciaPago?: string
+/** Agrupa los 5 estados del pedido en los 3 que se filtran en pantalla. */
+export type GrupoPedido = "activo" | "pagado" | "anulado"
+export type FiltroGrupoPedido = GrupoPedido | "todos"
+
+export const GRUPO_PEDIDO_LABELS: Record<GrupoPedido, string> = {
+  activo: "En curso",
+  pagado: "Pagados",
+  anulado: "Anulados",
 }
 
-export interface ComprobanteInterno {
-  codigo: string
-  turnoCodigo: string
-  mesaNombre: string
-  mozo: string
-  cajero: string
-  emitidoEn: string
-  comandas: string[]
-  items: LineaConsumo[]
-  subtotal: number
-  igv: number
-  total: number
-  metodoPago: MetodoPago
-  montoRecibido: number
-  vuelto: number
-  referenciaPago?: string
-  reimpresiones: number
+export const grupoDePedido = (estado: EstadoPedido): GrupoPedido =>
+  estado === "pagado" ? "pagado" : estado === "anulado" ? "anulado" : "activo"
+
+export const ESTADO_PEDIDO_LABELS: Record<EstadoPedido, string> = {
+  pendiente: "Pendiente",
+  en_preparacion: "En preparación",
+  listo: "Listo",
+  pagado: "Pagado",
+  anulado: "Anulado",
 }
 
-/* -------------------------------------------------------------------------- */
-/*                   RF-15: Historial y Auditoría de Comandas                 */
-/* -------------------------------------------------------------------------- */
-
-export const estadoComandaSchema = z.enum(["emitida", "cobrada", "anulada"])
-export type EstadoComanda = z.infer<typeof estadoComandaSchema>
-
-export const ESTADO_COMANDA_LABELS: Record<EstadoComanda, string> = {
-  emitida: "Emitida",
-  cobrada: "Cobrada",
-  anulada: "Anulada",
-}
-
-export type AccionAuditoria = "emitida" | "cobrada" | "anulada" | "reimpresa"
-
-export const ACCION_AUDITORIA_LABELS: Record<AccionAuditoria, string> = {
-  emitida: "Comanda emitida",
-  cobrada: "Cuenta cobrada",
-  anulada: "Comanda anulada",
-  reimpresa: "Comprobante reimpreso",
-}
-
-export interface EventoAuditoria {
-  id: string
-  accion: AccionAuditoria
-  usuario: string
-  fecha: string
-  detalle?: string
-}
-
-export interface Comanda {
-  codigo: string
-  mesaId: string
-  mesaNombre: string
-  mozo: string
-  emitidaEn: string
-  items: LineaConsumo[]
-  total: number
-  estado: EstadoComanda
-  comprobante?: string
-  // Bitácora inmutable: solo se agregan eventos, nunca se editan ni eliminan
-  auditoria: EventoAuditoria[]
-}
-
-export type FiltroEstadoComanda = EstadoComanda | "todas"
+/** Código corto del pedido para mostrar (los 8 primeros caracteres del id). */
+export const codigoPedido = (idPedido: string) => idPedido.slice(0, 8).toUpperCase()
 
 export const anulacionSchema = z.object({
   motivo: z
     .string()
     .trim()
     .min(5, "Indica el motivo de la anulación (mínimo 5 caracteres).")
-    .max(120, "Máximo 120 caracteres"),
+    .max(255, "Máximo 255 caracteres"),
 })
 export type AnulacionValues = z.infer<typeof anulacionSchema>
 
-/* -------------------------------------------------------------------------- */
-/*                                 Utilidades                                 */
-/* -------------------------------------------------------------------------- */
-
-export const redondear = (valor: number) => Math.round(valor * 100) / 100
-
-export function calcularEfectivoContado(conteo: Record<string, number | string>): number {
-  return redondear(
-    DENOMINACIONES.reduce((acc, d) => acc + d.valor * (Number(conteo[d.clave]) || 0), 0)
-  )
-}
-
-export function obtenerResultadoArqueo(diferencia: number): ResultadoArqueo {
-  if (diferencia === 0) return "cuadrado"
-  return diferencia > 0 ? "sobrante" : "faltante"
-}
-
-export function desglosarIgv(total: number) {
-  const subtotal = redondear(total / (1 + IGV_TASA))
-  return { subtotal, igv: redondear(total - subtotal), total: redondear(total) }
-}
-
-export function calcularResumenTurno(turno: TurnoCaja): ResumenTurno {
-  const suma = (filtro: (m: MovimientoCaja) => boolean) =>
-    redondear(turno.movimientos.filter(filtro).reduce((acc, m) => acc + m.monto, 0))
-
-  const ventasEfectivo = suma((m) => m.tipo === "venta" && m.metodoPago === "efectivo")
-  const ventasTarjeta = suma((m) => m.tipo === "venta" && m.metodoPago === "tarjeta")
-  const ventasBilletera = suma((m) => m.tipo === "venta" && m.metodoPago === "billetera")
-  const ingresos = suma((m) => m.tipo === "ingreso")
-  const egresos = suma((m) => m.tipo === "egreso")
-
-  return {
-    ventasEfectivo,
-    ventasTarjeta,
-    ventasBilletera,
-    ventasTotales: redondear(ventasEfectivo + ventasTarjeta + ventasBilletera),
-    ingresos,
-    egresos,
-    cuentasCobradas: turno.movimientos.filter((m) => m.tipo === "venta").length,
-    efectivoEsperado: redondear(turno.montoInicial + ventasEfectivo + ingresos - egresos),
-  }
-}
+/** Devolución total o parcial de un cobro: el monto no puede superar lo que aún se puede devolver de ese cobro. */
+export const crearDevolucionSchema = (maximoCentimos: number) =>
+  z
+    .object({
+      monto: textoMonto,
+      motivo: z.string().trim().min(5, "Indica el motivo (mínimo 5 caracteres).").max(255, "Máximo 255 caracteres"),
+    })
+    .superRefine((data, ctx) => {
+      const monto = centimosDeTexto(data.monto)
+      if (Number.isNaN(monto) || monto <= 0) {
+        ctx.addIssue({ code: z.ZodIssueCode.custom, message: "Ingresa un monto mayor a cero.", path: ["monto"] })
+      } else if (monto > maximoCentimos) {
+        ctx.addIssue({
+          code: z.ZodIssueCode.custom,
+          message: `Solo se pueden devolver hasta S/ ${desdeCentimos(maximoCentimos)} de este cobro.`,
+          path: ["monto"],
+        })
+      }
+    })
+export type DevolucionValues = z.infer<ReturnType<typeof crearDevolucionSchema>>

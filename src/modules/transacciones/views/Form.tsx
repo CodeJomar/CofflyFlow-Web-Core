@@ -3,36 +3,26 @@
 import * as React from "react"
 import { useForm, useWatch } from "react-hook-form"
 import { zodResolver } from "@hookform/resolvers/zod"
-import {
-  ArrowDownCircle,
-  ArrowUpCircle,
-  Ban,
-  Calculator,
-  LockKeyhole,
-  Printer,
-  Unlock,
-  X,
-} from "lucide-react"
+import { ArrowDownCircle, ArrowUpCircle, Ban, Calculator, LockKeyhole, Printer, Undo2, Unlock, X } from "lucide-react"
 
+import type { MetodoPago, TipoMovimientoManual, TurnoActualDto, TurnoCajaDto } from "@/dtos/caja"
+import type { ComprobanteDto } from "@/dtos/pedidos"
+import { useSession } from "@/modules/auth"
 import { Button } from "@/shared/components/ui/button"
 import { Input } from "@/shared/components/ui/input"
+import { useClaveIdempotencia } from "@/shared/hooks/use-clave-idempotencia"
 import { cn } from "@/shared/utils/cn"
-import { formatToCurrency } from "@/shared/utils/formatters"
+import { aCentimos, desdeCentimos, dineroDesdeTexto, formatearCentimos, formatearDinero } from "@/shared/utils/dinero"
 
-import { useCobroCuenta } from "../hooks"
 import {
-  ACCION_AUDITORIA_CONFIG,
-  BILLETES_SUGERIDOS,
-  ESTADO_COMANDA_CONFIG,
-  METODO_PAGO_AYUDA,
-  METODO_PAGO_ICONS,
+  ESTADO_PEDIDO_CONFIG,
+  EVENTO_PAGO_CONFIG,
   RESULTADO_ARQUEO_CONFIG,
   botonPeligroClass,
   botonSecundarioClass,
   formatFechaHora,
   formatHora,
   formatTranscurrido,
-  mensajeErrorClass,
   opcionClass,
   tarjetaClass,
   textoAcento,
@@ -42,37 +32,28 @@ import {
   textoTitulo,
 } from "../components"
 import {
-  ACCION_AUDITORIA_LABELS,
   DENOMINACIONES,
-  ESTADO_COMANDA_LABELS,
+  ESTADO_PEDIDO_LABELS,
   METODO_PAGO_LABELS,
   RESULTADO_ARQUEO_LABELS,
   TIPO_MOVIMIENTO_LABELS,
+  TIPOS_MOVIMIENTO_MANUAL,
   anulacionSchema,
   aperturaCajaSchema,
-  calcularEfectivoContado,
+  calcularContadoCentimos,
+  codigoPedido,
   crearCierreCajaSchema,
-  crearCobroCuentaSchema,
+  crearDevolucionSchema,
   crearMovimientoSchema,
-  desglosarIgv,
-  metodoPagoSchema,
   obtenerResultadoArqueo,
-  redondear,
-  tipoMovimientoSchema,
   type AnulacionValues,
   type AperturaCajaValues,
   type CierreCajaValues,
-  type CobroCuentaValues,
-  type Comanda,
-  type ComprobanteInterno,
-  type CuentaMesa,
+  type DevolucionValues,
   type MovimientoValues,
   type ResumenTurno,
-  type TipoMovimiento,
-  type TurnoCaja,
+  type TurnoArchivado,
 } from "../schema"
-
-const errorMensaje = (e: unknown, porDefecto: string) => (e instanceof Error ? e.message : porDefecto)
 
 /* -------------------------------------------------------------------------- */
 /*                              Estructura de modal                           */
@@ -166,23 +147,21 @@ function PieAcciones({ children }: { children: React.ReactNode }) {
 }
 
 /* -------------------------------------------------------------------------- */
-/*                    RF-13: Apertura de turno de caja                        */
+/*                         Apertura de turno de caja                          */
 /* -------------------------------------------------------------------------- */
 
 const FONDOS_SUGERIDOS = [100, 150, 200, 300] as const
 
 export function AperturaCajaForm({
-  cajero,
   ultimoTurno,
   puedeAbrir,
   onAbrir,
 }: {
-  cajero: string
-  ultimoTurno?: TurnoCaja
+  ultimoTurno?: TurnoArchivado
   puedeAbrir: boolean
-  onAbrir: (montoInicial: number, nota?: string) => Promise<unknown>
+  onAbrir: (montoInicial: string) => Promise<boolean>
 }) {
-  const [errorGeneral, setErrorGeneral] = React.useState<string | null>(null)
+  const sesion = useSession()
   const {
     register,
     handleSubmit,
@@ -191,18 +170,14 @@ export function AperturaCajaForm({
     formState: { errors, isSubmitting },
   } = useForm<AperturaCajaValues>({
     resolver: zodResolver(aperturaCajaSchema),
-    defaultValues: { montoInicial: "", notaApertura: "" },
+    defaultValues: { montoInicial: "" },
   })
 
   const monto = useWatch({ control, name: "montoInicial" })
 
   const onSubmit = async (values: AperturaCajaValues) => {
-    setErrorGeneral(null)
-    try {
-      await onAbrir(Number(values.montoInicial), values.notaApertura?.trim() || undefined)
-    } catch (e) {
-      setErrorGeneral(errorMensaje(e, "No se pudo abrir la caja."))
-    }
+    const dinero = dineroDesdeTexto(String(values.montoInicial))
+    if (dinero) await onAbrir(dinero)
   }
 
   return (
@@ -228,17 +203,17 @@ export function AperturaCajaForm({
         </div>
       </div>
 
-      {/* En pantallas muy bajas se omite: el último cierre también figura en "Turnos anteriores" */}
+      {/* En pantallas muy bajas se omite: el último turno también figura en "Turnos anteriores" */}
       <div className="grid grid-cols-2 gap-2 text-xs sm:gap-3 sm:text-sm [@media(max-height:680px)]:hidden">
         <div className="min-w-0 rounded-xl bg-slate-100/70 px-3 py-2 sm:px-4 sm:py-3 dark:bg-stone-800">
           <span className={cn("block text-xs", textoSecundario)}>Cajero responsable</span>
-          <span className={cn("block truncate font-semibold", textoTitulo)}>{cajero}</span>
+          <span className={cn("block truncate font-semibold", textoTitulo)}>{sesion.nombre}</span>
         </div>
         <div className="min-w-0 rounded-xl bg-slate-100/70 px-3 py-2 sm:px-4 sm:py-3 dark:bg-stone-800">
-          <span className={cn("block text-xs", textoSecundario)}>Último cierre</span>
+          <span className={cn("block text-xs", textoSecundario)}>Último turno</span>
           <span className={cn("block truncate font-semibold", textoTitulo)}>
-            {ultimoTurno?.cerradoEn
-              ? `${formatFechaHora(ultimoTurno.cerradoEn)} · ${formatToCurrency(ultimoTurno.arqueo?.efectivoContado ?? 0)}`
+            {ultimoTurno
+              ? `${formatFechaHora(ultimoTurno.desde)} · ${formatearCentimos(ultimoTurno.ventasCentimos)}`
               : "Sin registros"}
           </span>
         </div>
@@ -279,28 +254,6 @@ export function AperturaCajaForm({
         </div>
       </div>
 
-      <div className="flex flex-col gap-1.5">
-        <label htmlFor="caja-nota-apertura" className={textoEtiqueta}>
-          Nota de apertura <span className="font-normal normal-case tracking-normal">(opcional)</span>
-        </label>
-        <Input
-          id="caja-nota-apertura"
-          placeholder="Ej. Fondo entregado por administración"
-          maxLength={120}
-          autoComplete="off"
-          disabled={!puedeAbrir}
-          className="h-11 rounded-xl"
-          {...register("notaApertura")}
-        />
-        <CampoError mensaje={errors.notaApertura?.message} />
-      </div>
-
-      {errorGeneral && (
-        <p role="alert" className={mensajeErrorClass}>
-          {errorGeneral}
-        </p>
-      )}
-
       <Button
         id="caja-abrir-turno"
         type="submit"
@@ -312,31 +265,28 @@ export function AperturaCajaForm({
         Abrir turno de caja
       </Button>
       {!puedeAbrir && (
-        <p className={cn("text-center text-xs", textoSecundario)}>
-          Tu rol no tiene permiso para abrir la caja.
-        </p>
+        <p className={cn("text-center text-xs", textoSecundario)}>Tu cargo no tiene permiso para abrir la caja.</p>
       )}
     </form>
   )
 }
 
 /* -------------------------------------------------------------------------- */
-/*                  RF-13: Entradas y salidas de dinero                       */
+/*                       Entradas y salidas de efectivo                       */
 /* -------------------------------------------------------------------------- */
 
 export function MovimientoCajaForm({
   tipoInicial,
-  efectivoDisponible,
+  efectivoDisponibleCentimos,
   onClose,
   onRegistrar,
 }: {
-  tipoInicial: TipoMovimiento
-  efectivoDisponible: number
+  tipoInicial: TipoMovimientoManual
+  efectivoDisponibleCentimos: number
   onClose: () => void
-  onRegistrar: (tipo: TipoMovimiento, concepto: string, monto: number) => Promise<unknown>
+  onRegistrar: (tipo: TipoMovimientoManual, concepto: string, monto: string) => Promise<boolean>
 }) {
-  const [errorGeneral, setErrorGeneral] = React.useState<string | null>(null)
-  const schema = React.useMemo(() => crearMovimientoSchema(efectivoDisponible), [efectivoDisponible])
+  const schema = React.useMemo(() => crearMovimientoSchema(efectivoDisponibleCentimos), [efectivoDisponibleCentimos])
   const {
     register,
     handleSubmit,
@@ -350,28 +300,24 @@ export function MovimientoCajaForm({
   const tipo = useWatch({ control, name: "tipo" })
 
   const onSubmit = async (values: MovimientoValues) => {
-    setErrorGeneral(null)
-    try {
-      await onRegistrar(values.tipo, values.concepto.trim(), Number(values.monto))
-      onClose()
-    } catch (e) {
-      setErrorGeneral(errorMensaje(e, "No se pudo registrar el movimiento."))
-    }
+    const dinero = dineroDesdeTexto(String(values.monto))
+    if (!dinero) return
+    if (await onRegistrar(values.tipo, values.concepto.trim(), dinero)) onClose()
   }
 
   return (
     <ModalShell
       titulo="Movimiento de caja"
-      subtitulo={`Efectivo disponible: ${formatToCurrency(efectivoDisponible)}`}
-      icono={tipo === "ingreso" ? <ArrowDownCircle className="size-5" /> : <ArrowUpCircle className="size-5" />}
+      subtitulo={`Efectivo disponible: ${formatearCentimos(efectivoDisponibleCentimos)}`}
+      icono={tipo === "ingreso_manual" ? <ArrowDownCircle className="size-5" /> : <ArrowUpCircle className="size-5" />}
       bloqueado={isSubmitting}
       onClose={onClose}
     >
       <form onSubmit={handleSubmit(onSubmit)} noValidate className="flex min-h-0 flex-1 flex-col">
         <div className="flex flex-col gap-5 overflow-y-auto p-5">
           <div className="grid grid-cols-2 gap-2" role="radiogroup" aria-label="Tipo de movimiento">
-            {tipoMovimientoSchema.options.map((opcion) => {
-              const Icono = opcion === "ingreso" ? ArrowDownCircle : ArrowUpCircle
+            {TIPOS_MOVIMIENTO_MANUAL.map((opcion) => {
+              const Icono = opcion === "ingreso_manual" ? ArrowDownCircle : ArrowUpCircle
               const activo = tipo === opcion
               return (
                 <button
@@ -395,12 +341,12 @@ export function MovimientoCajaForm({
 
           <div className="flex flex-col gap-1.5">
             <label htmlFor="caja-movimiento-concepto" className={textoEtiqueta}>
-              Concepto
+              Motivo
             </label>
             <Input
               id="caja-movimiento-concepto"
-              placeholder={tipo === "ingreso" ? "Ej. Reposición de sencillo" : "Ej. Compra de insumos"}
-              maxLength={80}
+              placeholder={tipo === "ingreso_manual" ? "Ej. Reposición de sencillo" : "Ej. Compra de insumos"}
+              maxLength={255}
               autoComplete="off"
               state={errors.concepto ? "error" : "default"}
               className="h-11 rounded-xl"
@@ -426,12 +372,6 @@ export function MovimientoCajaForm({
             />
             <CampoError mensaje={errors.monto?.message} />
           </div>
-
-          {errorGeneral && (
-            <p role="alert" className={mensajeErrorClass}>
-              {errorGeneral}
-            </p>
-          )}
         </div>
 
         <PieAcciones>
@@ -446,7 +386,7 @@ export function MovimientoCajaForm({
             Cancelar
           </Button>
           <Button id="caja-movimiento-guardar" type="submit" size="sm" loading={isSubmitting} className="flex-[2]">
-            Registrar {tipo === "ingreso" ? "entrada" : "salida"}
+            Registrar {tipo === "ingreso_manual" ? "entrada" : "salida"}
           </Button>
         </PieAcciones>
       </form>
@@ -455,7 +395,7 @@ export function MovimientoCajaForm({
 }
 
 /* -------------------------------------------------------------------------- */
-/*                 RF-13: Arqueo y cierre del turno de caja                   */
+/*                      Arqueo y cierre del turno de caja                     */
 /* -------------------------------------------------------------------------- */
 
 export function CierreCajaForm({
@@ -464,13 +404,12 @@ export function CierreCajaForm({
   onClose,
   onCerrar,
 }: {
-  turno: TurnoCaja
+  turno: TurnoActualDto["turno"]
   resumen: ResumenTurno
   onClose: () => void
-  onCerrar: (conteo: Record<string, number>, observaciones?: string) => Promise<TurnoCaja>
+  onCerrar: (montoFinalReal: string, observaciones?: string) => Promise<TurnoCajaDto | null>
 }) {
-  const [errorGeneral, setErrorGeneral] = React.useState<string | null>(null)
-  const [turnoCerrado, setTurnoCerrado] = React.useState<TurnoCaja | null>(null)
+  const [turnoCerrado, setTurnoCerrado] = React.useState<TurnoCajaDto | null>(null)
   const schema = React.useMemo(() => crearCierreCajaSchema(resumen.efectivoEsperado), [resumen.efectivoEsperado])
 
   const {
@@ -487,48 +426,39 @@ export function CierreCajaForm({
   })
 
   const conteo = useWatch({ control, name: "conteo" })
-  const contado = calcularEfectivoContado(conteo ?? {})
-  const diferencia = redondear(contado - resumen.efectivoEsperado)
+  const contado = calcularContadoCentimos(conteo ?? {})
+  const diferencia = contado - resumen.efectivoEsperado
   const resultado = obtenerResultadoArqueo(diferencia)
   const resultadoConf = RESULTADO_ARQUEO_CONFIG[resultado]
 
   const onSubmit = async (values: CierreCajaValues) => {
-    setErrorGeneral(null)
-    try {
-      const conteoNumerico = Object.fromEntries(
-        DENOMINACIONES.map((d) => [d.clave, Number(values.conteo[d.clave]) || 0])
-      )
-      const cerrado = await onCerrar(conteoNumerico, values.observaciones?.trim() || undefined)
-      setTurnoCerrado(cerrado)
-    } catch (e) {
-      setErrorGeneral(errorMensaje(e, "No se pudo cerrar la caja."))
-    }
+    const cerrado = await onCerrar(desdeCentimos(calcularContadoCentimos(values.conteo)), values.observaciones?.trim() || undefined)
+    if (cerrado) setTurnoCerrado(cerrado)
   }
 
-  if (turnoCerrado?.arqueo) {
-    const conf = RESULTADO_ARQUEO_CONFIG[turnoCerrado.arqueo.resultado]
+  if (turnoCerrado) {
+    const resultadoFinal = obtenerResultadoArqueo(aCentimos(turnoCerrado.diferencia))
+    const conf = RESULTADO_ARQUEO_CONFIG[resultadoFinal]
     return (
-      <ModalShell titulo="Caja cerrada" subtitulo={turnoCerrado.codigo} icono={<LockKeyhole className="size-5" />} onClose={onClose}>
+      <ModalShell titulo="Caja cerrada" subtitulo={turnoCerrado.id_turno_caja.slice(0, 8).toUpperCase()} icono={<LockKeyhole className="size-5" />} onClose={onClose}>
         <div className="flex flex-col gap-5 overflow-y-auto p-5" aria-live="polite">
           <div className="flex flex-col items-center gap-2 text-center">
             <span className={cn("rounded-full px-3 py-1 text-xs font-bold uppercase tracking-wide", conf.badge)}>
-              {RESULTADO_ARQUEO_LABELS[turnoCerrado.arqueo.resultado]}
+              {RESULTADO_ARQUEO_LABELS[resultadoFinal]}
             </span>
-            <p className={cn("text-sm", textoCuerpo)}>
-              El turno se cerró a las {formatHora(turnoCerrado.cerradoEn!)} tras{" "}
-              {formatTranscurrido(turnoCerrado.abiertoEn, turnoCerrado.cerradoEn!)} de operación.
-            </p>
+            {turnoCerrado.fecha_cierre && (
+              <p className={cn("text-sm", textoCuerpo)}>
+                El turno se cerró a las {formatHora(turnoCerrado.fecha_cierre)} tras{" "}
+                {formatTranscurrido(turnoCerrado.fecha_apertura, turnoCerrado.fecha_cierre)} de operación.
+              </p>
+            )}
           </div>
           <ResumenFilas
             filas={[
-              { label: "Efectivo esperado", valor: formatToCurrency(turnoCerrado.arqueo.efectivoEsperado) },
-              { label: "Efectivo contado", valor: formatToCurrency(turnoCerrado.arqueo.efectivoContado) },
-              {
-                label: "Diferencia",
-                valor: formatToCurrency(turnoCerrado.arqueo.diferencia),
-                className: conf.texto,
-              },
-              { label: "Ventas totales", valor: formatToCurrency(resumen.ventasTotales) },
+              { label: "Efectivo esperado", valor: formatearDinero(turnoCerrado.monto_final_calculado) },
+              { label: "Efectivo contado", valor: formatearDinero(turnoCerrado.monto_final_real) },
+              { label: "Diferencia", valor: formatearDinero(turnoCerrado.diferencia), className: conf.texto },
+              { label: "Ventas totales", valor: formatearCentimos(resumen.ventasTotales) },
             ]}
           />
         </div>
@@ -554,7 +484,7 @@ export function CierreCajaForm({
   return (
     <ModalShell
       titulo="Arqueo y cierre de caja"
-      subtitulo={`${turno.codigo} · Abierto hace ${formatTranscurrido(turno.abiertoEn)}`}
+      subtitulo={`Abierto hace ${formatTranscurrido(turno.fecha_apertura)} por ${turno.abierto_por}`}
       icono={<Calculator className="size-5" />}
       ancho="max-w-3xl"
       bloqueado={isSubmitting}
@@ -575,9 +505,7 @@ export function CierreCajaForm({
                     className="flex flex-col gap-1 rounded-xl border border-slate-200 bg-white p-2.5 dark:border-stone-700 dark:bg-stone-950/60"
                   >
                     <span className="flex items-center justify-between text-xs">
-                      <span className={cn("font-semibold", textoTitulo)}>
-                        S/ {d.valor < 1 ? d.valor.toFixed(2) : d.valor}
-                      </span>
+                      <span className={cn("font-semibold", textoTitulo)}>S/ {d.centimos < 100 ? (d.centimos / 100).toFixed(2) : d.centimos / 100}</span>
                       <span className={cn("capitalize", textoSecundario)}>{d.tipo}</span>
                     </span>
                     <input
@@ -591,13 +519,13 @@ export function CierreCajaForm({
                       {...register(`conteo.${d.clave}`)}
                     />
                     <span className={cn("text-right text-[11px] tabular-nums", textoSecundario)}>
-                      {formatToCurrency(cantidad * d.valor)}
+                      {formatearCentimos(cantidad * d.centimos)}
                     </span>
                   </label>
                 )
               })}
             </div>
-            <CampoError mensaje={errors.conteo?.message} />
+            <CampoError mensaje={(errors.conteo as { message?: string } | undefined)?.message} />
           </fieldset>
 
           {/* Cálculo automático de diferencias */}
@@ -605,16 +533,17 @@ export function CierreCajaForm({
             <span className={textoEtiqueta}>Resumen del turno</span>
             <ResumenFilas
               filas={[
-                { label: "Fondo inicial", valor: formatToCurrency(turno.montoInicial) },
-                { label: "Ventas en efectivo", valor: formatToCurrency(resumen.ventasEfectivo) },
-                { label: "Entradas de dinero", valor: `+ ${formatToCurrency(resumen.ingresos)}` },
-                { label: "Salidas de dinero", valor: `- ${formatToCurrency(resumen.egresos)}` },
+                { label: "Fondo inicial", valor: formatearDinero(turno.monto_inicial) },
+                { label: "Ventas en efectivo", valor: formatearCentimos(resumen.ventasEfectivo) },
+                { label: "Entradas de dinero", valor: `+ ${formatearCentimos(resumen.ingresos)}` },
+                { label: "Salidas de dinero", valor: `- ${formatearCentimos(resumen.retiros)}` },
+                { label: "Devoluciones", valor: `- ${formatearCentimos(resumen.devoluciones)}` },
               ]}
             />
             <ResumenFilas
               filas={[
-                { label: "Tarjeta (no se cuenta)", valor: formatToCurrency(resumen.ventasTarjeta) },
-                { label: "Billetera (no se cuenta)", valor: formatToCurrency(resumen.ventasBilletera) },
+                { label: "Tarjeta (no se cuenta)", valor: formatearCentimos(resumen.ventasTarjeta) },
+                { label: "Digitales (no se cuentan)", valor: formatearCentimos(resumen.ventasDigitales) },
               ]}
             />
 
@@ -622,12 +551,12 @@ export function CierreCajaForm({
               <div className="flex items-center justify-between text-sm">
                 <span className={textoCuerpo}>Esperado en caja</span>
                 <span className={cn("font-semibold tabular-nums", textoTitulo)}>
-                  {formatToCurrency(resumen.efectivoEsperado)}
+                  {formatearCentimos(resumen.efectivoEsperado)}
                 </span>
               </div>
               <div className="flex items-center justify-between text-sm">
                 <span className={textoCuerpo}>Contado</span>
-                <span className={cn("font-semibold tabular-nums", textoTitulo)}>{formatToCurrency(contado)}</span>
+                <span className={cn("font-semibold tabular-nums", textoTitulo)}>{formatearCentimos(contado)}</span>
               </div>
               <div className="flex items-center justify-between border-t border-slate-200 pt-2 dark:border-stone-700">
                 <span className={cn("rounded-full px-2 py-0.5 text-[11px] font-bold uppercase", resultadoConf.badge)}>
@@ -635,7 +564,7 @@ export function CierreCajaForm({
                 </span>
                 <span className={cn("text-xl font-bold tabular-nums", resultadoConf.texto)} aria-live="polite">
                   {diferencia > 0 ? "+" : ""}
-                  {formatToCurrency(diferencia)}
+                  {formatearCentimos(diferencia)}
                 </span>
               </div>
             </div>
@@ -648,7 +577,7 @@ export function CierreCajaForm({
               <textarea
                 id="caja-observaciones"
                 rows={3}
-                maxLength={160}
+                maxLength={255}
                 placeholder={diferencia === 0 ? "Notas del cierre" : "Explica el motivo de la diferencia"}
                 className={cn(
                   "w-full resize-none rounded-xl border bg-slate-50 px-3 py-2 text-sm text-slate-900 outline-none transition-colors placeholder:text-slate-400 focus:bg-white focus:ring-2 focus:ring-slate-400/20",
@@ -661,12 +590,6 @@ export function CierreCajaForm({
               />
               <CampoError mensaje={errors.observaciones?.message} />
             </div>
-
-            {errorGeneral && (
-              <p role="alert" className={mensajeErrorClass}>
-                {errorGeneral}
-              </p>
-            )}
           </div>
         </div>
 
@@ -689,7 +612,7 @@ export function CierreCajaForm({
             leftIcon={<LockKeyhole className="size-4" />}
             className="flex-[2]"
           >
-            Cerrar caja con {formatToCurrency(contado)}
+            Cerrar caja con {formatearCentimos(contado)}
           </Button>
         </PieAcciones>
       </form>
@@ -711,309 +634,175 @@ function ResumenFilas({ filas }: { filas: { label: string; valor: string; classN
 }
 
 /* -------------------------------------------------------------------------- */
-/*               RF-14: Cobro y cierre de la cuenta de una mesa               */
+/*              Comprobante interno del pedido (ticket, pagos, devoluciones)   */
 /* -------------------------------------------------------------------------- */
 
-export function CobroCuentaForm({
-  cuenta,
-  onClose,
-  onCobrado,
-}: {
-  cuenta: CuentaMesa
-  onClose: () => void
-  onCobrado: (comprobante: ComprobanteInterno) => void
-}) {
-  const { cobrar, isSubmitting, error, setError } = useCobroCuenta()
-  const schema = React.useMemo(() => crearCobroCuentaSchema(cuenta.total), [cuenta.total])
-  const { subtotal, igv, total } = desglosarIgv(cuenta.total)
+export type CobroDevolvible = ComprobanteDto["pagos"][number] & { devolvibleCentimos: number }
 
-  const {
-    register,
-    handleSubmit,
-    setValue,
-    control,
-    formState: { errors },
-  } = useForm<CobroCuentaValues>({
-    resolver: zodResolver(schema),
-    defaultValues: { metodoPago: "efectivo", montoRecibido: "", referenciaPago: "" },
+/** Cuánto se puede devolver aún de cada cobro: lo cobrado menos lo ya devuelto de ese mismo cobro. */
+export function cobrosDevolvibles(comprobante: ComprobanteDto): CobroDevolvible[] {
+  return comprobante.pagos.map((pago) => {
+    const devuelto = comprobante.devoluciones
+      .filter((d) => d.id_transaccion_origen === pago.id_transaccion)
+      .reduce((acc, d) => acc + aCentimos(d.monto), 0)
+    return { ...pago, devolvibleCentimos: Math.max(0, aCentimos(pago.monto) - devuelto) }
   })
-
-  const metodoPago = useWatch({ control, name: "metodoPago" })
-  const montoRecibido = useWatch({ control, name: "montoRecibido" })
-  const montoNum = montoRecibido === "" || montoRecibido === undefined ? undefined : Number(montoRecibido)
-  const vuelto = montoNum !== undefined && !Number.isNaN(montoNum) ? Math.max(montoNum - total, 0) : 0
-
-  const onSubmit = async (values: CobroCuentaValues) => {
-    const comprobante = await cobrar({
-      mesaId: cuenta.mesaId,
-      metodoPago: values.metodoPago,
-      montoRecibido: values.metodoPago === "efectivo" ? Number(values.montoRecibido) : undefined,
-      referenciaPago: values.metodoPago !== "efectivo" ? values.referenciaPago?.trim() || undefined : undefined,
-    })
-    if (comprobante) onCobrado(comprobante)
-  }
-
-  return (
-    <ModalShell
-      titulo={`Cobrar ${cuenta.mesaNombre}`}
-      subtitulo={`${cuenta.area} · Mozo: ${cuenta.mozo} · ${cuenta.comandas.length} ${cuenta.comandas.length === 1 ? "comanda" : "comandas"
-        }`}
-      ancho="max-w-2xl"
-      bloqueado={isSubmitting}
-      onClose={onClose}
-    >
-      <form onSubmit={handleSubmit(onSubmit)} noValidate className="flex min-h-0 flex-1 flex-col">
-        <div className="grid min-h-0 grid-cols-1 gap-5 overflow-y-auto p-5 md:grid-cols-2">
-          {/* Consumos consolidados */}
-          <div className="flex flex-col gap-3">
-            <span className={textoEtiqueta}>Consumo consolidado</span>
-            <ul className="flex flex-col divide-y divide-slate-100 rounded-2xl border border-slate-100 px-4 dark:divide-stone-800 dark:border-stone-800">
-              {cuenta.items.map((item) => (
-                <li key={`${item.productoId}-${item.precioUnitario}`} className="flex items-center justify-between gap-3 py-2.5 text-sm">
-                  <div className="flex min-w-0 flex-col">
-                    <span className={cn("truncate font-medium", textoTitulo)}>{item.nombre}</span>
-                    <span className={cn("text-xs tabular-nums", textoSecundario)}>
-                      {item.cantidad} × {formatToCurrency(item.precioUnitario)}
-                    </span>
-                  </div>
-                  <span className={cn("font-semibold tabular-nums", textoTitulo)}>
-                    {formatToCurrency(item.cantidad * item.precioUnitario)}
-                  </span>
-                </li>
-              ))}
-            </ul>
-            <div className="flex flex-wrap gap-1.5">
-              {cuenta.comandas.map((codigo) => (
-                <span
-                  key={codigo}
-                  className="rounded-md bg-slate-100 px-2 py-0.5 text-[11px] font-semibold text-slate-700 dark:bg-stone-800 dark:text-stone-200"
-                >
-                  {codigo}
-                </span>
-              ))}
-            </div>
-            <div className="flex flex-col gap-1.5 border-t border-slate-200 pt-3 text-xs dark:border-stone-800">
-              <div className="flex justify-between">
-                <span className={textoSecundario}>Subtotal base</span>
-                <span className={cn("font-medium tabular-nums", textoTitulo)}>{formatToCurrency(subtotal)}</span>
-              </div>
-              <div className="flex justify-between">
-                <span className={textoSecundario}>IGV (18%)</span>
-                <span className={cn("font-medium tabular-nums", textoTitulo)}>{formatToCurrency(igv)}</span>
-              </div>
-            </div>
-          </div>
-
-          {/* Pago */}
-          <div className="flex flex-col gap-4">
-            <div className="flex items-center justify-between rounded-2xl bg-[#4C0107] p-4 text-white dark:bg-stone-800">
-              <span className="text-sm font-medium text-white/80 dark:text-stone-300">Total a cobrar</span>
-              <span className="text-2xl font-bold tabular-nums text-white dark:text-stone-100">
-                {formatToCurrency(total)}
-              </span>
-            </div>
-
-            <fieldset className="flex flex-col gap-2">
-              <legend className={cn("mb-2", textoEtiqueta)}>Método de pago</legend>
-              <div className="grid grid-cols-3 gap-2">
-                {metodoPagoSchema.options.map((metodo) => {
-                  const Icono = METODO_PAGO_ICONS[metodo]
-                  const activo = metodoPago === metodo
-                  return (
-                    <button
-                      key={metodo}
-                      id={`cobro-metodo-${metodo}`}
-                      type="button"
-                      aria-pressed={activo}
-                      onClick={() => {
-                        setValue("metodoPago", metodo, { shouldValidate: true })
-                        setError(null)
-                      }}
-                      className={cn(
-                        "flex flex-col items-center gap-1 rounded-2xl border px-2 py-3 text-center text-xs font-semibold transition-colors cursor-pointer",
-                        opcionClass(activo)
-                      )}
-                    >
-                      <Icono className="size-5" />
-                      {METODO_PAGO_LABELS[metodo]}
-                      <span className={cn("text-[10px] font-medium", activo ? "opacity-80" : textoSecundario)}>
-                        {METODO_PAGO_AYUDA[metodo]}
-                      </span>
-                    </button>
-                  )
-                })}
-              </div>
-            </fieldset>
-
-            {metodoPago === "efectivo" ? (
-              <div className="flex flex-col gap-3">
-                <div className="flex flex-col gap-1.5">
-                  <label htmlFor="cobro-monto-recibido" className={textoEtiqueta}>
-                    Monto recibido
-                  </label>
-                  <Input
-                    id="cobro-monto-recibido"
-                    type="number"
-                    inputMode="decimal"
-                    min={0}
-                    step="0.10"
-                    placeholder="0.00"
-                    state={errors.montoRecibido ? "error" : "default"}
-                    className="h-11 rounded-xl tabular-nums"
-                    {...register("montoRecibido")}
-                  />
-                  <CampoError mensaje={errors.montoRecibido?.message} />
-                </div>
-                <div className="flex flex-wrap gap-2">
-                  <button
-                    type="button"
-                    onClick={() => setValue("montoRecibido", total.toFixed(2), { shouldValidate: true })}
-                    className={cn(
-                      "rounded-full border px-3 py-1 text-xs font-semibold transition-colors cursor-pointer",
-                      opcionClass(montoNum === total)
-                    )}
-                  >
-                    Exacto
-                  </button>
-                  {BILLETES_SUGERIDOS.filter((b) => b > total).map((billete) => (
-                    <button
-                      key={billete}
-                      type="button"
-                      onClick={() => setValue("montoRecibido", String(billete), { shouldValidate: true })}
-                      className={cn(
-                        "rounded-full border px-3 py-1 text-xs font-semibold tabular-nums transition-colors cursor-pointer",
-                        opcionClass(montoNum === billete)
-                      )}
-                    >
-                      S/ {billete}
-                    </button>
-                  ))}
-                </div>
-                <div className="flex items-center justify-between rounded-xl bg-slate-100 px-4 py-3 text-sm dark:bg-stone-800">
-                  <span className={textoCuerpo}>Vuelto</span>
-                  <span className="font-bold tabular-nums text-emerald-700 dark:text-emerald-400">
-                    {formatToCurrency(vuelto)}
-                  </span>
-                </div>
-              </div>
-            ) : (
-              <div className="flex flex-col gap-1.5">
-                <label htmlFor="cobro-referencia" className={textoEtiqueta}>
-                  N° de operación <span className="font-normal normal-case tracking-normal">(opcional)</span>
-                </label>
-                <Input
-                  id="cobro-referencia"
-                  placeholder={metodoPago === "tarjeta" ? "Ej. Voucher 004512" : "Ej. Operación 87451236"}
-                  maxLength={30}
-                  autoComplete="off"
-                  className="h-11 rounded-xl"
-                  {...register("referenciaPago")}
-                />
-                <CampoError mensaje={errors.referenciaPago?.message} />
-              </div>
-            )}
-
-            {error && (
-              <p role="alert" className={mensajeErrorClass}>
-                {error}
-              </p>
-            )}
-          </div>
-        </div>
-
-        <PieAcciones>
-          <Button
-            type="button"
-            variant="outline"
-            size="sm"
-            onClick={onClose}
-            disabled={isSubmitting}
-            className={cn("flex-1", botonSecundarioClass)}
-          >
-            Cancelar
-          </Button>
-          <Button id="cobro-confirmar" type="submit" size="sm" loading={isSubmitting} className="flex-[2]">
-            Cobrar y liberar mesa · {formatToCurrency(total)}
-          </Button>
-        </PieAcciones>
-      </form>
-    </ModalShell>
-  )
 }
-
-/* -------------------------------------------------------------------------- */
-/*                         Comprobante interno (ticket)                       */
-/* -------------------------------------------------------------------------- */
 
 export function ComprobanteModal({
   comprobante,
-  esReimpresion,
+  puedeDevolver,
+  puedeAnular,
   onClose,
+  onDevolver,
+  onAnular,
 }: {
-  comprobante: ComprobanteInterno
-  esReimpresion: boolean
+  comprobante: ComprobanteDto
+  puedeDevolver: boolean
+  puedeAnular: boolean
   onClose: () => void
+  onDevolver: (cobro: CobroDevolvible) => void
+  onAnular: () => void
 }) {
+  const cobros = cobrosDevolvibles(comprobante)
+  const estadoConf = ESTADO_PEDIDO_CONFIG[comprobante.estado]
+  const sinPagos = comprobante.pagos.length === 0
+  const lugar = comprobante.tipo_pedido === "salon" && comprobante.mesa_numero ? `Mesa ${comprobante.mesa_numero}` : "Para llevar"
+
   return (
     <ModalShell
-      titulo={esReimpresion ? "Reimpresión de comprobante" : "Comprobante emitido"}
-      subtitulo={`${comprobante.mesaNombre} · ${formatFechaHora(comprobante.emitidoEn)}`}
+      titulo={`Pedido ${comprobante.numero}`}
+      subtitulo={`${lugar} · ${formatFechaHora(comprobante.fecha)}`}
       icono={<Printer className="size-5" />}
+      ancho="max-w-xl"
       onClose={onClose}
     >
-      <div className="overflow-y-auto p-5">
+      <div className="flex flex-col gap-5 overflow-y-auto p-5">
+        <div className="flex flex-wrap items-center gap-2">
+          <span className={cn("inline-flex items-center gap-1.5 rounded-full px-2.5 py-1 text-xs font-semibold", estadoConf.badge)}>
+            <span className={cn("size-1.5 rounded-full", estadoConf.dot)} />
+            {ESTADO_PEDIDO_LABELS[comprobante.estado]}
+          </span>
+          <span className="rounded-full bg-slate-100 px-2.5 py-1 text-xs font-semibold capitalize text-slate-700 dark:bg-stone-800 dark:text-stone-200">
+            Pago: {comprobante.estado_pago.replace("_", " ")}
+          </span>
+        </div>
+
         {/* Ticket en papel: se mantiene claro también en modo oscuro para simular la impresión */}
-        <div className="relative flex flex-col gap-3 rounded-2xl border border-dashed border-slate-300 bg-white p-5 font-mono text-xs text-slate-800 shadow-inner dark:border-stone-600 dark:bg-stone-100 dark:text-stone-900">
-          {esReimpresion && (
-            <span className="absolute right-3 top-3 rounded-md border border-red-400 px-2 py-0.5 text-[10px] font-bold uppercase tracking-widest text-red-600">
-              Copia N° {comprobante.reimpresiones}
-            </span>
-          )}
+        <div className="flex flex-col gap-3 rounded-2xl border border-dashed border-slate-300 bg-white p-5 font-mono text-xs text-slate-800 shadow-inner dark:border-stone-600 dark:bg-stone-100 dark:text-stone-900">
           <div className="flex flex-col items-center gap-0.5 text-center">
             <span className="text-sm font-bold tracking-wide">COFFY FLOW</span>
             <span>Comprobante interno de consumo</span>
-            <span className="font-bold">{comprobante.codigo}</span>
+            <span className="font-bold">{comprobante.numero}</span>
           </div>
-          <div className="flex flex-col gap-0.5 border-y border-dashed border-slate-300 py-2 dark:border-stone-400">
-            <FilaTicket label="Fecha" valor={formatFechaHora(comprobante.emitidoEn)} />
-            <FilaTicket label="Mesa" valor={comprobante.mesaNombre} />
-            <FilaTicket label="Mozo" valor={comprobante.mozo} />
-            <FilaTicket label="Cajero" valor={comprobante.cajero} />
-            <FilaTicket label="Turno" valor={comprobante.turnoCodigo} />
-            <FilaTicket label="Comandas" valor={comprobante.comandas.join(", ")} />
-          </div>
-          <ul className="flex flex-col gap-1">
-            {comprobante.items.map((item) => (
-              <li key={`${item.productoId}-${item.precioUnitario}`} className="flex justify-between gap-2">
-                <span className="truncate">
-                  {item.cantidad} x {item.nombre}
+          <ul className="flex flex-col gap-1 border-y border-dashed border-slate-300 py-2 dark:border-stone-400">
+            {comprobante.items.map((item, i) => (
+              <li key={`${item.producto}-${i}`} className="flex flex-col">
+                <span className="flex justify-between gap-2">
+                  <span className="truncate">
+                    {item.cantidad} x {item.producto}
+                  </span>
+                  <span className="tabular-nums">{formatearDinero(item.subtotal)}</span>
                 </span>
-                <span className="tabular-nums">{formatToCurrency(item.cantidad * item.precioUnitario)}</span>
+                {item.modificadores.length > 0 && (
+                  <span className="pl-3 text-[10px] opacity-70">{item.modificadores.map((m) => m.opcion).join(", ")}</span>
+                )}
+                {item.notas_preparacion && <span className="pl-3 text-[10px] italic opacity-70">{item.notas_preparacion}</span>}
               </li>
             ))}
           </ul>
-          <div className="flex flex-col gap-0.5 border-t border-dashed border-slate-300 pt-2 dark:border-stone-400">
-            <FilaTicket label="Op. gravada" valor={formatToCurrency(comprobante.subtotal)} />
-            <FilaTicket label="IGV 18%" valor={formatToCurrency(comprobante.igv)} />
+          <div className="flex flex-col gap-0.5">
+            <FilaTicket label="Op. gravada" valor={formatearDinero(comprobante.desglose.base_imponible)} />
+            <FilaTicket label="IGV 18%" valor={formatearDinero(comprobante.desglose.igv_18)} />
+            {aCentimos(comprobante.descuento) > 0 && (
+              <FilaTicket label="Descuento" valor={`- ${formatearDinero(comprobante.descuento)}`} />
+            )}
             <div className="flex justify-between text-sm font-bold">
               <span>TOTAL</span>
-              <span className="tabular-nums">{formatToCurrency(comprobante.total)}</span>
+              <span className="tabular-nums">{formatearDinero(comprobante.total)}</span>
             </div>
           </div>
           <div className="flex flex-col gap-0.5 border-t border-dashed border-slate-300 pt-2 dark:border-stone-400">
-            <FilaTicket label="Pago" valor={METODO_PAGO_LABELS[comprobante.metodoPago]} />
-            {comprobante.referenciaPago && <FilaTicket label="Operación" valor={comprobante.referenciaPago} />}
-            {comprobante.metodoPago === "efectivo" && (
-              <>
-                <FilaTicket label="Recibido" valor={formatToCurrency(comprobante.montoRecibido)} />
-                <FilaTicket label="Vuelto" valor={formatToCurrency(comprobante.vuelto)} />
-              </>
+            <FilaTicket label="Pagado" valor={formatearDinero(comprobante.total_pagado)} />
+            {aCentimos(comprobante.total_devuelto) > 0 && (
+              <FilaTicket label="Devuelto" valor={`- ${formatearDinero(comprobante.total_devuelto)}`} />
             )}
+            <FilaTicket label="Saldo pendiente" valor={formatearDinero(comprobante.saldo_pendiente)} />
           </div>
-          <p className="text-center text-[10px]">Documento interno sin valor tributario · ¡Gracias por su visita!</p>
+          <p className="text-center text-[10px]">{comprobante.aviso}</p>
+        </div>
+
+        {/* Cobros y devoluciones */}
+        <div className="flex flex-col gap-3">
+          <span className={textoEtiqueta}>Cobros y devoluciones</span>
+          {sinPagos ? (
+            <p className={cn("text-sm", textoSecundario)}>Este pedido todavía no tiene cobros.</p>
+          ) : (
+            <ol className="relative flex flex-col gap-4 border-l border-slate-200 pl-5 dark:border-stone-700">
+              {[
+                ...cobros.map((c) => ({ tipo: "pago" as const, fecha: c.fecha, c })),
+                ...comprobante.devoluciones.map((d) => ({ tipo: "devolucion" as const, fecha: d.fecha, d })),
+              ]
+                .sort((a, b) => a.fecha.localeCompare(b.fecha))
+                .map((evento) => {
+                  const conf = EVENTO_PAGO_CONFIG[evento.tipo]
+                  const Icono = conf.icon
+                  const esPago = evento.tipo === "pago"
+                  const dato = esPago ? evento.c : evento.d
+                  return (
+                    <li key={dato.id_transaccion} className="relative">
+                      <span
+                        className={cn(
+                          "absolute -left-[31px] flex size-5 items-center justify-center rounded-full ring-4 ring-white dark:ring-stone-900",
+                          conf.className
+                        )}
+                      >
+                        <Icono className="size-3" />
+                      </span>
+                      <div className="flex flex-col gap-0.5">
+                        <div className="flex flex-wrap items-baseline justify-between gap-x-3">
+                          <span className={cn("text-sm font-semibold", textoTitulo)}>
+                            {esPago ? "Cobro" : "Devolución"} · {METODO_PAGO_LABELS[dato.metodo_pago as MetodoPago]}
+                          </span>
+                          <span className={cn("text-sm font-bold tabular-nums", esPago ? textoTitulo : "text-red-600 dark:text-red-400")}>
+                            {esPago ? "" : "- "}
+                            {formatearDinero(dato.monto)}
+                          </span>
+                        </div>
+                        <span className={cn("text-[11px]", textoSecundario)}>
+                          {formatFechaHora(dato.fecha)} · {dato.registrado_por}
+                        </span>
+                        {!esPago && <span className={cn("text-xs", textoCuerpo)}>Motivo: {evento.d.motivo}</span>}
+                        {esPago && puedeDevolver && evento.c.devolvibleCentimos > 0 && (
+                          <button
+                            type="button"
+                            onClick={() => onDevolver(evento.c)}
+                            className="mt-1 inline-flex w-fit cursor-pointer items-center gap-1 rounded-lg px-2 py-1 text-xs font-semibold text-red-600 transition-colors hover:bg-red-50 dark:text-red-400 dark:hover:bg-red-500/15"
+                          >
+                            <Undo2 className="size-3.5" /> Devolver (hasta {formatearCentimos(evento.c.devolvibleCentimos)})
+                          </button>
+                        )}
+                      </div>
+                    </li>
+                  )
+                })}
+            </ol>
+          )}
         </div>
       </div>
+
       <PieAcciones>
+        {puedeAnular && comprobante.estado !== "anulado" && comprobante.estado !== "pagado" && sinPagos && (
+          <Button
+            type="button"
+            size="sm"
+            onClick={onAnular}
+            leftIcon={<Ban className="size-4" />}
+            className={cn("flex-1", botonPeligroClass)}
+          >
+            Anular
+          </Button>
+        )}
         <Button
           type="button"
           variant="outline"
@@ -1024,8 +813,8 @@ export function ComprobanteModal({
         >
           Imprimir
         </Button>
-        <Button id="comprobante-cerrar" type="button" size="sm" onClick={onClose} className="flex-[2]">
-          Listo
+        <Button id="comprobante-cerrar" type="button" size="sm" onClick={onClose} className="flex-1">
+          Cerrar
         </Button>
       </PieAcciones>
     </ModalShell>
@@ -1042,189 +831,89 @@ function FilaTicket({ label, valor }: { label: string; valor: string }) {
 }
 
 /* -------------------------------------------------------------------------- */
-/*                 RF-15: Detalle y auditoría de una comanda                  */
+/*                            Devolución de un cobro                          */
 /* -------------------------------------------------------------------------- */
 
-export function DetalleComandaModal({
-  comanda,
-  puedeAnular,
-  reimprimiendo,
+export function DevolucionForm({
+  cobro,
+  codigo,
   onClose,
-  onAnular,
-  onReimprimir,
+  onDevolver,
 }: {
-  comanda: Comanda
-  puedeAnular: boolean
-  reimprimiendo: boolean
+  cobro: CobroDevolvible
+  codigo: string
   onClose: () => void
-  onAnular: () => void
-  onReimprimir: () => void
+  onDevolver: (payload: { id_transaccion_origen: string; monto: string; motivo: string }, clave: string) => Promise<boolean>
 }) {
-  const estadoConf = ESTADO_COMANDA_CONFIG[comanda.estado]
-  return (
-    <ModalShell
-      titulo={`Comanda ${comanda.codigo}`}
-      subtitulo={`${comanda.mesaNombre} · ${comanda.mozo} · ${formatFechaHora(comanda.emitidaEn)}`}
-      ancho="max-w-xl"
-      onClose={onClose}
-    >
-      <div className="flex flex-col gap-5 overflow-y-auto p-5">
-        <div className="flex flex-wrap items-center gap-2">
-          <span className={cn("inline-flex items-center gap-1.5 rounded-full px-2.5 py-1 text-xs font-semibold", estadoConf.badge)}>
-            <span className={cn("size-1.5 rounded-full", estadoConf.dot)} />
-            {ESTADO_COMANDA_LABELS[comanda.estado]}
-          </span>
-          {comanda.comprobante && (
-            <span className="rounded-full bg-slate-100 px-2.5 py-1 text-xs font-semibold text-slate-700 dark:bg-stone-800 dark:text-stone-200">
-              {comanda.comprobante}
-            </span>
-          )}
-        </div>
-
-        <div className="flex flex-col gap-2">
-          <span className={textoEtiqueta}>Productos</span>
-          <ul className="flex flex-col divide-y divide-slate-100 rounded-2xl border border-slate-100 px-4 dark:divide-stone-800 dark:border-stone-800">
-            {comanda.items.map((item) => (
-              <li key={`${item.productoId}-${item.precioUnitario}`} className="flex items-center justify-between gap-3 py-2.5 text-sm">
-                <span className={cn(textoTitulo, comanda.estado === "anulada" && "line-through opacity-70")}>
-                  {item.cantidad} × {item.nombre}
-                </span>
-                <span className={cn("font-semibold tabular-nums", textoTitulo)}>
-                  {formatToCurrency(item.cantidad * item.precioUnitario)}
-                </span>
-              </li>
-            ))}
-            <li className="flex items-center justify-between py-2.5 text-sm">
-              <span className={cn("font-bold", textoTitulo)}>Total</span>
-              <span className={cn("text-base font-bold tabular-nums", textoAcento)}>{formatToCurrency(comanda.total)}</span>
-            </li>
-          </ul>
-        </div>
-
-        {/* Bitácora inmutable */}
-        <div className="flex flex-col gap-3">
-          <span className={textoEtiqueta}>Auditoría</span>
-          <ol className="relative flex flex-col gap-4 border-l border-slate-200 pl-5 dark:border-stone-700">
-            {comanda.auditoria.map((evento) => {
-              const conf = ACCION_AUDITORIA_CONFIG[evento.accion]
-              const Icono = conf.icon
-              return (
-                <li key={evento.id} className="relative">
-                  <span
-                    className={cn(
-                      "absolute -left-[31px] flex size-5 items-center justify-center rounded-full ring-4 ring-white dark:ring-stone-900",
-                      conf.className
-                    )}
-                  >
-                    <Icono className="size-3" />
-                  </span>
-                  <div className="flex flex-col gap-0.5">
-                    <div className="flex flex-wrap items-baseline justify-between gap-x-3">
-                      <span className={cn("text-sm font-semibold", textoTitulo)}>
-                        {ACCION_AUDITORIA_LABELS[evento.accion]}
-                      </span>
-                      <span className={cn("text-[11px] tabular-nums", textoSecundario)}>
-                        {formatFechaHora(evento.fecha)}
-                      </span>
-                    </div>
-                    <span className={cn("text-xs", textoSecundario)}>Por {evento.usuario}</span>
-                    {evento.detalle && <span className={cn("text-xs", textoCuerpo)}>{evento.detalle}</span>}
-                  </div>
-                </li>
-              )
-            })}
-          </ol>
-        </div>
-      </div>
-
-      <PieAcciones>
-        {comanda.estado === "emitida" && puedeAnular && (
-          <Button
-            type="button"
-            size="sm"
-            onClick={onAnular}
-            leftIcon={<Ban className="size-4" />}
-            className={cn("flex-1", botonPeligroClass)}
-          >
-            Anular
-          </Button>
-        )}
-        {comanda.estado === "cobrada" && comanda.comprobante && (
-          <Button
-            type="button"
-            variant="outline"
-            size="sm"
-            onClick={onReimprimir}
-            loading={reimprimiendo}
-            leftIcon={<Printer className="size-4" />}
-            className={cn("flex-1", botonSecundarioClass)}
-          >
-            Reimprimir
-          </Button>
-        )}
-        <Button type="button" size="sm" onClick={onClose} className="flex-1">
-          Cerrar
-        </Button>
-      </PieAcciones>
-    </ModalShell>
-  )
-}
-
-/* -------------------------------------------------------------------------- */
-/*                      RF-15: Anulación auditada de comanda                  */
-/* -------------------------------------------------------------------------- */
-
-export function AnularComandaForm({
-  comanda,
-  onClose,
-  onAnular,
-}: {
-  comanda: Comanda
-  onClose: () => void
-  onAnular: (codigo: string, motivo: string) => Promise<unknown>
-}) {
-  const [errorGeneral, setErrorGeneral] = React.useState<string | null>(null)
+  const schema = React.useMemo(() => crearDevolucionSchema(cobro.devolvibleCentimos), [cobro.devolvibleCentimos])
+  const { obtener, reiniciar } = useClaveIdempotencia()
   const {
     register,
     handleSubmit,
+    setValue,
     formState: { errors, isSubmitting },
-  } = useForm<AnulacionValues>({
-    resolver: zodResolver(anulacionSchema),
-    defaultValues: { motivo: "" },
+  } = useForm<DevolucionValues>({
+    resolver: zodResolver(schema),
+    defaultValues: { monto: desdeCentimos(cobro.devolvibleCentimos), motivo: "" },
   })
 
-  const onSubmit = async (values: AnulacionValues) => {
-    setErrorGeneral(null)
-    try {
-      await onAnular(comanda.codigo, values.motivo.trim())
+  const onSubmit = async (values: DevolucionValues) => {
+    const monto = dineroDesdeTexto(String(values.monto))
+    if (!monto) return
+    const payload = { id_transaccion_origen: cobro.id_transaccion, monto, motivo: values.motivo.trim() }
+    // Misma clave mientras el contenido no cambie: un doble toque o un reintento no devuelve dos veces
+    const ok = await onDevolver(payload, obtener(JSON.stringify(payload)))
+    if (ok) {
+      reiniciar()
       onClose()
-    } catch (e) {
-      setErrorGeneral(errorMensaje(e, "No se pudo anular la comanda."))
     }
   }
 
   return (
     <ModalShell
-      titulo={`Anular ${comanda.codigo}`}
-      subtitulo={`${comanda.mesaNombre} · ${formatToCurrency(comanda.total)}`}
-      icono={<Ban className="size-5" />}
+      titulo={`Devolver cobro · ${codigo}`}
+      subtitulo={`${METODO_PAGO_LABELS[cobro.metodo_pago]} · cobrado ${formatearDinero(cobro.monto)}`}
+      icono={<Undo2 className="size-5" />}
       bloqueado={isSubmitting}
       onClose={onClose}
     >
       <form onSubmit={handleSubmit(onSubmit)} noValidate className="flex min-h-0 flex-1 flex-col">
         <div className="flex flex-col gap-4 overflow-y-auto p-5">
           <p className="rounded-xl bg-amber-50 px-4 py-3 text-sm text-amber-800 dark:bg-amber-500/15 dark:text-amber-200">
-            La comanda no se elimina: quedará registrada como <strong>anulada</strong> con tu usuario, la fecha y el
-            motivo, y se descontará de la cuenta de la mesa.
+            La devolución no borra el cobro: queda registrada en el libro de caja con tu usuario, la fecha y el motivo, y
+            resta de las ventas del turno.
           </p>
           <div className="flex flex-col gap-1.5">
-            <label htmlFor="comanda-motivo-anulacion" className={textoEtiqueta}>
-              Motivo de la anulación
+            <label htmlFor="devolucion-monto" className={textoEtiqueta}>
+              Monto a devolver
             </label>
             <Input
-              id="comanda-motivo-anulacion"
-              placeholder="Ej. Pedido duplicado por error"
-              maxLength={120}
+              id="devolucion-monto"
+              type="number"
+              inputMode="decimal"
+              min={0}
+              step="0.10"
+              state={errors.monto ? "error" : "default"}
+              className="h-11 rounded-xl tabular-nums"
+              {...register("monto")}
+            />
+            <button
+              type="button"
+              onClick={() => setValue("monto", desdeCentimos(cobro.devolvibleCentimos), { shouldValidate: true })}
+              className={cn("w-fit cursor-pointer text-xs font-semibold hover:underline", textoAcento)}
+            >
+              Devolver todo ({formatearCentimos(cobro.devolvibleCentimos)})
+            </button>
+            <CampoError mensaje={errors.monto?.message} />
+          </div>
+          <div className="flex flex-col gap-1.5">
+            <label htmlFor="devolucion-motivo" className={textoEtiqueta}>
+              Motivo
+            </label>
+            <Input
+              id="devolucion-motivo"
+              placeholder="Ej. Producto en mal estado"
+              maxLength={255}
               autoComplete="off"
               state={errors.motivo ? "error" : "default"}
               className="h-11 rounded-xl"
@@ -1232,11 +921,6 @@ export function AnularComandaForm({
             />
             <CampoError mensaje={errors.motivo?.message} />
           </div>
-          {errorGeneral && (
-            <p role="alert" className={mensajeErrorClass}>
-              {errorGeneral}
-            </p>
-          )}
         </div>
         <PieAcciones>
           <Button
@@ -1250,7 +934,92 @@ export function AnularComandaForm({
             Volver
           </Button>
           <Button
-            id="comanda-confirmar-anulacion"
+            id="devolucion-confirmar"
+            type="submit"
+            size="sm"
+            loading={isSubmitting}
+            leftIcon={<Undo2 className="size-4" />}
+            className={cn("flex-[2]", botonPeligroClass)}
+          >
+            Confirmar devolución
+          </Button>
+        </PieAcciones>
+      </form>
+    </ModalShell>
+  )
+}
+
+/* -------------------------------------------------------------------------- */
+/*                         Anulación auditada de un pedido                    */
+/* -------------------------------------------------------------------------- */
+
+export function AnularPedidoForm({
+  idPedido,
+  detalle,
+  onClose,
+  onAnular,
+}: {
+  idPedido: string
+  detalle: string
+  onClose: () => void
+  onAnular: (idPedido: string, motivo: string) => Promise<boolean>
+}) {
+  const {
+    register,
+    handleSubmit,
+    formState: { errors, isSubmitting },
+  } = useForm<AnulacionValues>({
+    resolver: zodResolver(anulacionSchema),
+    defaultValues: { motivo: "" },
+  })
+
+  const onSubmit = async (values: AnulacionValues) => {
+    if (await onAnular(idPedido, values.motivo.trim())) onClose()
+  }
+
+  return (
+    <ModalShell
+      titulo={`Anular ${codigoPedido(idPedido)}`}
+      subtitulo={detalle}
+      icono={<Ban className="size-5" />}
+      bloqueado={isSubmitting}
+      onClose={onClose}
+    >
+      <form onSubmit={handleSubmit(onSubmit)} noValidate className="flex min-h-0 flex-1 flex-col">
+        <div className="flex flex-col gap-4 overflow-y-auto p-5">
+          <p className="rounded-xl bg-amber-50 px-4 py-3 text-sm text-amber-800 dark:bg-amber-500/15 dark:text-amber-200">
+            El pedido no se elimina: quedará registrado como <strong>anulado</strong> con tu usuario, la fecha y el
+            motivo, y dejará de aparecer en cocina.
+          </p>
+          <div className="flex flex-col gap-1.5">
+            <label htmlFor="pedido-motivo-anulacion" className={textoEtiqueta}>
+              Motivo de la anulación
+            </label>
+            <Input
+              id="pedido-motivo-anulacion"
+              placeholder="Ej. Pedido duplicado por error"
+              maxLength={255}
+              autoComplete="off"
+              state={errors.motivo ? "error" : "default"}
+              className="h-11 rounded-xl"
+              {...register("motivo")}
+            />
+            <CampoError mensaje={errors.motivo?.message} />
+          </div>
+        </div>
+        <PieAcciones>
+          <Button
+            type="button"
+            variant="outline"
+            size="sm"
+            onClick={onClose}
+            disabled={isSubmitting}
+            className={cn("flex-1", botonSecundarioClass)}
+          >
+            Volver
+          </Button>
+          <Button
+            id="pedido-confirmar-anulacion"
             type="submit"
             size="sm"
             loading={isSubmitting}
