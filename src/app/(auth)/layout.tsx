@@ -11,14 +11,15 @@ export default function AuthLayout({
       {/* Sección Izquierda: 8 Columnas (Imagen de ambientación) */}
       <div className="hidden lg:relative lg:col-span-8 lg:block h-full bg-slate-900 z-10 shadow-[10px_0_30px_-5px_#4C010780]">
         <Image
-          src="/images/login-coffee.jpg"
-          alt="Coffy Flow Ambiente"
+          src="/images/login.webp"
+          alt="Barista preparando café en una cafetería acogedora"
           fill
           priority
           sizes="66vw"
-          className="object-cover"
+          // El encuadre apunta al barista y la máquina de espresso (zona media-derecha de la ilustración vertical)
+          className="object-cover object-[50%_62%]"
         />
-        <div className="absolute inset-0 bg-black/20" />
+        <div className="absolute inset-0 bg-linear-to-t from-black/25 via-transparent to-transparent" />
       </div>
 
       {/* Sección Derecha: 4 Columnas (Formulario) */}
