@@ -2,6 +2,7 @@ import axios, { type AxiosRequestConfig, type InternalAxiosRequestConfig } from 
 import type { BaseResponse } from "@/dtos/core/baseResponse.dto"
 import type { ConstructorLike } from "@/dtos/core/helpers"
 import { env } from "@/env"
+import { conexion, esFalloDeConexion } from "@/lib/connection"
 
 /**
  * Cliente tipado hacia la API NestJS.
@@ -14,6 +15,20 @@ export const api = axios.create({
   timeout: 15_000,
   headers: { "Content-Type": "application/json" },
 })
+
+// Informa al estado de conexión si la API contesta o no: cualquier respuesta de la API (aunque sea un error de negocio)
+// prueba que está viva; sin respuesta o con 502/503/504 se muestra el aviso de conexión.
+api.interceptors.response.use(
+  (respuesta) => {
+    conexion.marcarApiOperativa()
+    return respuesta
+  },
+  (error: unknown) => {
+    if (esFalloDeConexion(error)) conexion.marcarApiCaida()
+    else if (axios.isAxiosError(error) && error.response) conexion.marcarApiOperativa()
+    throw error
+  },
+)
 
 // Rutas de autenticación que no deben intentar renovar la sesión ante un 401.
 const RUTAS_SIN_RENOVACION = ["/auth/login", "/auth/refresh", "/auth/logout", "/auth/activar", "/auth/recuperar", "/auth/verificar-otp", "/auth/restablecer-password"]

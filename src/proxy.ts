@@ -20,6 +20,6 @@ export function proxy(request: NextRequest) {
 }
 
 export const config = {
-  // Excluye la API reenviada a NestJS, assets de Next e imágenes públicas.
-  matcher: ["/((?!api|_next/static|_next/image|favicon.ico|images).*)"],
+  // Excluye la API reenviada a NestJS (y su latido /estado-api), assets de Next e imágenes públicas.
+  matcher: ["/((?!api|estado-api|_next/static|_next/image|favicon.ico|images).*)"],
 };
