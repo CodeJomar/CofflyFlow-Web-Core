@@ -23,6 +23,14 @@ import {
 import { Button } from "@/shared/components/ui/button"
 import { Input } from "@/shared/components/ui/input"
 import { Skeleton } from "@/shared/components/ui/skeleton"
+import {
+  Pagination,
+  PaginationContent,
+  PaginationItem,
+  PaginationLink,
+  PaginationNext,
+  PaginationPrevious,
+} from "@/shared/components/ui/pagination"
 import { cn } from "@/shared/utils/cn"
 import { formatToCurrency } from "@/shared/utils/formatters"
 import { useWorkspaceLayout } from "@/shared/context/workspace-layout-context"
@@ -88,6 +96,28 @@ function PosContenido({ puedeCobrar }: { puedeCobrar: boolean }) {
   const [vistaActiva, setVistaActiva] = React.useState<"catalogo" | "mesas">("catalogo")
   const [areaFiltroSeleccionada, setAreaFiltroMesas] = React.useState<AreaMesa | "todas">("todas")
 
+  // Paginación en Catálogo y Mesas para evitar scroll vertical
+  const PRODUCTOS_POR_PAGINA = 8
+  const [paginaCatalogo, setPaginaCatalogo] = React.useState(1)
+
+  const MESAS_POR_PAGINA = 8
+  const [paginaMesas, setPaginaMesas] = React.useState(1)
+
+  const handleCambiarBusqueda = (valor: string) => {
+    setBusqueda(valor)
+    setPaginaCatalogo(1)
+  }
+
+  const handleCambiarCategoria = (cat: FiltroCategoria) => {
+    setCategoria(cat)
+    setPaginaCatalogo(1)
+  }
+
+  const handleCambiarAreaMesas = (area: AreaMesa | "todas") => {
+    setAreaFiltroMesas(area)
+    setPaginaMesas(1)
+  }
+
   // RF-12: las áreas se administran desde Local y Equipo; si el área filtrada se elimina, se muestran todas
   const nombresArea = React.useMemo(
     () => new Map((catalogo?.areas ?? []).map((a) => [a.id, a.nombre])),
@@ -96,6 +126,27 @@ function PosContenido({ puedeCobrar }: { puedeCobrar: boolean }) {
   const nombreArea = React.useCallback((id: AreaMesa) => nombresArea.get(id) ?? "Sin área", [nombresArea])
   const areaFiltroMesas =
     areaFiltroSeleccionada !== "todas" && nombresArea.has(areaFiltroSeleccionada) ? areaFiltroSeleccionada : "todas"
+
+  const totalPaginasCatalogo = Math.max(1, Math.ceil(productosFiltrados.length / PRODUCTOS_POR_PAGINA))
+  const paginaCatalogoSegura = Math.min(paginaCatalogo, totalPaginasCatalogo)
+
+  const productosPaginados = React.useMemo(() => {
+    const inicio = (paginaCatalogoSegura - 1) * PRODUCTOS_POR_PAGINA
+    return productosFiltrados.slice(inicio, inicio + PRODUCTOS_POR_PAGINA)
+  }, [productosFiltrados, paginaCatalogoSegura])
+
+  const mesasFiltradas = React.useMemo(() => {
+    if (!catalogo) return []
+    return catalogo.mesas.filter((m) => areaFiltroMesas === "todas" || m.area === areaFiltroMesas)
+  }, [catalogo, areaFiltroMesas])
+
+  const totalPaginasMesas = Math.max(1, Math.ceil(mesasFiltradas.length / MESAS_POR_PAGINA))
+  const paginaMesasSegura = Math.min(paginaMesas, totalPaginasMesas)
+
+  const mesasPaginadas = React.useMemo(() => {
+    const inicio = (paginaMesasSegura - 1) * MESAS_POR_PAGINA
+    return mesasFiltradas.slice(inicio, inicio + MESAS_POR_PAGINA)
+  }, [mesasFiltradas, paginaMesasSegura])
 
   // Estado del pedido
   const [tipoPedido, setTipoPedido] = React.useState<TipoPedido>("mesa")
@@ -166,38 +217,46 @@ function PosContenido({ puedeCobrar }: { puedeCobrar: boolean }) {
   }
 
   return (
-    <div className="flex flex-col gap-6 pb-2">
+    <div className="flex flex-col gap-5 pb-2">
       {/* Header del módulo con selector de vistas: Catálogo / Mapa de Mesas */}
-      <div className="flex flex-col gap-4 sm:flex-row sm:items-end sm:justify-between">
-        
+      <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+        <div className="flex items-center gap-2.5">
+          <h1 className="text-xl font-bold tracking-tight text-slate-900 dark:text-stone-100">
+            Terminal POS
+          </h1>
+          <span className="hidden sm:inline-flex items-center gap-1 rounded-full bg-emerald-50 px-2.5 py-0.5 text-xs font-semibold text-emerald-700 dark:bg-emerald-500/15 dark:text-emerald-300">
+            <span className="size-1.5 rounded-full bg-emerald-500 animate-pulse" />
+            Caja activa
+          </span>
+        </div>
 
-        {/* Pestañas de Vista: Catálogo / Mesas (RF-04) */}
-        <div className="flex items-center gap-1 rounded-full bg-[#EDE5E6]/60 p-1 dark:bg-stone-800">
+        {/* Pestañas de Vista: Catálogo / Mesas (RF-04) responsivas */}
+        <div className="flex w-full sm:w-auto items-center gap-1 rounded-full bg-[#EDE5E6]/60 p-1 dark:bg-stone-800">
           <button
             type="button"
             onClick={() => setVistaActiva("catalogo")}
             className={cn(
-              "inline-flex h-8 items-center gap-2 rounded-full px-4 text-xs font-semibold transition-all cursor-pointer",
+              "inline-flex flex-1 sm:flex-initial h-8 items-center justify-center gap-2 rounded-full px-3.5 text-xs font-semibold transition-all cursor-pointer",
               vistaActiva === "catalogo"
                 ? "bg-[#4C0107] text-white shadow-sm dark:bg-stone-100 dark:text-stone-900"
                 : "text-slate-600 hover:text-slate-900 dark:text-stone-300 dark:hover:text-white"
             )}
           >
-            <Coffee className="size-3.5" />
-            Catálogo
+            <Coffee className="size-3.5 shrink-0" />
+            <span>Catálogo</span>
           </button>
           <button
             type="button"
             onClick={() => setVistaActiva("mesas")}
             className={cn(
-              "inline-flex h-8 items-center gap-2 rounded-full px-4 text-xs font-semibold transition-all cursor-pointer",
+              "inline-flex flex-1 sm:flex-initial h-8 items-center justify-center gap-2 rounded-full px-3.5 text-xs font-semibold transition-all cursor-pointer",
               vistaActiva === "mesas"
                 ? "bg-[#4C0107] text-white shadow-sm dark:bg-stone-100 dark:text-stone-900"
                 : "text-slate-600 hover:text-slate-900 dark:text-stone-300 dark:hover:text-white"
             )}
           >
-            <Grid2X2 className="size-3.5" />
-            Mapa de Mesas
+            <Grid2X2 className="size-3.5 shrink-0" />
+            <span>Mapa de Mesas</span>
             {catalogo && (
               <span className="rounded-full bg-black/10 px-1.5 py-0.2 text-[10px] dark:bg-white/20">
                 {catalogo.mesas.length}
@@ -207,231 +266,320 @@ function PosContenido({ puedeCobrar }: { puedeCobrar: boolean }) {
         </div>
       </div>
 
-      <div className="grid grid-cols-1 items-start gap-4 lg:grid-cols-[minmax(0,1fr)_340px] xl:grid-cols-[minmax(0,1fr)_390px]">
+      {/* Grid de 12 Columnas del POS (7:5 en lg, 8:4 en xl) */}
+      <div className="grid grid-cols-12 gap-4 lg:gap-5 items-start">
         {/* Panel Izquierdo: Catálogo de Productos O Mapa de Mesas (RF-04) */}
-        {vistaActiva === "catalogo" ? (
-          <section
-            className={cn(panelClass, "flex min-w-0 flex-col gap-4 p-4 lg:p-5")}
-            aria-label="Catálogo de productos"
-          >
-            <div className="relative">
-              <Search className="pointer-events-none absolute left-4 top-1/2 size-4 -translate-y-1/2 text-slate-400 dark:text-stone-500" />
-              <Input
-                ref={busquedaRef}
-                id="pos-buscar-producto"
-                type="text"
-                inputMode="search"
-                role="searchbox"
-                value={busqueda}
-                onChange={(e) => setBusqueda(e.target.value)}
-                placeholder="Buscar producto…"
-                aria-label="Buscar producto"
-                autoComplete="off"
-                className="h-11 rounded-full pl-10 pr-12 [&::-webkit-search-cancel-button]:hidden [&::-webkit-search-decoration]:hidden [&::-ms-clear]:hidden"
-              />
-              {busqueda ? (
-                <button
-                  type="button"
-                  onClick={() => {
-                    setBusqueda("")
-                    busquedaRef.current?.focus()
-                  }}
-                  aria-label="Limpiar búsqueda"
-                  className="absolute right-3 top-1/2 flex size-7 -translate-y-1/2 items-center justify-center rounded-full text-slate-500 hover:bg-slate-100 hover:text-slate-900 dark:text-stone-400 dark:hover:bg-stone-800 dark:hover:text-stone-100 cursor-pointer"
-                >
-                  <X className="size-4" />
-                </button>
-              ) : (
-                <kbd className="pointer-events-none absolute right-4 top-1/2 hidden -translate-y-1/2 rounded-md border border-slate-200 bg-white px-1.5 text-[11px] font-semibold text-slate-500 sm:block dark:border-stone-700 dark:bg-stone-800 dark:text-stone-300">
-                  /
-                </kbd>
-              )}
-            </div>
-
-            {catalogo && (
-              <CategoriaChips
-                categorias={catalogo.categorias}
-                productos={catalogo.productos}
-                activa={categoria}
-                onChange={setCategoria}
-              />
-            )}
-
-            {error ? (
-              <ErrorState message={error} onRetry={recargar} />
-            ) : isLoading || !catalogo ? (
-              <CatalogoSkeleton />
-            ) : productosFiltrados.length === 0 ? (
-              <SinResultados
-                onLimpiar={() => {
-                  setBusqueda("")
-                  setCategoria("todos")
-                }}
-              />
-            ) : (
-              <ul className="grid grid-cols-2 gap-3 sm:grid-cols-3 2xl:grid-cols-4">
-                {productosFiltrados.map((producto) => (
-                  <li key={producto.id}>
-                    <ProductoCard
-                      producto={producto}
-                      cantidad={cantidades.get(producto.id) ?? 0}
-                      deshabilitado={!puedeCobrar}
-                      onAgregar={agregar}
-                      onPersonalizar={(p) => setProductoParaPersonalizar(p)}
-                    />
-                  </li>
-                ))}
-              </ul>
-            )}
-          </section>
-        ) : (
-          /* RF-04: Mapa de Mesas y Áreas Físicas */
-          <section
-            className={cn(panelClass, "flex min-w-0 flex-col gap-4 p-4 lg:p-5")}
-            aria-label="Mapa de mesas y áreas físicas"
-          >
-            <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
-              <div className="flex flex-col gap-0.5">
-                <h2 className="text-base font-semibold text-slate-900 dark:text-stone-100">
-                  Mapa de Mesas
-                </h2>
-                <p className="text-xs text-slate-500 dark:text-stone-400">
-                  Selecciona una mesa para asociar la comanda actual.
-                </p>
+        <div className="col-span-12 lg:col-span-7 xl:col-span-8 flex flex-col">
+          {vistaActiva === "catalogo" ? (
+            <section
+              className={cn(panelClass, "flex min-w-0 flex-col gap-3.5 p-4 lg:p-5 h-full")}
+              aria-label="Catálogo de productos"
+            >
+              <div className="relative">
+                <Search className="pointer-events-none absolute left-4 top-1/2 size-4 -translate-y-1/2 text-slate-400 dark:text-stone-500" />
+                <Input
+                  ref={busquedaRef}
+                  id="pos-buscar-producto"
+                  type="text"
+                  inputMode="search"
+                  role="searchbox"
+                  value={busqueda}
+                  onChange={(e) => handleCambiarBusqueda(e.target.value)}
+                  placeholder="Buscar producto…"
+                  aria-label="Buscar producto"
+                  autoComplete="off"
+                  className="h-10 rounded-full pl-10 pr-12 [&::-webkit-search-cancel-button]:hidden [&::-webkit-search-decoration]:hidden [&::-ms-clear]:hidden"
+                />
+                {busqueda ? (
+                  <button
+                    type="button"
+                    onClick={() => {
+                      handleCambiarBusqueda("")
+                      busquedaRef.current?.focus()
+                    }}
+                    aria-label="Limpiar búsqueda"
+                    className="absolute right-3 top-1/2 flex size-7 -translate-y-1/2 items-center justify-center rounded-full text-slate-500 hover:bg-slate-100 hover:text-slate-900 dark:text-stone-400 dark:hover:bg-stone-800 dark:hover:text-stone-100 cursor-pointer"
+                  >
+                    <X className="size-4" />
+                  </button>
+                ) : (
+                  <kbd className="pointer-events-none absolute right-4 top-1/2 hidden -translate-y-1/2 rounded-md border border-slate-200 bg-white px-1.5 text-[11px] font-semibold text-slate-500 sm:block dark:border-stone-700 dark:bg-stone-800 dark:text-stone-300">
+                    /
+                  </kbd>
+                )}
               </div>
 
-              {/* Leyenda de Estados */}
-              <div className="flex flex-wrap items-center gap-3 text-xs">
-                {(["libre", "ocupada", "por_cobrar"] as EstadoMesa[]).map((estado) => {
-                  const conf = ESTADO_MESA_CONFIG[estado]
-                  return (
-                    <span key={estado} className="inline-flex items-center gap-1.5 font-medium text-slate-600 dark:text-stone-300">
-                      <span className={cn("size-2 rounded-full", conf.dot)} />
-                      {conf.label}
+              {catalogo && (
+                <CategoriaChips
+                  categorias={catalogo.categorias}
+                  productos={catalogo.productos}
+                  activa={categoria}
+                  onChange={handleCambiarCategoria}
+                />
+              )}
+
+              {error ? (
+                <ErrorState message={error} onRetry={recargar} />
+              ) : isLoading || !catalogo ? (
+                <CatalogoSkeleton />
+              ) : productosFiltrados.length === 0 ? (
+                <SinResultados
+                  onLimpiar={() => {
+                    handleCambiarBusqueda("")
+                    handleCambiarCategoria("todos")
+                  }}
+                />
+              ) : (
+                <>
+                  <ul className="grid grid-cols-2 gap-3 sm:grid-cols-3 xl:grid-cols-4">
+                    {productosPaginados.map((producto) => (
+                      <li key={producto.id}>
+                        <ProductoCard
+                          producto={producto}
+                          cantidad={cantidades.get(producto.id) ?? 0}
+                          deshabilitado={!puedeCobrar}
+                          onAgregar={agregar}
+                          onPersonalizar={(p) => setProductoParaPersonalizar(p)}
+                        />
+                      </li>
+                    ))}
+                  </ul>
+
+                  {/* Footer de Paginación del Catálogo */}
+                  <div className="mt-auto flex flex-col gap-2 pt-3 border-t border-slate-100 dark:border-stone-800/80 sm:flex-row sm:items-center sm:justify-between">
+                    <span className="text-xs text-slate-500 dark:text-stone-400 text-center sm:text-left">
+                      Mostrando {productosPaginados.length > 0 ? (paginaCatalogoSegura - 1) * PRODUCTOS_POR_PAGINA + 1 : 0}–
+                      {Math.min(paginaCatalogoSegura * PRODUCTOS_POR_PAGINA, productosFiltrados.length)} de{" "}
+                      {productosFiltrados.length} productos
                     </span>
+
+                    {totalPaginasCatalogo > 1 && (
+                      <Pagination className="mx-auto sm:mx-0 w-auto justify-center sm:justify-end">
+                        <PaginationContent>
+                          <PaginationItem>
+                            <PaginationPrevious
+                              onClick={() => setPaginaCatalogo((p) => Math.max(1, p - 1))}
+                              disabled={paginaCatalogoSegura === 1}
+                              className={paginaCatalogoSegura === 1 ? "pointer-events-none opacity-40" : "cursor-pointer"}
+                            />
+                          </PaginationItem>
+                          {Array.from({ length: totalPaginasCatalogo }, (_, i) => i + 1).map((num) => (
+                            <PaginationItem key={num}>
+                              <PaginationLink
+                                isActive={paginaCatalogoSegura === num}
+                                onClick={() => setPaginaCatalogo(num)}
+                                className="cursor-pointer"
+                              >
+                                {num}
+                              </PaginationLink>
+                            </PaginationItem>
+                          ))}
+                          <PaginationItem>
+                            <PaginationNext
+                              onClick={() => setPaginaCatalogo((p) => Math.min(totalPaginasCatalogo, p + 1))}
+                              disabled={paginaCatalogoSegura === totalPaginasCatalogo}
+                              className={paginaCatalogoSegura === totalPaginasCatalogo ? "pointer-events-none opacity-40" : "cursor-pointer"}
+                            />
+                          </PaginationItem>
+                        </PaginationContent>
+                      </Pagination>
+                    )}
+                  </div>
+                </>
+              )}
+            </section>
+          ) : (
+            /* RF-04: Mapa de Mesas y Áreas Físicas */
+            <section
+              className={cn(panelClass, "flex min-w-0 flex-col gap-3.5 p-4 lg:p-5 h-full")}
+              aria-label="Mapa de mesas y áreas físicas"
+            >
+              <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+                <div className="flex flex-col gap-0.5">
+                  <h2 className="text-base font-semibold text-slate-900 dark:text-stone-100">
+                    Mapa de Mesas
+                  </h2>
+                  <p className="text-xs text-slate-500 dark:text-stone-400">
+                    Selecciona una mesa para asociar la comanda actual.
+                  </p>
+                </div>
+
+                {/* Leyenda de Estados */}
+                <div className="flex flex-wrap items-center gap-3 text-xs">
+                  {(["libre", "ocupada", "por_cobrar"] as EstadoMesa[]).map((estado) => {
+                    const conf = ESTADO_MESA_CONFIG[estado]
+                    return (
+                      <span key={estado} className="inline-flex items-center gap-1.5 font-medium text-slate-600 dark:text-stone-300">
+                        <span className={cn("size-2 rounded-full", conf.dot)} />
+                        {conf.label}
+                      </span>
+                    )
+                  })}
+                </div>
+              </div>
+
+              {/* Filtros por Área Física: Salón, Terraza, Barra (envoltura vertical responsiva) */}
+              <div className="flex flex-wrap items-center gap-2 pb-1">
+                <button
+                  type="button"
+                  onClick={() => handleCambiarAreaMesas("todas")}
+                  className={cn(
+                    "inline-flex h-8 items-center gap-1.5 rounded-full border px-3 text-xs font-semibold transition-colors cursor-pointer",
+                    opcionClass(areaFiltroMesas === "todas")
+                  )}
+                >
+                  Todas las áreas
+                </button>
+                {(catalogo?.areas ?? []).map(({ id: area, nombre }) => {
+                  const Icono = getAreaIcon(area)
+                  const activa = areaFiltroMesas === area
+                  return (
+                    <button
+                      key={area}
+                      type="button"
+                      onClick={() => handleCambiarAreaMesas(area)}
+                      className={cn(
+                        "inline-flex h-8 items-center gap-1.5 rounded-full border px-3 text-xs font-semibold transition-colors cursor-pointer",
+                        opcionClass(activa)
+                      )}
+                    >
+                      <Icono className="size-3.5" />
+                      {nombre}
+                    </button>
                   )
                 })}
               </div>
-            </div>
 
-            {/* Filtros por Área Física: Salón, Terraza, Barra */}
-            <div className="flex gap-2 overflow-x-auto pb-1 no-scrollbar">
-              <button
-                type="button"
-                onClick={() => setAreaFiltroMesas("todas")}
-                className={cn(
-                  "inline-flex h-8 items-center gap-1.5 rounded-full border px-3 text-xs font-semibold transition-colors cursor-pointer",
-                  opcionClass(areaFiltroMesas === "todas")
-                )}
-              >
-                Todas las áreas
-              </button>
-              {(catalogo?.areas ?? []).map(({ id: area, nombre }) => {
-                const Icono = getAreaIcon(area)
-                const activa = areaFiltroMesas === area
-                return (
-                  <button
-                    key={area}
-                    type="button"
-                    onClick={() => setAreaFiltroMesas(area)}
-                    className={cn(
-                      "inline-flex h-8 items-center gap-1.5 rounded-full border px-3 text-xs font-semibold transition-colors cursor-pointer",
-                      opcionClass(activa)
-                    )}
-                  >
-                    <Icono className="size-3.5" />
-                    {nombre}
-                  </button>
-                )
-              })}
-            </div>
+              {/* Grid de Mesas */}
+              {catalogo && (
+                <>
+                  <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 xl:grid-cols-4">
+                    {mesasPaginadas.map((m) => {
+                      const esSeleccionada = mesaSeleccionada?.id === m.id
+                      const estadoConf = ESTADO_MESA_CONFIG[m.estado]
+                      const IconoArea = getAreaIcon(m.area)
 
-            {/* Grid de Mesas */}
-            {catalogo && (
-              <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 xl:grid-cols-4">
-                {catalogo.mesas
-                  .filter((m) => areaFiltroMesas === "todas" || m.area === areaFiltroMesas)
-                  .map((m) => {
-                    const esSeleccionada = mesaSeleccionada?.id === m.id
-                    const estadoConf = ESTADO_MESA_CONFIG[m.estado]
-                    const IconoArea = getAreaIcon(m.area)
-
-                    return (
-                      <button
-                        key={m.id}
-                        type="button"
-                        onClick={() => handleSeleccionarMesa(m)}
-                        className={cn(
-                          "flex flex-col gap-2 rounded-2xl border p-4 text-left transition-all cursor-pointer relative",
-                          "bg-white dark:bg-stone-900 shadow-xs hover:shadow-md",
-                          estadoConf.border,
-                          estadoConf.bg,
-                          esSeleccionada &&
+                      return (
+                        <button
+                          key={m.id}
+                          type="button"
+                          onClick={() => handleSeleccionarMesa(m)}
+                          className={cn(
+                            "flex flex-col gap-2 rounded-2xl border p-3.5 text-left transition-all cursor-pointer relative",
+                            "bg-white dark:bg-stone-900 shadow-xs hover:shadow-md",
+                            estadoConf.border,
+                            estadoConf.bg,
+                            esSeleccionada &&
                             "ring-2 ring-[#4C0107] dark:ring-[#E7B7BC] border-transparent"
-                        )}
-                      >
-                        <div className="flex items-start justify-between gap-1">
-                          <span className="font-bold text-base text-slate-900 dark:text-stone-100">
-                            {m.nombre}
-                          </span>
-                          <span
-                            className={cn(
-                              "rounded-full px-2 py-0.5 text-[11px] font-semibold whitespace-nowrap",
-                              estadoConf.badge
-                            )}
-                          >
-                            {estadoConf.label}
-                          </span>
-                        </div>
-
-                        <div className="flex items-center gap-1.5 text-xs text-slate-500 dark:text-stone-400">
-                          <IconoArea className="size-3.5" />
-                          <span>{nombreArea(m.area)}</span>
-                          <span>·</span>
-                          <span>{m.capacidad} pers.</span>
-                        </div>
-
-                        {m.mozo && (
-                          <div className="mt-1 flex items-center justify-between border-t border-slate-100 pt-2 text-[11px] dark:border-stone-800">
-                            <span className="text-slate-500 dark:text-stone-400">Mozo: {m.mozo}</span>
-                            {m.tiempoOcupada && (
-                              <span className="flex items-center gap-0.5 text-amber-700 dark:text-amber-400 font-medium">
-                                <Clock className="size-3" />
-                                {m.tiempoOcupada}
-                              </span>
-                            )}
+                          )}
+                        >
+                          <div className="flex items-start justify-between gap-1">
+                            <span className="font-bold text-sm sm:text-base text-slate-900 dark:text-stone-100">
+                              {m.nombre}
+                            </span>
+                            <span
+                              className={cn(
+                                "rounded-full px-2 py-0.5 text-[10px] font-semibold whitespace-nowrap",
+                                estadoConf.badge
+                              )}
+                            >
+                              {estadoConf.label}
+                            </span>
                           </div>
-                        )}
-                      </button>
-                    )
-                  })}
-              </div>
-            )}
-          </section>
-        )}
 
-        {/* Panel Derecho: Ticket de Venta y Despacho de Comanda */}
-        <TicketPanel
-          items={items}
-          totales={totales}
-          mesas={catalogo?.mesas ?? []}
-          nombreArea={nombreArea}
-          tipoPedido={tipoPedido}
-          onTipoPedidoChange={setTipoPedido}
-          mesaSeleccionada={mesaSeleccionada}
-          onAbrirMapaMesas={() => setVistaActiva("mesas")}
-          onMesaChange={(id) => setMesaSeleccionadaId(id || null)}
-          onCambiarCantidad={cambiarCantidad}
-          productosAgotados={productosAgotados}
-          onQuitar={quitar}
-          onVaciar={vaciar}
-          puedeCobrar={puedeCobrar}
-          faltaMesa={faltaMesa}
-          operacionHabilitada={puedeOperar}
-          enviandoComanda={enviandoComanda}
-          onEnviarCocina={handleEnviarCocina}
-          onCobrar={() => setCobroAbierto(true)}
-        />
+                          <div className="flex items-center gap-1.5 text-xs text-slate-500 dark:text-stone-400">
+                            <IconoArea className="size-3.5" />
+                            <span>{nombreArea(m.area)}</span>
+                            <span>·</span>
+                            <span>{m.capacidad} p.</span>
+                          </div>
+
+                          {m.mozo && (
+                            <div className="mt-1 flex items-center justify-between border-t border-slate-100 pt-1.5 text-[11px] dark:border-stone-800">
+                              <span className="text-slate-500 dark:text-stone-400 truncate">Mozo: {m.mozo}</span>
+                              {m.tiempoOcupada && (
+                                <span className="flex items-center gap-0.5 text-amber-700 dark:text-amber-400 font-medium shrink-0">
+                                  <Clock className="size-3" />
+                                  {m.tiempoOcupada}
+                                </span>
+                              )}
+                            </div>
+                          )}
+                        </button>
+                      )
+                    })}
+                  </div>
+
+                  {/* Footer de Paginación de Mesas */}
+                  <div className="mt-auto flex flex-col gap-2 pt-3 border-t border-slate-100 dark:border-stone-800/80 sm:flex-row sm:items-center sm:justify-between">
+                    <span className="text-xs text-slate-500 dark:text-stone-400 text-center sm:text-left">
+                      Mostrando {mesasPaginadas.length > 0 ? (paginaMesasSegura - 1) * MESAS_POR_PAGINA + 1 : 0}–
+                      {Math.min(paginaMesasSegura * MESAS_POR_PAGINA, mesasFiltradas.length)} de{" "}
+                      {mesasFiltradas.length} mesas
+                    </span>
+
+                    {totalPaginasMesas > 1 && (
+                      <Pagination className="mx-auto sm:mx-0 w-auto justify-center sm:justify-end">
+                        <PaginationContent>
+                          <PaginationItem>
+                            <PaginationPrevious
+                              onClick={() => setPaginaMesas((p) => Math.max(1, p - 1))}
+                              disabled={paginaMesasSegura === 1}
+                              className={paginaMesasSegura === 1 ? "pointer-events-none opacity-40" : "cursor-pointer"}
+                            />
+                          </PaginationItem>
+                          {Array.from({ length: totalPaginasMesas }, (_, i) => i + 1).map((num) => (
+                            <PaginationItem key={num}>
+                              <PaginationLink
+                                isActive={paginaMesasSegura === num}
+                                onClick={() => setPaginaMesas(num)}
+                                className="cursor-pointer"
+                              >
+                                {num}
+                              </PaginationLink>
+                            </PaginationItem>
+                          ))}
+                          <PaginationItem>
+                            <PaginationNext
+                              onClick={() => setPaginaMesas((p) => Math.min(totalPaginasMesas, p + 1))}
+                              disabled={paginaMesasSegura === totalPaginasMesas}
+                              className={paginaMesasSegura === totalPaginasMesas ? "pointer-events-none opacity-40" : "cursor-pointer"}
+                            />
+                          </PaginationItem>
+                        </PaginationContent>
+                      </Pagination>
+                    )}
+                  </div>
+                </>
+              )}
+            </section>
+          )}
+        </div>
+
+        {/* Panel Derecho: Ticket de Venta y Despacho de Comanda (5 cols en lg, 4 cols en xl) */}
+        <div className="col-span-12 lg:col-span-5 xl:col-span-4 flex flex-col">
+          <TicketPanel
+            items={items}
+            totales={totales}
+            mesas={catalogo?.mesas ?? []}
+            nombreArea={nombreArea}
+            tipoPedido={tipoPedido}
+            onTipoPedidoChange={setTipoPedido}
+            mesaSeleccionada={mesaSeleccionada}
+            onAbrirMapaMesas={() => setVistaActiva("mesas")}
+            onMesaChange={(id) => setMesaSeleccionadaId(id || null)}
+            onCambiarCantidad={cambiarCantidad}
+            productosAgotados={productosAgotados}
+            onQuitar={quitar}
+            onVaciar={vaciar}
+            puedeCobrar={puedeCobrar}
+            faltaMesa={faltaMesa}
+            operacionHabilitada={puedeOperar}
+            enviandoComanda={enviandoComanda}
+            onEnviarCocina={handleEnviarCocina}
+            onCobrar={() => setCobroAbierto(true)}
+          />
+        </div>
       </div>
 
       {/* Modal de Cobro (RF: Facturación) */}
@@ -495,7 +643,7 @@ function CategoriaChips({
 
   return (
     <div
-      className="-mx-1 flex gap-2 overflow-x-auto px-1 pb-1 no-scrollbar"
+      className="flex flex-wrap items-center gap-2"
       role="toolbar"
       aria-label="Filtrar por categoría"
     >
@@ -510,12 +658,12 @@ function CategoriaChips({
             aria-pressed={esActiva}
             onClick={() => onChange(opcion.id)}
             className={cn(
-              "inline-flex h-9 shrink-0 items-center gap-2 rounded-full border px-3.5 text-xs font-semibold transition-colors cursor-pointer",
+              "inline-flex h-8 sm:h-9 items-center gap-1.5 sm:gap-2 rounded-full border px-3 sm:px-3.5 text-xs font-semibold transition-colors cursor-pointer",
               opcionClass(esActiva)
             )}
           >
-            <Icono className="size-4" />
-            {opcion.nombre}
+            <Icono className="size-3.5 sm:size-4 shrink-0" />
+            <span>{opcion.nombre}</span>
             <span
               className={cn(
                 "rounded-full px-1.5 text-[10px] tabular-nums",
@@ -559,7 +707,7 @@ function ProductoCard({
         "dark:border-stone-800 dark:bg-stone-900 dark:hover:border-stone-600 dark:hover:shadow-black/40",
         agotado && "opacity-60",
         cantidad > 0 &&
-          "border-[#4C0107]/40 ring-1 ring-[#4C0107]/20 dark:border-[#E7B7BC]/50 dark:ring-[#E7B7BC]/20"
+        "border-[#4C0107]/40 ring-1 ring-[#4C0107]/20 dark:border-[#E7B7BC]/50 dark:ring-[#E7B7BC]/20"
       )}
     >
       <div className="flex flex-col gap-2">
@@ -596,13 +744,13 @@ function ProductoCard({
       </div>
 
       <div className="flex flex-col gap-2 pt-2 border-t border-slate-50 dark:border-stone-800/80">
-        <div className="flex items-center justify-between">
-          <span className="text-base font-bold tabular-nums text-[#4C0107] dark:text-[#E7B7BC]">
+        <div className="flex flex-wrap items-center justify-between gap-1">
+          <span className="text-sm sm:text-base font-bold tabular-nums text-[#4C0107] dark:text-[#E7B7BC]">
             {formatToCurrency(producto.precio)}
           </span>
 
           {!agotado && !deshabilitado && (
-            <div className="flex items-center gap-1.5">
+            <div className="flex items-center gap-1.5 shrink-0">
               {/* Botón Personalizar Comanda (RF-05) */}
               {producto.permitePersonalizacion && (
                 <button
@@ -658,6 +806,7 @@ function TicketPanel({
   enviandoComanda,
   onEnviarCocina,
   onCobrar,
+  className,
 }: {
   items: ItemCarrito[]
   totales: TotalesCarrito
@@ -678,12 +827,14 @@ function TicketPanel({
   enviandoComanda: boolean
   onEnviarCocina: () => void
   onCobrar: () => void
+  className?: string
 }) {
   return (
     <aside
       className={cn(
         panelClass,
-        "flex flex-col gap-4 p-4 lg:sticky lg:top-0 lg:max-h-[calc(100vh-10rem)] lg:p-5"
+        "flex flex-col gap-3.5 p-4 lg:p-5 h-full",
+        className
       )}
       aria-label="Ticket de venta y comanda"
     >
@@ -790,8 +941,8 @@ function TicketPanel({
         </div>
       )}
 
-      {/* Items de la Comanda con Modificadores (RF-05) */}
-      <div className="-mx-1 min-h-0 flex-1 overflow-y-auto px-1 no-scrollbar">
+      {/* Items de la Comanda con Modificadores (RF-05) con scroll interno contenido */}
+      <div className="-mx-1 min-h-0 max-h-[220px] lg:max-h-[260px] xl:max-h-[300px] flex-1 overflow-y-auto px-1 no-scrollbar">
         {items.length === 0 ? (
           <div className="flex flex-col items-center justify-center gap-2 rounded-2xl border-2 border-dashed border-slate-200 px-4 py-8 text-center dark:border-stone-700">
             <span className="flex size-11 items-center justify-center rounded-full bg-[#EDE5E6] text-[#4C0107] dark:bg-stone-800 dark:text-stone-200">
@@ -849,14 +1000,14 @@ function TicketPanel({
           loading={enviandoComanda}
           disabled={!operacionHabilitada}
           className={cn(
-            "w-full transition-all",
+            "w-full h-11 text-xs sm:text-sm font-bold min-w-0 justify-center transition-all px-3",
             operacionHabilitada
               ? "bg-emerald-700 hover:bg-emerald-800 text-white dark:bg-emerald-600 dark:hover:bg-emerald-700 shadow-sm"
               : "bg-slate-100 text-slate-400 dark:bg-stone-800/40 dark:text-stone-600 border border-slate-200 dark:border-stone-800"
           )}
-          leftIcon={<ChefHat className="size-4" />}
+          leftIcon={<ChefHat className="size-4 shrink-0" />}
         >
-          Enviar a cocina / barra
+          <span className="truncate">Enviar a cocina / barra</span>
         </Button>
 
         {/* Cobro en caja */}
@@ -867,14 +1018,16 @@ function TicketPanel({
           disabled={!operacionHabilitada}
           variant="outline"
           className={cn(
-            "w-full transition-all",
+            "w-full h-11 text-xs sm:text-sm font-bold min-w-0 justify-center transition-all px-3",
             operacionHabilitada
               ? "border-2 border-[#4C0107] text-[#4C0107] hover:bg-[#4C0107] hover:text-white dark:border-stone-600 dark:text-stone-100 dark:hover:bg-stone-800 shadow-sm"
               : "border-slate-200 bg-slate-100/70 text-slate-400 dark:border-stone-800 dark:bg-stone-900/60 dark:text-stone-500"
           )}
-          leftIcon={<ReceiptText className="size-4" />}
+          leftIcon={<ReceiptText className="size-4 shrink-0" />}
         >
-          Cobrar en caja {totales.total > 0 && `(${formatToCurrency(totales.total)})`}
+          <span className="truncate">
+            Cobrar en caja {totales.total > 0 && `(${formatToCurrency(totales.total)})`}
+          </span>
         </Button>
 
         {!puedeCobrar ? (
@@ -955,7 +1108,7 @@ function TicketItem({
         </div>
 
         {/* Total por línea */}
-        <div className="flex w-18 shrink-0 flex-col items-end">
+        <div className="flex w-20 shrink-0 flex-col items-end text-right">
           <span className="text-sm font-semibold tabular-nums text-slate-900 dark:text-stone-100">
             {formatToCurrency(precioUnitario * cantidad)}
           </span>

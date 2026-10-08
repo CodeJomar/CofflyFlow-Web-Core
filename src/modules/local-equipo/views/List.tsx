@@ -31,6 +31,14 @@ import { Empty, EmptyContent, EmptyDescription, EmptyHeader, EmptyTitle } from "
 import { Input } from "@/shared/components/ui/input"
 import { Skeleton } from "@/shared/components/ui/skeleton"
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/shared/components/ui/table"
+import {
+  Pagination,
+  PaginationContent,
+  PaginationItem,
+  PaginationLink,
+  PaginationNext,
+  PaginationPrevious,
+} from "@/shared/components/ui/pagination"
 import { toast } from "@/shared/components/ui/toast"
 import { cn } from "@/shared/utils/cn"
 import { formatDateStrict } from "@/shared/utils/formatters"
@@ -54,6 +62,7 @@ import {
   rolOperativoSchema,
   type Empleado,
   type FiltroEstadoEmpleado,
+  type FiltroRolEmpleado,
   type Mesa,
 } from "../schema"
 import EmpleadoForm, { AreasForm, BajaEmpleadoForm, MesaForm } from "./Form"
@@ -117,7 +126,7 @@ function Contador({
       <span className={cn("text-2xl font-bold tabular-nums sm:text-3xl", valueClass)}>{valor}</span>
     </>
   )
-  const clases = cn(panelClass, "flex flex-col items-start gap-1 p-3 text-left sm:p-4")
+  const clases = cn(panelClass, "w-full h-full flex flex-col items-start gap-1 p-3 text-left sm:p-4 rounded-2xl")
 
   if (!onClick) return <div className={clases}>{contenido}</div>
 
@@ -152,54 +161,116 @@ export function PersonalView() {
 
   const personal = usePersonal()
   const [modal, setModal] = React.useState<ModalPersonal>(null)
+  const [pagina, setPagina] = React.useState(1)
+  const [itemsPorPagina, setItemsPorPagina] = React.useState(6)
   const cerrarModal = React.useCallback(() => setModal(null), [])
 
-  if (!puedeVer) return <AccesoRestringido rol={ROL_LABELS[rol]} seccion="la gestión de personal" />
+  // Ajuste reactivo del tamaño de página para evitar scroll vertical en cualquier dispositivo:
+  // Móvil: 4 tarjetas (1 col) | Tablet: 4 tarjetas (2x2 cols) | Escritorio: 6 tarjetas (2x3 cols)
+  React.useEffect(() => {
+    const calcularLimite = () => {
+      if (window.innerWidth < 640) {
+        setItemsPorPagina(4)
+      } else if (window.innerWidth < 1024) {
+        setItemsPorPagina(4)
+      } else {
+        setItemsPorPagina(6)
+      }
+    }
+    calcularLimite()
+    window.addEventListener("resize", calcularLimite)
+    return () => window.removeEventListener("resize", calcularLimite)
+  }, [])
+
+  // Handlers para filtros con reinicio seguro de página
+  const handleBusqueda = React.useCallback(
+    (valor: string) => {
+      personal.setBusqueda(valor)
+      setPagina(1)
+    },
+    [personal]
+  )
+
+  const handleRol = React.useCallback(
+    (r: FiltroRolEmpleado) => {
+      personal.setRol(r)
+      setPagina(1)
+    },
+    [personal]
+  )
+
+  const handleEstado = React.useCallback(
+    (est: FiltroEstadoEmpleado) => {
+      personal.setEstado(est)
+      setPagina(1)
+    },
+    [personal]
+  )
+
+  const handleLimpiarFiltros = React.useCallback(() => {
+    personal.limpiarFiltros()
+    setPagina(1)
+  }, [personal])
 
   const { empleadosFiltrados, resumen, cargado, error, recargar } = personal
 
+  const totalPaginas = Math.ceil(empleadosFiltrados.length / itemsPorPagina)
+  const paginaValida = Math.min(Math.max(1, pagina), Math.max(1, totalPaginas))
+
+  const empleadosPaginados = React.useMemo(() => {
+    const inicio = (paginaValida - 1) * itemsPorPagina
+    return empleadosFiltrados.slice(inicio, inicio + itemsPorPagina)
+  }, [empleadosFiltrados, paginaValida, itemsPorPagina])
+
+  if (!puedeVer) return <AccesoRestringido rol={ROL_LABELS[rol]} seccion="la gestión de personal" />
+
   return (
     <div className="flex flex-col gap-6 pb-2">
-      <EncabezadoLocal
-        acciones={
-          puedeRegistrar && (
-            <Button
-              type="button"
-              size="sm"
-              onClick={() => setModal({ modo: "registrar" })}
-              disabled={!cargado}
-              leftIcon={<UserPlus className="size-4" />}
-              className={botonPrimario}
-            >
-              Registrar empleado
-            </Button>
-          )
-        }
-      />
-
       {error ? (
         <ErrorState message={error} onRetry={recargar} />
       ) : !cargado ? (
         <ListadoSkeleton />
       ) : (
         <>
-          <div className="grid grid-cols-3 gap-3 sm:gap-4">
+          <div className="grid grid-cols-12 gap-3 sm:gap-4 items-stretch">
             {(["todos", "activo", "baja"] as FiltroEstadoEmpleado[]).map((filtro) => (
-              <Contador
+              <div
                 key={filtro}
-                label={filtro === "todos" ? "Personal" : FILTRO_ESTADO_LABELS[filtro]}
-                valor={filtro === "todos" ? resumen.total : filtro === "activo" ? resumen.activos : resumen.baja}
-                valueClass={
-                  filtro === "activo"
-                    ? "text-emerald-700 dark:text-emerald-400"
-                    : filtro === "baja"
-                      ? "text-slate-500 dark:text-stone-400"
-                      : undefined
-                }
-                activo={personal.estado === filtro}
-                onClick={() => personal.setEstado(filtro)}
-              />
+                className={cn(
+                  "col-span-4",
+                  puedeRegistrar ? "lg:col-span-3" : "lg:col-span-4"
+                )}
+              >
+                <Contador
+                  label={filtro === "todos" ? "Personal" : FILTRO_ESTADO_LABELS[filtro]}
+                  valor={filtro === "todos" ? resumen.total : filtro === "activo" ? resumen.activos : resumen.baja}
+                  valueClass={
+                    filtro === "activo"
+                      ? "text-emerald-700 dark:text-emerald-400"
+                      : filtro === "baja"
+                        ? "text-slate-500 dark:text-stone-400"
+                        : undefined
+                  }
+                  activo={personal.estado === filtro}
+                  onClick={() => handleEstado(filtro)}
+                />
+              </div>
             ))}
+
+            {puedeRegistrar && (
+              <div className="col-span-12 lg:col-span-3 flex items-center justify-center">
+                <Button
+                  type="button"
+                  size="sm"
+                  onClick={() => setModal({ modo: "registrar" })}
+                  disabled={!cargado}
+                  leftIcon={<UserPlus className="size-4" />}
+                  className={cn(botonPrimario, "w-full justify-center shadow-xs cursor-pointer")}
+                >
+                  Registrar empleado
+                </Button>
+              </div>
+            )}
           </div>
 
           {/* Filtros */}
@@ -209,13 +280,13 @@ export function PersonalView() {
               <Input
                 type="search"
                 value={personal.busqueda}
-                onChange={(e) => personal.setBusqueda(e.target.value)}
+                onChange={(e) => handleBusqueda(e.target.value)}
                 placeholder="Buscar por nombre, DNI o correo"
                 aria-label="Buscar empleado"
                 className="h-10 rounded-full pl-10"
               />
             </div>
-            <div role="radiogroup" aria-label="Rol operativo" className="flex gap-2 overflow-x-auto pb-1 no-scrollbar lg:pb-0">
+            <div role="radiogroup" aria-label="Rol operativo" className="flex flex-wrap items-center gap-2">
               {(["todos", ...rolOperativoSchema.options] as const).map((r) => {
                 const activo = personal.rol === r
                 const Icono = r === "todos" ? Users : ROL_OPERATIVO_CONFIG[r].icon
@@ -225,7 +296,7 @@ export function PersonalView() {
                     type="button"
                     role="radio"
                     aria-checked={activo}
-                    onClick={() => personal.setRol(r)}
+                    onClick={() => handleRol(r)}
                     className={cn(
                       "inline-flex h-9 shrink-0 cursor-pointer items-center gap-1.5 rounded-full border px-3.5 text-xs font-semibold whitespace-nowrap transition-colors",
                       opcionClass(activo)
@@ -240,22 +311,76 @@ export function PersonalView() {
           </div>
 
           {empleadosFiltrados.length === 0 ? (
-            <SinResultados texto="No hay empleados que coincidan con los filtros." onLimpiar={personal.limpiarFiltros} />
+            <SinResultados texto="No hay empleados que coincidan con los filtros." onLimpiar={handleLimpiarFiltros} />
           ) : (
-            <ul className="grid grid-cols-1 gap-4 md:grid-cols-2 2xl:grid-cols-3">
-              {empleadosFiltrados.map((empleado) => (
-                <li key={empleado.id}>
-                  <EmpleadoCard
-                    empleado={empleado}
-                    puedeEditar={puedeEditar}
-                    puedeDarDeBaja={puedeDarDeBaja}
-                    onEditar={(e) => setModal({ modo: "editar", empleado: e })}
-                    onBaja={(e) => setModal({ modo: "baja", empleado: e })}
-                    onReactivar={personal.reactivar}
-                  />
-                </li>
-              ))}
-            </ul>
+            <div className="flex flex-col gap-5">
+              <ul className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3 items-stretch list-none p-0 m-0">
+                {empleadosPaginados.map((empleado) => (
+                  <li key={empleado.id} className="flex flex-col">
+                    <EmpleadoCard
+                      empleado={empleado}
+                      puedeEditar={puedeEditar}
+                      puedeDarDeBaja={puedeDarDeBaja}
+                      onEditar={(e) => setModal({ modo: "editar", empleado: e })}
+                      onBaja={(e) => setModal({ modo: "baja", empleado: e })}
+                      onReactivar={personal.reactivar}
+                    />
+                  </li>
+                ))}
+              </ul>
+
+              {/* Paginación solo cuando no caben todos los empleados en la pantalla */}
+              {totalPaginas > 1 && (
+                <div className="flex flex-col sm:flex-row items-center justify-between gap-3 pt-2">
+                  <span className="text-xs text-slate-500 dark:text-stone-400">
+                    Mostrando {(paginaValida - 1) * itemsPorPagina + 1} -{" "}
+                    {Math.min(paginaValida * itemsPorPagina, empleadosFiltrados.length)} de{" "}
+                    {empleadosFiltrados.length} empleados
+                  </span>
+
+                  <Pagination className="mx-0 w-auto justify-end">
+                    <PaginationContent>
+                      <PaginationItem>
+                        <PaginationPrevious
+                          onClick={() => setPagina((p) => Math.max(1, p - 1))}
+                          disabled={paginaValida <= 1}
+                          className={cn(
+                            "cursor-pointer",
+                            paginaValida <= 1 && "pointer-events-none opacity-50"
+                          )}
+                        />
+                      </PaginationItem>
+
+                      {Array.from({ length: totalPaginas }).map((_, i) => {
+                        const num = i + 1
+                        return (
+                          <PaginationItem key={num}>
+                            <PaginationLink
+                              isActive={paginaValida === num}
+                              onClick={() => setPagina(num)}
+                              className="cursor-pointer"
+                            >
+                              {num}
+                            </PaginationLink>
+                          </PaginationItem>
+                        )
+                      })}
+
+                      <PaginationItem>
+                        <PaginationNext
+                          onClick={() => setPagina((p) => Math.min(totalPaginas, p + 1))}
+                          disabled={paginaValida >= totalPaginas}
+                          className={cn(
+                            "cursor-pointer",
+                            paginaValida >= totalPaginas && "pointer-events-none opacity-50"
+                          )}
+                        />
+                      </PaginationItem>
+                    </PaginationContent>
+                  </Pagination>
+                </div>
+              )}
+            </div>
           )}
         </>
       )}
@@ -854,10 +979,15 @@ function ErrorState({ message, onRetry }: { message: string; onRetry: () => void
 function ListadoSkeleton() {
   return (
     <div className="flex flex-col gap-6" aria-busy="true">
-      <div className="grid grid-cols-3 gap-3 sm:gap-4">
+      <div className="grid grid-cols-12 gap-3 sm:gap-4">
         {Array.from({ length: 3 }).map((_, i) => (
-          <Skeleton key={i} className="h-24 rounded-2xl dark:bg-stone-800" />
+          <div key={i} className="col-span-4 lg:col-span-3">
+            <Skeleton className="h-20 sm:h-24 rounded-2xl dark:bg-stone-800" />
+          </div>
         ))}
+        <div className="col-span-12 lg:col-span-3">
+          <Skeleton className="h-20 sm:h-24 rounded-2xl dark:bg-stone-800" />
+        </div>
       </div>
       <Skeleton className="h-10 rounded-full dark:bg-stone-800" />
       <div className="grid grid-cols-1 gap-4 md:grid-cols-2 2xl:grid-cols-3">

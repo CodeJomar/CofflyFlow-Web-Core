@@ -27,6 +27,14 @@ import { Skeleton } from "@/shared/components/ui/skeleton"
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/shared/components/ui/table"
 import { Tabs, TabsList, TabsTrigger } from "@/shared/components/ui/tabs"
 import { Button } from "@/shared/components/ui/button"
+import {
+  Pagination,
+  PaginationContent,
+  PaginationItem,
+  PaginationLink,
+  PaginationNext,
+  PaginationPrevious,
+} from "@/shared/components/ui/pagination"
 import { cn } from "@/shared/utils/cn"
 import { formatToCurrency } from "@/shared/utils/formatters"
 import { useWorkspaceLayout } from "@/shared/context/workspace-layout-context"
@@ -72,8 +80,13 @@ function DashboardContenido() {
   return (
     <div className="flex flex-col gap-6 pb-2">
       {/* Header del módulo */}
-      <div className="flex flex-col gap-4 sm:flex-row sm:items-end sm:justify-between">
-        
+      <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+        <div>
+          <h1 className="text-xl font-bold tracking-tight text-slate-900 dark:text-stone-100">
+            Panel de control
+          </h1>
+          <IndicadorEnVivo actualizadoEn={data?.actualizadoEn} isRefreshing={isRefreshing} />
+        </div>
 
         <Tabs
           value={periodo}
@@ -104,21 +117,28 @@ function DashboardContenido() {
       ) : (
         <div
           className={cn(
-            "flex flex-col gap-6 transition-opacity",
+            "grid grid-cols-12 gap-4 lg:gap-5 transition-opacity",
             isLoading && "opacity-60 pointer-events-none"
           )}
           aria-busy={isLoading}
         >
+          {/* Fila 1: KPIs Principales (4 métricas x 3 columnas = 12 cols) */}
           <KpiGrid kpis={data.kpis} />
 
-          <div className="grid grid-cols-1 gap-4 xl:grid-cols-3">
-            <VentasChart data={data} className="xl:col-span-2" />
-            <CajaResumen caja={data.caja} />
+          {/* Fila 2: Analítica de Ventas (8 cols) + Estado de Caja (4 cols) */}
+          <div className="col-span-12 xl:col-span-8 flex flex-col">
+            <VentasChart data={data} className="h-full" />
+          </div>
+          <div className="col-span-12 xl:col-span-4 flex flex-col">
+            <CajaResumen caja={data.caja} className="h-full" />
           </div>
 
-          <div className="grid grid-cols-1 gap-4 xl:grid-cols-3">
-            <PedidosRecientes pedidos={data.pedidosRecientes} className="xl:col-span-2" />
-            <ProductosTop productos={data.productosTop} />
+          {/* Fila 3: Flujo Operativo de Pedidos (8 cols) + Top Productos (4 cols) */}
+          <div className="col-span-12 xl:col-span-8 flex flex-col">
+            <PedidosRecientes pedidos={data.pedidosRecientes} className="h-full" />
+          </div>
+          <div className="col-span-12 xl:col-span-4 flex flex-col">
+            <ProductosTop productos={data.productosTop} className="h-full" />
           </div>
         </div>
       )}
@@ -132,11 +152,13 @@ function DashboardContenido() {
 
 function KpiGrid({ kpis }: { kpis: DashboardKpi[] }) {
   return (
-    <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 xl:grid-cols-4">
+    <>
       {kpis.map((kpi) => (
-        <KpiCard key={kpi.id} kpi={kpi} />
+        <div key={kpi.id} className="col-span-12 sm:col-span-6 xl:col-span-3">
+          <KpiCard kpi={kpi} />
+        </div>
       ))}
-    </div>
+    </>
   )
 }
 
@@ -145,19 +167,19 @@ function KpiCard({ kpi }: { kpi: DashboardKpi }) {
   const destacado = kpi.id === "pedidos"
 
   return (
-    <div className={cn(panelClass, "flex h-32 flex-col justify-between p-4")}>
+    <div className={cn(panelClass, "flex h-28 flex-col justify-between p-3.5")}>
       <div className="flex items-center justify-between gap-2">
         <span className="text-xs font-semibold uppercase tracking-wider text-slate-500 dark:text-stone-400">
           {kpi.titulo}
         </span>
-        <span className="flex size-8 items-center justify-center rounded-full bg-[#EDE5E6] text-[#4C0107] dark:bg-stone-800 dark:text-stone-200">
+        <span className="flex size-7 items-center justify-center rounded-full bg-[#EDE5E6] text-[#4C0107] dark:bg-stone-800 dark:text-stone-200">
           {KPI_ICONS[kpi.id]}
         </span>
       </div>
 
       <span
         className={cn(
-          "text-3xl font-bold tracking-tight tabular-nums",
+          "text-2xl sm:text-3xl font-bold tracking-tight tabular-nums",
           destacado ? "text-[#4C0107] dark:text-[#E7B7BC]" : "text-slate-900 dark:text-stone-100"
         )}
       >
@@ -192,10 +214,10 @@ function VentasChart({ data, className }: { data: DashboardResumen; className?: 
   const titulo = data.periodo === "hoy" ? "Ventas por hora" : data.periodo === "semana" ? "Ventas por día" : "Ventas por semana"
 
   return (
-    <section className={cn(panelClass, "flex flex-col gap-4 p-4 lg:p-5", className)}>
+    <section className={cn(panelClass, "flex flex-col gap-3 p-4 lg:p-5", className)}>
       <PanelHeader title={titulo} subtitle={`Periodo: ${PERIODO_LABELS[data.periodo]}`} />
 
-      <ChartContainer config={ventasChartConfig} className="aspect-auto h-64 w-full">
+      <ChartContainer config={ventasChartConfig} className="aspect-auto h-52 sm:h-56 w-full">
         <AreaChart data={data.ventas} margin={{ left: 0, right: 8, top: 8 }}>
           <defs>
             <linearGradient id="fillVentas" x1="0" y1="0" x2="0" y2="1">
@@ -246,7 +268,7 @@ function VentasChart({ data, className }: { data: DashboardResumen; className?: 
 /*                                   Caja                                     */
 /* -------------------------------------------------------------------------- */
 
-function CajaResumen({ caja }: { caja: EstadoCaja }) {
+function CajaResumen({ caja, className }: { caja: EstadoCaja; className?: string }) {
   const total = caja.montoInicial + caja.efectivo + caja.digital
   const filas = [
     { label: "Monto inicial", valor: caja.montoInicial },
@@ -255,7 +277,7 @@ function CajaResumen({ caja }: { caja: EstadoCaja }) {
   ]
 
   return (
-    <section className={cn(panelClass, "flex flex-col gap-4 p-4 lg:p-5")}>
+    <section className={cn(panelClass, "flex flex-col gap-3 p-4 lg:p-5", className)}>
       <PanelHeader
         title="Estado de caja"
         subtitle={`Apertura ${caja.apertura} · ${caja.responsable}`}
@@ -273,19 +295,19 @@ function CajaResumen({ caja }: { caja: EstadoCaja }) {
         }
       />
 
-      <div className="flex items-center gap-3 rounded-xl bg-[#4C0107] p-4 text-white dark:bg-stone-800">
-        <span className="flex size-10 items-center justify-center rounded-full bg-white/15">
-          <Wallet className="size-5" />
+      <div className="flex items-center gap-3 rounded-xl bg-[#4C0107] p-3 text-white dark:bg-stone-800">
+        <span className="flex size-9 items-center justify-center rounded-full bg-white/15">
+          <Wallet className="size-4.5" />
         </span>
         <div className="flex flex-col">
-          <span className="text-xs font-medium text-white/75 dark:text-stone-400">Total en caja</span>
-          <span className="text-2xl font-bold tabular-nums dark:text-stone-100">{formatToCurrency(total)}</span>
+          <span className="text-[11px] font-medium text-white/75 dark:text-stone-400">Total en caja</span>
+          <span className="text-xl font-bold tabular-nums dark:text-stone-100">{formatToCurrency(total)}</span>
         </div>
       </div>
 
       <ul className="flex flex-col divide-y divide-slate-100 dark:divide-stone-800">
         {filas.map((fila) => (
-          <li key={fila.label} className="flex items-center justify-between py-2.5 text-sm">
+          <li key={fila.label} className="flex items-center justify-between py-2 text-xs">
             <span className="text-slate-600 dark:text-stone-400">{fila.label}</span>
             <span className="font-semibold tabular-nums text-slate-900 dark:text-stone-100">
               {formatToCurrency(fila.valor)}
@@ -296,7 +318,7 @@ function CajaResumen({ caja }: { caja: EstadoCaja }) {
 
       <Link
         href="/transacciones/cajas"
-        className="mt-auto inline-flex items-center gap-1 self-start text-xs font-semibold text-[#4C0107] hover:underline dark:text-[#E7B7BC]"
+        className="mt-auto inline-flex items-center gap-1 self-start pt-1 text-xs font-semibold text-[#4C0107] hover:underline dark:text-[#E7B7BC]"
       >
         Gestionar cajas <ChevronRight className="size-3.5" />
       </Link>
@@ -308,9 +330,20 @@ function CajaResumen({ caja }: { caja: EstadoCaja }) {
 /*                             Pedidos recientes                              */
 /* -------------------------------------------------------------------------- */
 
+const PEDIDOS_POR_PAGINA = 3
+
 function PedidosRecientes({ pedidos, className }: { pedidos: PedidoReciente[]; className?: string }) {
+  const [paginaActual, setPaginaActual] = React.useState(1)
+  const totalPaginas = Math.max(1, Math.ceil(pedidos.length / PEDIDOS_POR_PAGINA))
+  const paginaSegura = Math.min(paginaActual, totalPaginas)
+
+  const pedidosPaginados = React.useMemo(() => {
+    const inicio = (paginaSegura - 1) * PEDIDOS_POR_PAGINA
+    return pedidos.slice(inicio, inicio + PEDIDOS_POR_PAGINA)
+  }, [pedidos, paginaSegura])
+
   return (
-    <section className={cn(panelClass, "flex flex-col gap-4 p-4 lg:p-5", className)}>
+    <section className={cn(panelClass, "flex flex-col gap-3 p-4 lg:p-5", className)}>
       <PanelHeader
         title="Pedidos recientes"
         subtitle="Últimos movimientos del local"
@@ -324,43 +357,84 @@ function PedidosRecientes({ pedidos, className }: { pedidos: PedidoReciente[]; c
         }
       />
 
-      <Table className="min-w-[520px]">
-        <TableHeader>
-          <TableRow className="border-slate-200 hover:bg-transparent">
-            <TableHead className="h-auto px-0 pb-2">Pedido</TableHead>
-            <TableHead className="h-auto px-0 pb-2">Mesa</TableHead>
-            <TableHead className="h-auto px-0 pb-2">Cliente</TableHead>
-            <TableHead className="h-auto px-0 pb-2">Estado</TableHead>
-            <TableHead className="h-auto px-0 pb-2 text-right">Total</TableHead>
-          </TableRow>
-        </TableHeader>
-        <TableBody>
-          {pedidos.map((pedido) => {
-            const estado = ESTADO_PEDIDO_CONFIG[pedido.estado]
-            return (
-              <TableRow
-                key={pedido.id}
-                className="text-slate-700 hover:bg-transparent dark:text-stone-300"
-              >
-                <TableCell className="px-0 py-3">
-                  <div className="flex flex-col">
-                    <span className="font-semibold text-slate-900 dark:text-stone-100">{pedido.codigo}</span>
-                    <span className="text-xs text-slate-500 dark:text-stone-500">{pedido.hora}</span>
-                  </div>
-                </TableCell>
-                <TableCell className="px-0 py-3">{pedido.mesa}</TableCell>
-                <TableCell className="px-0 py-3">{pedido.cliente}</TableCell>
-                <TableCell className="px-0 py-3">
-                  <Badge variant="estado" className={estado.className}>{estado.label}</Badge>
-                </TableCell>
-                <TableCell className="px-0 py-3 text-right font-semibold tabular-nums text-slate-900 dark:text-stone-100">
-                  {formatToCurrency(pedido.total)}
-                </TableCell>
-              </TableRow>
-            )
-          })}
-        </TableBody>
-      </Table>
+      <div className="overflow-x-auto no-scrollbar">
+        <Table className="min-w-[480px]">
+          <TableHeader>
+            <TableRow className="border-slate-200 hover:bg-transparent">
+              <TableHead className="h-auto px-0 pb-2 text-xs font-semibold">Pedido</TableHead>
+              <TableHead className="h-auto px-0 pb-2 text-xs font-semibold">Mesa</TableHead>
+              <TableHead className="h-auto px-0 pb-2 text-xs font-semibold">Cliente</TableHead>
+              <TableHead className="h-auto px-0 pb-2 text-xs font-semibold">Estado</TableHead>
+              <TableHead className="h-auto px-0 pb-2 text-right text-xs font-semibold">Total</TableHead>
+            </TableRow>
+          </TableHeader>
+          <TableBody>
+            {pedidosPaginados.map((pedido) => {
+              const estado = ESTADO_PEDIDO_CONFIG[pedido.estado]
+              return (
+                <TableRow
+                  key={pedido.id}
+                  className="text-slate-700 hover:bg-transparent dark:text-stone-300"
+                >
+                  <TableCell className="px-0 py-2">
+                    <div className="flex flex-col">
+                      <span className="font-semibold text-slate-900 dark:text-stone-100">{pedido.codigo}</span>
+                      <span className="text-[11px] text-slate-500 dark:text-stone-500">{pedido.hora}</span>
+                    </div>
+                  </TableCell>
+                  <TableCell className="px-0 py-2 text-xs">{pedido.mesa}</TableCell>
+                  <TableCell className="px-0 py-2 text-xs">{pedido.cliente}</TableCell>
+                  <TableCell className="px-0 py-2">
+                    <Badge variant="estado" className={estado.className}>{estado.label}</Badge>
+                  </TableCell>
+                  <TableCell className="px-0 py-2 text-right font-semibold tabular-nums text-slate-900 dark:text-stone-100">
+                    {formatToCurrency(pedido.total)}
+                  </TableCell>
+                </TableRow>
+              )
+            })}
+          </TableBody>
+        </Table>
+      </div>
+
+      <div className="mt-auto flex flex-col gap-2 pt-2 border-t border-slate-100 dark:border-stone-800/80 sm:flex-row sm:items-center sm:justify-between">
+        <span className="text-xs text-slate-500 dark:text-stone-400">
+          Mostrando {pedidosPaginados.length > 0 ? (paginaSegura - 1) * PEDIDOS_POR_PAGINA + 1 : 0}–
+          {Math.min(paginaSegura * PEDIDOS_POR_PAGINA, pedidos.length)} de {pedidos.length}
+        </span>
+
+        {totalPaginas > 1 && (
+          <Pagination className="mx-0 w-auto justify-end">
+            <PaginationContent>
+              <PaginationItem>
+                <PaginationPrevious
+                  onClick={() => setPaginaActual((p) => Math.max(1, p - 1))}
+                  disabled={paginaSegura === 1}
+                  className={paginaSegura === 1 ? "pointer-events-none opacity-40" : "cursor-pointer"}
+                />
+              </PaginationItem>
+              {Array.from({ length: totalPaginas }, (_, i) => i + 1).map((num) => (
+                <PaginationItem key={num}>
+                  <PaginationLink
+                    isActive={paginaSegura === num}
+                    onClick={() => setPaginaActual(num)}
+                    className="cursor-pointer"
+                  >
+                    {num}
+                  </PaginationLink>
+                </PaginationItem>
+              ))}
+              <PaginationItem>
+                <PaginationNext
+                  onClick={() => setPaginaActual((p) => Math.min(totalPaginas, p + 1))}
+                  disabled={paginaSegura === totalPaginas}
+                  className={paginaSegura === totalPaginas ? "pointer-events-none opacity-40" : "cursor-pointer"}
+                />
+              </PaginationItem>
+            </PaginationContent>
+          </Pagination>
+        )}
+      </div>
     </section>
   )
 }
@@ -369,42 +443,95 @@ function PedidosRecientes({ pedidos, className }: { pedidos: PedidoReciente[]; c
 /*                           Productos más vendidos                           */
 /* -------------------------------------------------------------------------- */
 
-function ProductosTop({ productos }: { productos: ProductoTop[] }) {
+const PRODUCTOS_POR_PAGINA = 3
+
+function ProductosTop({ productos, className }: { productos: ProductoTop[]; className?: string }) {
+  const [paginaActual, setPaginaActual] = React.useState(1)
+  const totalPaginas = Math.max(1, Math.ceil(productos.length / PRODUCTOS_POR_PAGINA))
+  const paginaSegura = Math.min(paginaActual, totalPaginas)
+
+  const productosPaginados = React.useMemo(() => {
+    const inicio = (paginaSegura - 1) * PRODUCTOS_POR_PAGINA
+    return productos.slice(inicio, inicio + PRODUCTOS_POR_PAGINA)
+  }, [productos, paginaSegura])
+
   const maxUnidades = Math.max(...productos.map((p) => p.unidades), 1)
 
   return (
-    <section className={cn(panelClass, "flex flex-col gap-4 p-4 lg:p-5")}>
-      <PanelHeader title="Más vendidos" subtitle="Top 5 por unidades" />
+    <section className={cn(panelClass, "flex flex-col gap-3 p-4 lg:p-5", className)}>
+      <PanelHeader title="Más vendidos" subtitle="Ranking de ventas" />
 
-      <ol className="flex flex-col gap-4">
-        {productos.map((producto, index) => (
-          <li key={producto.id} className="flex flex-col gap-1.5">
-            <div className="flex items-center justify-between gap-3 text-sm">
-              <div className="flex min-w-0 items-center gap-2">
-                <span className="flex size-6 shrink-0 items-center justify-center rounded-full bg-[#EDE5E6] text-xs font-bold text-[#4C0107] dark:bg-stone-800 dark:text-stone-200">
-                  {index + 1}
-                </span>
-                <div className="flex min-w-0 flex-col">
-                  <span className="truncate font-semibold text-slate-900 dark:text-stone-100">{producto.nombre}</span>
-                  <span className="truncate text-xs text-slate-500 dark:text-stone-400">{producto.categoria}</span>
+      <ol className="flex flex-col gap-2.5">
+        {productosPaginados.map((producto, index) => {
+          const ranking = (paginaSegura - 1) * PRODUCTOS_POR_PAGINA + index + 1
+          return (
+            <li key={producto.id} className="flex flex-col gap-1">
+              <div className="flex items-center justify-between gap-2 text-sm">
+                <div className="flex min-w-0 items-center gap-2">
+                  <span className="flex size-5 shrink-0 items-center justify-center rounded-full bg-[#EDE5E6] text-[11px] font-bold text-[#4C0107] dark:bg-stone-800 dark:text-stone-200">
+                    {ranking}
+                  </span>
+                  <div className="flex min-w-0 flex-col">
+                    <span className="truncate text-xs font-semibold text-slate-900 dark:text-stone-100">{producto.nombre}</span>
+                    <span className="truncate text-[10px] text-slate-500 dark:text-stone-400">{producto.categoria}</span>
+                  </div>
+                </div>
+                <div className="flex shrink-0 flex-col items-end">
+                  <span className="text-xs font-semibold tabular-nums text-slate-900 dark:text-stone-100">{producto.unidades} u.</span>
+                  <span className="text-[10px] tabular-nums text-slate-500 dark:text-stone-400">
+                    {formatToCurrency(producto.ingresos)}
+                  </span>
                 </div>
               </div>
-              <div className="flex shrink-0 flex-col items-end">
-                <span className="font-semibold tabular-nums text-slate-900 dark:text-stone-100">{producto.unidades} u.</span>
-                <span className="text-xs tabular-nums text-slate-500 dark:text-stone-400">
-                  {formatToCurrency(producto.ingresos)}
-                </span>
+              <div className="h-1.5 w-full overflow-hidden rounded-full bg-slate-200/70 dark:bg-stone-800">
+                <div
+                  className="h-full rounded-full bg-[#4C0107] transition-all dark:bg-[#E7B7BC]"
+                  style={{ width: `${(producto.unidades / maxUnidades) * 100}%` }}
+                />
               </div>
-            </div>
-            <div className="h-1.5 w-full overflow-hidden rounded-full bg-slate-200/70 dark:bg-stone-800">
-              <div
-                className="h-full rounded-full bg-[#4C0107] transition-all dark:bg-[#E7B7BC]"
-                style={{ width: `${(producto.unidades / maxUnidades) * 100}%` }}
-              />
-            </div>
-          </li>
-        ))}
+            </li>
+          )
+        })}
       </ol>
+
+      <div className="mt-auto flex flex-col gap-2 pt-2 border-t border-slate-100 dark:border-stone-800/80 sm:flex-row sm:items-center sm:justify-between">
+        <span className="text-xs text-slate-500 dark:text-stone-400">
+          Mostrando {productosPaginados.length > 0 ? (paginaSegura - 1) * PRODUCTOS_POR_PAGINA + 1 : 0}–
+          {Math.min(paginaSegura * PRODUCTOS_POR_PAGINA, productos.length)} de {productos.length}
+        </span>
+
+        {totalPaginas > 1 && (
+          <Pagination className="mx-0 w-auto justify-end">
+            <PaginationContent>
+              <PaginationItem>
+                <PaginationPrevious
+                  onClick={() => setPaginaActual((p) => Math.max(1, p - 1))}
+                  disabled={paginaSegura === 1}
+                  className={paginaSegura === 1 ? "pointer-events-none opacity-40" : "cursor-pointer"}
+                />
+              </PaginationItem>
+              {Array.from({ length: totalPaginas }, (_, i) => i + 1).map((num) => (
+                <PaginationItem key={num}>
+                  <PaginationLink
+                    isActive={paginaSegura === num}
+                    onClick={() => setPaginaActual(num)}
+                    className="cursor-pointer"
+                  >
+                    {num}
+                  </PaginationLink>
+                </PaginationItem>
+              ))}
+              <PaginationItem>
+                <PaginationNext
+                  onClick={() => setPaginaActual((p) => Math.min(totalPaginas, p + 1))}
+                  disabled={paginaSegura === totalPaginas}
+                  className={paginaSegura === totalPaginas ? "pointer-events-none opacity-40" : "cursor-pointer"}
+                />
+              </PaginationItem>
+            </PaginationContent>
+          </Pagination>
+        )}
+      </div>
     </section>
   )
 }
@@ -503,19 +630,23 @@ function ErrorState({ message, onRetry }: { message: string; onRetry: () => void
 
 function DashboardSkeleton() {
   return (
-    <div className="flex flex-col gap-6" aria-busy="true">
-      <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 xl:grid-cols-4">
-        {Array.from({ length: 4 }).map((_, i) => (
-          <Skeleton key={i} className="h-32 rounded-2xl dark:bg-stone-800" />
-        ))}
-      </div>
-      <div className="grid grid-cols-1 gap-4 xl:grid-cols-3">
-        <Skeleton className="h-80 rounded-2xl xl:col-span-2 dark:bg-stone-800" />
-        <Skeleton className="h-80 rounded-2xl dark:bg-stone-800" />
-      </div>
-      <div className="grid grid-cols-1 gap-4 xl:grid-cols-3">
-        <Skeleton className="h-72 rounded-2xl xl:col-span-2 dark:bg-stone-800" />
+    <div className="grid grid-cols-12 gap-4 lg:gap-5" aria-busy="true">
+      {Array.from({ length: 4 }).map((_, i) => (
+        <div key={i} className="col-span-12 sm:col-span-6 xl:col-span-3">
+          <Skeleton className="h-28 rounded-2xl dark:bg-stone-800" />
+        </div>
+      ))}
+      <div className="col-span-12 xl:col-span-8">
         <Skeleton className="h-72 rounded-2xl dark:bg-stone-800" />
+      </div>
+      <div className="col-span-12 xl:col-span-4">
+        <Skeleton className="h-72 rounded-2xl dark:bg-stone-800" />
+      </div>
+      <div className="col-span-12 xl:col-span-8">
+        <Skeleton className="h-64 rounded-2xl dark:bg-stone-800" />
+      </div>
+      <div className="col-span-12 xl:col-span-4">
+        <Skeleton className="h-64 rounded-2xl dark:bg-stone-800" />
       </div>
     </div>
   )
