@@ -4,6 +4,7 @@ import * as React from "react"
 import {
   Crown,
   Lock,
+  MailCheck,
   MapPin,
   Pencil,
   Plus,
@@ -14,50 +15,51 @@ import {
   UserCheck,
   UserMinus,
   UserPlus,
+  UserX,
   Users,
 } from "lucide-react"
 
-import { useEntityDelete, usePaginacionAjustada } from "@/shared/hooks"
+import { useCan } from "@/modules/auth"
+import { usePaginacionAjustada } from "@/shared/hooks"
 import { Avatar, AvatarFallback } from "@/shared/components/ui/avatar"
 import { Badge } from "@/shared/components/ui/badge"
 import { Button } from "@/shared/components/ui/button"
-import { Empty, EmptyContent, EmptyDescription, EmptyHeader, EmptyTitle } from "@/shared/components/ui/empty"
+import { Empty, EmptyContent, EmptyDescription } from "@/shared/components/ui/empty"
 import { Input } from "@/shared/components/ui/input"
 import { NativeSelect, NativeSelectOption } from "@/shared/components/ui/native-select"
 import { BarraPaginacion, GrillaAjustada } from "@/shared/components/ui/pagination"
 import { Skeleton } from "@/shared/components/ui/skeleton"
-import { toast } from "@/shared/components/ui/toast"
+import { ACCION, MODULO } from "@/shared/constants/permisos"
+import { useConfirm } from "@/shared/providers/confirm-provider"
 import { cn } from "@/shared/utils/cn"
 import { formatDateStrict } from "@/shared/utils/formatters"
-import { useWorkspaceLayout } from "@/shared/context/workspace-layout-context"
-import { PERMISO, ROL_LABELS, tienePermiso } from "@/shared/constants/permisos"
 
-import { eliminarMesa } from "../actions/local-equipo.actions"
 import { usePersonal, usePlanoMesas, useRoles } from "../hooks"
 import {
   ESTADO_EMPLEADO_CONFIG,
   ESTADO_MESA_CONFIG,
   botonIcono,
   botonPrimario,
-  botonSecundario,
-  getAreaIcon,
+  getAreaConfig,
   getRolVisual,
   selectClass,
   tarjetaClass,
 } from "../components"
-import { estadoEmpleadoSchema, type Empleado, type FiltroEstadoEmpleado, type Mesa, type Rol } from "../schema"
-import EmpleadoForm, {
-  AreasForm,
-  BajaEmpleadoForm,
-  ChipsModulos,
-  EncabezadoSeccion,
-  MesaForm,
-  RolForm,
-} from "./Form"
+import {
+  FILTRO_TODAS_LAS_AREAS,
+  areaDeMesa,
+  estadoEmpleadoSchema,
+  type Empleado,
+  type FiltroEstadoEmpleado,
+  type Mesa,
+  type Rol,
+  type RolDetalle,
+} from "../schema"
+import EmpleadoForm, { EncabezadoSeccion, MesaForm, RolForm } from "./Form"
 
 // Altos fijos de cada tarjeta: permiten calcular cuántas caben sin scroll en cualquier pantalla
 const ALTO_EMPLEADO = 160
-const ALTO_ROL = 216
+const ALTO_ROL = 150
 const ALTO_MESA = 128
 
 // Cada vista ocupa exactamente el alto disponible del workspace: sin scroll vertical ni horizontal
@@ -69,17 +71,18 @@ const iniciales = (nombre: string) => {
 }
 
 /* -------------------------------------------------------------------------- */
-/*            RF-11: Gestión de Personal y Asignación de Roles                */
+/*                Gestión de personal y asignación de cargos                  */
 /* -------------------------------------------------------------------------- */
 
-type ModalPersonal = { modo: "registrar" } | { modo: "editar"; empleado: Empleado } | { modo: "baja"; empleado: Empleado } | null
+type ModalPersonal = { modo: "registrar" } | { modo: "editar"; empleado: Empleado } | null
 
 export function PersonalView() {
-  const { rol } = useWorkspaceLayout()
-  const puedeVer = tienePermiso(rol, PERMISO.READ_STAFF)
-  const puedeRegistrar = tienePermiso(rol, PERMISO.CREATE_STAFF)
-  const puedeEditar = tienePermiso(rol, PERMISO.UPDATE_STAFF)
-  const puedeDarDeBaja = tienePermiso(rol, PERMISO.DELETE_STAFF)
+  // Entrar a la pantalla lo exige la ruta (USERS:LEER); aquí se decide qué más puede hacer cada cargo
+  const { puede } = useCan()
+  const puedeRegistrar = puede({ modulo: MODULO.USERS, accion: ACCION.CREAR })
+  const puedeEditar = puede({ modulo: MODULO.USERS, accion: ACCION.EDITAR })
+  const puedeDarDeBaja = puede({ modulo: MODULO.USERS, accion: ACCION.ELIMINAR })
+  const confirm = useConfirm()
 
   const personal = usePersonal()
   const [modal, setModal] = React.useState<ModalPersonal>(null)
@@ -91,22 +94,20 @@ export function PersonalView() {
     clave: `${personal.busqueda}|${personal.rol}|${personal.estado}`,
   })
 
-  if (!puedeVer) return <AccesoRestringido rol={ROL_LABELS[rol]} seccion="la gestión de personal" />
-
-  const { roles, rolesPorId, empleados, empleadosFiltrados, conteoPorEstado, cargado, error, recargar } = personal
+  const { cargos, empleados, empleadosFiltrados, conteoPorEstado, cargado, error, recargar } = personal
 
   return (
     <div className={vistaClass}>
       <EncabezadoSeccion
         titulo="Gestión de Empleados"
-        descripcion="Registra, actualiza y da de baja al personal, vinculándolo a su rol operativo."
+        descripcion="Registra, actualiza y da de baja al personal, vinculándolo a su cargo."
         acciones={
           puedeRegistrar && (
             <Button
               type="button"
               size="sm"
               onClick={() => setModal({ modo: "registrar" })}
-              disabled={!cargado || roles.length === 0}
+              disabled={!cargado || cargos.length === 0}
               leftIcon={<UserPlus className="size-4" />}
               aria-label="Registrar empleado"
               className={botonPrimario}
@@ -125,7 +126,7 @@ export function PersonalView() {
             type="search"
             value={personal.busqueda}
             onChange={(e) => personal.setBusqueda(e.target.value)}
-            placeholder="Buscar por nombre, correo o rol…"
+            placeholder="Buscar por nombre, correo o cargo…"
             aria-label="Buscar empleado"
             className="h-10 rounded-xl pl-9"
           />
@@ -134,13 +135,13 @@ export function PersonalView() {
           <NativeSelect
             value={personal.rol}
             onChange={(e) => personal.setRol(e.target.value)}
-            aria-label="Filtrar por rol"
+            aria-label="Filtrar por cargo"
             className={cn("w-full sm:w-44", selectClass)}
           >
-            <NativeSelectOption value="todos">Todos los roles</NativeSelectOption>
-            {roles.map((r) => (
-              <NativeSelectOption key={r.id} value={r.id}>
-                {r.nombre}
+            <NativeSelectOption value="todos">Todos los cargos</NativeSelectOption>
+            {cargos.map((c) => (
+              <NativeSelectOption key={c.id_rol} value={c.id_rol}>
+                {c.nombre}
               </NativeSelectOption>
             ))}
           </NativeSelect>
@@ -170,15 +171,17 @@ export function PersonalView() {
         <>
           <GrillaAjustada paginacion={paginacion} etiqueta="Empleados">
             {paginacion.visibles.map((empleado) => (
-              <li key={empleado.id} className="min-h-0">
+              <li key={empleado.id_usuario} className="min-h-0">
                 <EmpleadoCard
                   empleado={empleado}
-                  rol={empleado.idRol ? rolesPorId.get(empleado.idRol) : undefined}
                   puedeEditar={puedeEditar}
                   puedeDarDeBaja={puedeDarDeBaja}
                   onEditar={(e) => setModal({ modo: "editar", empleado: e })}
-                  onDarDeBaja={(e) => setModal({ modo: "baja", empleado: e })}
-                  onReactivar={personal.reactivar}
+                  onDarDeBaja={async (e) => {
+                    if (await confirm({ variant: "destructive" })) await personal.darDeBaja(e)
+                  }}
+                  onCambiarEstado={personal.cambiarEstado}
+                  onReenviar={personal.reenviar}
                 />
               </li>
             ))}
@@ -187,17 +190,13 @@ export function PersonalView() {
         </>
       )}
 
-      {(modal?.modo === "registrar" || modal?.modo === "editar") && (
+      {modal && (
         <EmpleadoForm
           empleado={modal.modo === "editar" ? modal.empleado : undefined}
-          roles={roles}
-          onGuardado={personal.empleadoGuardado}
+          cargos={cargos}
+          onGuardar={personal.guardarEmpleado}
           onClose={cerrarModal}
         />
-      )}
-
-      {modal?.modo === "baja" && (
-        <BajaEmpleadoForm empleado={modal.empleado} onDadoDeBaja={personal.empleadoDadoDeBaja} onClose={cerrarModal} />
       )}
     </div>
   )
@@ -205,28 +204,36 @@ export function PersonalView() {
 
 function EmpleadoCard({
   empleado,
-  rol,
   puedeEditar,
   puedeDarDeBaja,
   onEditar,
   onDarDeBaja,
-  onReactivar,
+  onCambiarEstado,
+  onReenviar,
 }: {
   empleado: Empleado
-  rol?: Rol
   puedeEditar: boolean
   puedeDarDeBaja: boolean
   onEditar: (empleado: Empleado) => void
-  onDarDeBaja: (empleado: Empleado) => void
-  onReactivar: (empleado: Empleado) => Promise<void>
+  onDarDeBaja: (empleado: Empleado) => Promise<void>
+  onCambiarEstado: (empleado: Empleado, estado: "activo" | "suspendido") => Promise<boolean>
+  onReenviar: (empleado: Empleado) => Promise<boolean>
 }) {
-  const [reactivando, setReactivando] = React.useState(false)
+  const [ocupado, setOcupado] = React.useState(false)
   const estado = ESTADO_EMPLEADO_CONFIG[empleado.estado]
-  const visual = getRolVisual(rol?.nombre ?? "")
+  const visual = getRolVisual(empleado.rol_nombre ?? "")
   const IconoRol = visual.icon
-  const esDueno = empleado.tipoCuenta === "OWNER"
+  const esDueno = empleado.tipo_cuenta === "OWNER"
   const deBaja = empleado.estado === "inactivo"
   const puedeReactivar = empleado.estado === "inactivo" || empleado.estado === "suspendido"
+  const puedeSuspender = empleado.estado === "activo"
+  const pendiente = empleado.estado === "pendiente_activacion"
+
+  const ejecutar = async (accion: () => Promise<unknown>) => {
+    setOcupado(true)
+    await accion()
+    setOcupado(false)
+  }
 
   return (
     <article className={cn(tarjetaClass, "gap-3", deBaja && "opacity-70")}>
@@ -249,7 +256,7 @@ function EmpleadoCard({
       <div className="flex min-w-0 items-center gap-1.5">
         <Badge variant="estado" className={cn("max-w-full gap-1 px-2 text-[11px]", visual.className)}>
           <IconoRol className="size-3 shrink-0" />
-          <span className="truncate">{rol?.nombre ?? "Sin rol asignado"}</span>
+          <span className="truncate">{empleado.rol_nombre ?? (esDueno ? "Propietario" : "Sin cargo asignado")}</span>
         </Badge>
         {esDueno && (
           <Badge variant="estado" className="bg-amber-50 px-2 text-[11px] text-amber-800 dark:bg-amber-500/15 dark:text-amber-300">
@@ -260,34 +267,55 @@ function EmpleadoCard({
 
       <div className="mt-auto flex items-center justify-between gap-2 border-t border-slate-100 pt-2 dark:border-stone-800">
         <span className="truncate text-[11px] text-slate-400 dark:text-stone-500">
-          Registrado el {formatDateStrict(empleado.fechaCreacion)}
+          Registrado el {formatDateStrict(empleado.fecha_creacion)}
         </span>
         <div className="flex shrink-0 items-center gap-0.5">
-          {puedeEditar && (
+          {puedeEditar && !esDueno && pendiente && (
+            <button
+              type="button"
+              disabled={ocupado}
+              onClick={() => void ejecutar(() => onReenviar(empleado))}
+              aria-label={`Reenviar activación a ${empleado.nombre}`}
+              title="Reenviar correo de activación"
+              className={cn(botonIcono, "hover:text-sky-700 dark:hover:text-sky-300")}
+            >
+              <MailCheck className={cn("size-4", ocupado && "animate-pulse")} />
+            </button>
+          )}
+          {puedeEditar && !esDueno && (
             <button type="button" onClick={() => onEditar(empleado)} aria-label={`Editar ${empleado.nombre}`} className={botonIcono}>
               <Pencil className="size-4" />
             </button>
           )}
-          {puedeDarDeBaja && !esDueno && puedeReactivar && (
+          {puedeEditar && !esDueno && puedeSuspender && (
             <button
               type="button"
-              disabled={reactivando}
-              onClick={async () => {
-                setReactivando(true)
-                await onReactivar(empleado)
-                setReactivando(false)
-              }}
+              disabled={ocupado}
+              onClick={() => void ejecutar(() => onCambiarEstado(empleado, "suspendido"))}
+              aria-label={`Suspender a ${empleado.nombre}`}
+              title="Suspender"
+              className={cn(botonIcono, "hover:text-amber-700 dark:hover:text-amber-400")}
+            >
+              <UserX className={cn("size-4", ocupado && "animate-pulse")} />
+            </button>
+          )}
+          {puedeEditar && !esDueno && puedeReactivar && (
+            <button
+              type="button"
+              disabled={ocupado}
+              onClick={() => void ejecutar(() => onCambiarEstado(empleado, "activo"))}
               aria-label={`Reactivar a ${empleado.nombre}`}
               title="Reactivar"
               className={cn(botonIcono, "hover:text-emerald-700 dark:hover:text-emerald-400")}
             >
-              <UserCheck className={cn("size-4", reactivando && "animate-pulse")} />
+              <UserCheck className={cn("size-4", ocupado && "animate-pulse")} />
             </button>
           )}
           {puedeDarDeBaja && !esDueno && !deBaja && (
             <button
               type="button"
-              onClick={() => onDarDeBaja(empleado)}
+              disabled={ocupado}
+              onClick={() => void ejecutar(() => onDarDeBaja(empleado))}
               aria-label={`Dar de baja a ${empleado.nombre}`}
               title="Dar de baja"
               className={cn(botonIcono, "hover:text-red-600 dark:hover:text-red-400")}
@@ -302,39 +330,46 @@ function EmpleadoCard({
 }
 
 /* -------------------------------------------------------------------------- */
-/*                     Gestión de Roles y Permisos                            */
+/*                         Roles (cargos) y permisos                          */
 /* -------------------------------------------------------------------------- */
 
-type VistaRoles = { modo: "lista" } | { modo: "crear" } | { modo: "editar"; rol: Rol }
+type VistaRoles = { modo: "lista" } | { modo: "crear" } | { modo: "editar"; rol: RolDetalle }
 
 export function RolesPermisosView() {
-  const { rol } = useWorkspaceLayout()
-  const puedeVer = tienePermiso(rol, PERMISO.READ_STAFF)
-  const puedeCrear = tienePermiso(rol, PERMISO.CREATE_STAFF)
-  const puedeEditar = tienePermiso(rol, PERMISO.UPDATE_STAFF)
-  const puedeEliminar = tienePermiso(rol, PERMISO.DELETE_STAFF)
+  const { puede } = useCan()
+  const puedeCrear = puede({ modulo: MODULO.ROLES, accion: ACCION.CREAR })
+  const puedeEditar = puede({ modulo: MODULO.ROLES, accion: ACCION.EDITAR })
+  const puedeEliminar = puede({ modulo: MODULO.ROLES, accion: ACCION.ELIMINAR })
 
   const roles = useRoles()
   const [vista, setVista] = React.useState<VistaRoles>({ modo: "lista" })
+  const [abriendoId, setAbriendoId] = React.useState<string | null>(null)
   const volver = React.useCallback(() => setVista({ modo: "lista" }), [])
 
   // Ancho mínimo amplio: 2 columnas en escritorio como el diseño de referencia
   const paginacion = usePaginacionAjustada(roles.roles, { altoItem: ALTO_ROL, anchoMinimo: 400 })
 
-  if (!puedeVer) return <AccesoRestringido rol={ROL_LABELS[rol]} seccion="los roles y permisos" />
+  // Para ver o editar un rol hacen falta sus permisos, que vienen en el detalle
+  const abrirRol = async (rol: Rol) => {
+    setAbriendoId(rol.id_rol)
+    const detalle = await roles.cargarDetalle(rol.id_rol)
+    setAbriendoId(null)
+    if (detalle) setVista({ modo: "editar", rol: detalle })
+  }
 
-  // Vista "Crear Nuevo Rol" / "Editar Permisos" en la misma pantalla
+  // Vista «Crear nuevo rol» / «Editar permisos» en la misma pantalla
   if (vista.modo !== "lista") {
     const rolEditado = vista.modo === "editar" ? vista.rol : undefined
     return (
       <RolForm
-        key={rolEditado?.id ?? "nuevo"}
+        key={rolEditado?.id_rol ?? "nuevo"}
         rol={rolEditado}
+        catalogo={roles.catalogo}
         puedeEditar={rolEditado ? puedeEditar : puedeCrear}
         puedeEliminar={puedeEliminar}
-        empleadosAsignados={rolEditado ? (roles.empleadosPorRol.get(rolEditado.id) ?? 0) : 0}
-        onGuardado={roles.rolGuardado}
-        onEliminado={roles.rolEliminado}
+        empleadosAsignados={rolEditado?.total_usuarios ?? 0}
+        onGuardar={roles.guardarRol}
+        onEliminar={roles.quitarRol}
         onVolver={volver}
       />
     )
@@ -351,7 +386,7 @@ export function RolesPermisosView() {
               type="button"
               size="sm"
               onClick={() => setVista({ modo: "crear" })}
-              disabled={!roles.cargado}
+              disabled={!roles.cargado || roles.catalogo.length === 0}
               leftIcon={<Plus className="size-4" />}
               aria-label="Crear nuevo rol"
               className={botonPrimario}
@@ -375,12 +410,12 @@ export function RolesPermisosView() {
         <>
           <GrillaAjustada paginacion={paginacion} etiqueta="Roles operativos">
             {paginacion.visibles.map((r) => (
-              <li key={r.id} className="min-h-0">
+              <li key={r.id_rol} className="min-h-0">
                 <RolCard
                   rol={r}
-                  empleados={roles.empleadosPorRol.get(r.id) ?? 0}
-                  editable={puedeEditar && !r.esSistema}
-                  onAbrir={() => setVista({ modo: "editar", rol: r })}
+                  editable={puedeEditar}
+                  abriendo={abriendoId === r.id_rol}
+                  onAbrir={() => void abrirRol(r)}
                 />
               </li>
             ))}
@@ -394,23 +429,20 @@ export function RolesPermisosView() {
 
 function RolCard({
   rol,
-  empleados,
   editable,
+  abriendo,
   onAbrir,
 }: {
   rol: Rol
-  empleados: number
   editable: boolean
+  abriendo: boolean
   onAbrir: () => void
 }) {
   const visual = getRolVisual(rol.nombre)
   const Icono = visual.icon
-  const conPersonal = rol.esSistema || empleados > 0
-  const subtitulo = rol.esSistema
-    ? "Rol base del sistema"
-    : empleados > 0
-      ? `${empleados} ${empleados === 1 ? "empleado asignado" : "empleados asignados"}`
-      : "Sin empleados asignados"
+  const empleados = rol.total_usuarios
+  const subtitulo =
+    empleados > 0 ? `${empleados} ${empleados === 1 ? "empleado asignado" : "empleados asignados"}` : "Sin empleados asignados"
 
   return (
     <article className={cn(tarjetaClass, "gap-3")}>
@@ -424,11 +456,11 @@ function RolCard({
             <p
               className={cn(
                 "flex items-center gap-1.5 truncate text-xs font-medium",
-                conPersonal ? "text-emerald-700 dark:text-emerald-400" : "text-slate-500 dark:text-stone-400"
+                empleados > 0 ? "text-emerald-700 dark:text-emerald-400" : "text-slate-500 dark:text-stone-400"
               )}
             >
               <span
-                className={cn("size-1.5 shrink-0 rounded-full", conPersonal ? "bg-emerald-500" : "bg-slate-300 dark:bg-stone-600")}
+                className={cn("size-1.5 shrink-0 rounded-full", empleados > 0 ? "bg-emerald-500" : "bg-slate-300 dark:bg-stone-600")}
               />
               {subtitulo}
             </p>
@@ -439,6 +471,7 @@ function RolCard({
           variant="outline"
           size="sm"
           onClick={onAbrir}
+          disabled={abriendo}
           leftIcon={editable ? <Pencil className="size-3.5" /> : <Lock className="size-3.5" />}
           aria-label={editable ? `Editar permisos de ${rol.nombre}` : `Ver permisos de ${rol.nombre}`}
           className="h-8 shrink-0 gap-1.5 rounded-lg border border-slate-200 bg-white px-2.5 text-xs font-medium text-slate-700 hover:bg-slate-50 hover:text-slate-900 dark:border-stone-700 dark:bg-transparent dark:text-stone-200 dark:hover:bg-stone-800"
@@ -447,111 +480,79 @@ function RolCard({
         </Button>
       </div>
 
-      <p className="line-clamp-1 text-sm text-slate-600 dark:text-stone-300" title={rol.descripcion}>
+      <p className="line-clamp-1 text-sm text-slate-600 dark:text-stone-300" title={rol.descripcion ?? undefined}>
         {rol.descripcion || "Sin descripción."}
       </p>
 
       <div className="h-px shrink-0 bg-slate-100 dark:bg-stone-800" />
 
-      <div className="flex min-h-0 flex-1 flex-col gap-2 overflow-hidden">
-        <span className="text-[11px] font-semibold uppercase tracking-wider text-slate-400 dark:text-stone-500">
-          Módulos con acceso
-        </span>
-        <ChipsModulos permisos={rol.permisos} maximo={4} />
-      </div>
+      <p className="text-xs font-medium text-slate-500 tabular-nums dark:text-stone-400">
+        {rol.total_permisos} {rol.total_permisos === 1 ? "permiso concedido" : "permisos concedidos"}
+      </p>
     </article>
   )
 }
 
 /* -------------------------------------------------------------------------- */
-/*                 RF-12: Configuración del Plano de Mesas                    */
+/*                    Configuración del plano de mesas                        */
 /* -------------------------------------------------------------------------- */
 
-type ModalMesas = { modo: "registrar" } | { modo: "editar"; mesa: Mesa } | { modo: "areas" } | null
+type ModalMesas = { modo: "registrar" } | { modo: "editar"; mesa: Mesa } | null
 
 export function MesasView() {
-  const { rol } = useWorkspaceLayout()
-  const puedeVer = tienePermiso(rol, PERMISO.READ_TABLES)
-  const puedeRegistrar = tienePermiso(rol, PERMISO.CREATE_TABLE)
-  const puedeEditar = tienePermiso(rol, PERMISO.UPDATE_TABLE)
-  const puedeEliminar = tienePermiso(rol, PERMISO.DELETE_TABLE)
+  const { puede } = useCan()
+  const puedeRegistrar = puede({ modulo: MODULO.TABLES, accion: ACCION.CREAR })
+  const puedeEditar = puede({ modulo: MODULO.TABLES, accion: ACCION.EDITAR })
+  const puedeEliminar = puede({ modulo: MODULO.TABLES, accion: ACCION.ELIMINAR })
+  const confirm = useConfirm()
 
-  const mesas = usePlanoMesas()
+  const plano = usePlanoMesas()
   const [modal, setModal] = React.useState<ModalMesas>(null)
   const cerrarModal = React.useCallback(() => setModal(null), [])
 
-  const paginacion = usePaginacionAjustada(mesas.mesasFiltradas, {
+  const paginacion = usePaginacionAjustada(plano.mesasFiltradas, {
     altoItem: ALTO_MESA,
     anchoMinimo: 190,
-    clave: mesas.areaFiltro,
+    clave: plano.areaFiltro,
   })
 
-  // Eliminación con el hook genérico de shared
-  const { entityToDelete: mesaEnEliminacion, confirmDelete: confirmarEliminarMesa } = useEntityDelete<string>({
-    actionDelete: eliminarMesa,
-    onSuccess: (id) => {
-      const eliminada = mesas.plano?.mesas.find((m) => m.id === id)
-      if (eliminada) mesas.mesaEliminada(eliminada)
-    },
-    onError: (mensaje) => toast.add({ type: "error", title: "No se pudo eliminar la mesa.", description: mensaje }),
-  })
-
-  if (!puedeVer) return <AccesoRestringido rol={ROL_LABELS[rol]} seccion="el plano de mesas" />
-
-  const { plano, mesasFiltradas, mesasPorArea, resumen, isLoading, error, recargar } = mesas
-  const nombreArea = (id: string) => plano?.areas.find((a) => a.id === id)?.nombre ?? "Sin área"
+  const { mesas, areas, mesasFiltradas, mesasPorArea, resumen, isLoading, error, recargar } = plano
 
   return (
     <div className={vistaClass}>
       <EncabezadoSeccion
         titulo="Gestión de Mesas"
-        descripcion="Registra, renombra o elimina las mesas y las áreas de atención del local."
+        descripcion="Registra, renombra o elimina las mesas del local y asígnalas a un área de atención."
         acciones={
-          <>
-            {puedeEditar && (
-              <Button
-                type="button"
-                variant="outline"
-                size="sm"
-                onClick={() => setModal({ modo: "areas" })}
-                disabled={!plano}
-                leftIcon={<MapPin className="size-4" />}
-                aria-label="Gestionar áreas"
-                className={botonSecundario}
-              >
-                <span className="hidden sm:inline">Áreas</span>
-              </Button>
-            )}
-            {puedeRegistrar && (
-              <Button
-                type="button"
-                size="sm"
-                onClick={() => setModal({ modo: "registrar" })}
-                disabled={!plano || plano.areas.length === 0}
-                leftIcon={<Plus className="size-4" />}
-                aria-label="Registrar nueva mesa"
-                className={botonPrimario}
-              >
-                <span className="hidden sm:inline">Nueva Mesa</span>
-              </Button>
-            )}
-          </>
+          puedeRegistrar && (
+            <Button
+              type="button"
+              size="sm"
+              onClick={() => setModal({ modo: "registrar" })}
+              disabled={isLoading}
+              leftIcon={<Plus className="size-4" />}
+              aria-label="Registrar nueva mesa"
+              className={botonPrimario}
+            >
+              <span className="hidden sm:inline">Nueva Mesa</span>
+            </Button>
+          )
         }
       />
 
       {/* Filtro por área y resumen */}
       <div className="flex shrink-0 items-center justify-between gap-3">
         <NativeSelect
-          value={mesas.areaFiltro}
-          onChange={(e) => mesas.setAreaFiltro(e.target.value)}
-          disabled={!plano}
+          value={plano.areaFiltro}
+          onChange={(e) => plano.setAreaFiltro(e.target.value)}
+          disabled={isLoading}
           aria-label="Filtrar por área de atención"
           className={cn("w-full min-w-0 sm:w-56", selectClass)}
         >
-          <NativeSelectOption value="todas">Todas las áreas ({plano?.mesas.length ?? 0})</NativeSelectOption>
-          {plano?.areas.map((a) => (
-            <NativeSelectOption key={a.id} value={a.id}>
-              {a.nombre} ({mesasPorArea.get(a.id) ?? 0})
+          <NativeSelectOption value={FILTRO_TODAS_LAS_AREAS}>Todas las áreas ({mesas.length})</NativeSelectOption>
+          {areas.map((a) => (
+            <NativeSelectOption key={a} value={a}>
+              {a} ({mesasPorArea.get(a) ?? 0})
             </NativeSelectOption>
           ))}
         </NativeSelect>
@@ -565,13 +566,13 @@ export function MesasView() {
       {!puedeEditar && (
         <p className="flex shrink-0 items-center gap-2 rounded-xl border border-slate-200 bg-slate-50 px-3 py-2 text-xs text-slate-600 dark:border-stone-800 dark:bg-stone-950/40 dark:text-stone-300">
           <Lock className="size-3.5 shrink-0" />
-          <span className="truncate">Solo el Dueño o el Administrador pueden modificar el plano de mesas.</span>
+          <span className="truncate">Tu cargo no puede modificar el plano de mesas.</span>
         </p>
       )}
 
       {error ? (
         <ErrorState message={error} onRetry={recargar} />
-      ) : !plano || isLoading ? (
+      ) : isLoading ? (
         <GrillaSkeleton />
       ) : mesasFiltradas.length === 0 ? (
         <Empty className="min-h-0 flex-1">
@@ -582,15 +583,15 @@ export function MesasView() {
         <>
           <GrillaAjustada paginacion={paginacion} etiqueta="Mesas del local">
             {paginacion.visibles.map((mesa) => (
-              <li key={mesa.id} className="min-h-0">
+              <li key={mesa.id_mesa} className="min-h-0">
                 <MesaCard
                   mesa={mesa}
-                  area={nombreArea(mesa.area)}
                   puedeEditar={puedeEditar}
                   puedeEliminar={puedeEliminar}
-                  eliminando={mesaEnEliminacion === mesa.id}
                   onEditar={(m) => setModal({ modo: "editar", mesa: m })}
-                  onEliminar={(m) => confirmarEliminarMesa(m.id)}
+                  onEliminar={async (m) => {
+                    if (await confirm({ variant: "destructive" })) await plano.quitarMesa(m)
+                  }}
                 />
               </li>
             ))}
@@ -599,22 +600,12 @@ export function MesasView() {
         </>
       )}
 
-      {(modal?.modo === "registrar" || modal?.modo === "editar") && plano && (
+      {modal && (
         <MesaForm
           mesa={modal.modo === "editar" ? modal.mesa : undefined}
-          areas={plano.areas}
-          areaPorDefecto={mesas.areaFiltro !== "todas" ? mesas.areaFiltro : undefined}
-          onGuardada={mesas.mesaGuardada}
-          onClose={cerrarModal}
-        />
-      )}
-
-      {modal?.modo === "areas" && plano && (
-        <AreasForm
-          areas={plano.areas}
-          mesasPorArea={mesasPorArea}
-          onGuardar={mesas.guardarArea}
-          onEliminada={mesas.areaEliminada}
+          areas={areas.filter((a) => a !== "Sin área")}
+          areaPorDefecto={plano.areaFiltro !== FILTRO_TODAS_LAS_AREAS ? plano.areaFiltro : undefined}
+          onGuardar={plano.guardarMesa}
           onClose={cerrarModal}
         />
       )}
@@ -624,36 +615,33 @@ export function MesasView() {
 
 function MesaCard({
   mesa,
-  area,
   puedeEditar,
   puedeEliminar,
-  eliminando,
   onEditar,
   onEliminar,
 }: {
   mesa: Mesa
-  area: string
   puedeEditar: boolean
   puedeEliminar: boolean
-  eliminando: boolean
   onEditar: (mesa: Mesa) => void
-  onEliminar: (mesa: Mesa) => Promise<unknown>
+  onEliminar: (mesa: Mesa) => Promise<void>
 }) {
   const estado = ESTADO_MESA_CONFIG[mesa.estado]
-  const [confirmando, setConfirmando] = React.useState(false)
+  const area = areaDeMesa(mesa)
+  const areaConfig = getAreaConfig(area)
   const enUso = mesa.estado !== "libre"
 
   return (
     <article className={cn(tarjetaClass, "gap-2 p-3.5")}>
       <div className="flex items-start justify-between gap-2">
-        <h3 className="truncate text-base font-bold text-slate-900 dark:text-stone-100">{mesa.nombre}</h3>
+        <h3 className="truncate text-base font-bold text-slate-900 dark:text-stone-100">{mesa.numero}</h3>
         <Badge variant="estado" className={cn("shrink-0 px-2 text-[11px]", estado.badge)}>
           {estado.label}
         </Badge>
       </div>
 
       <p className="flex min-w-0 items-center gap-1.5 text-xs text-slate-500 dark:text-stone-400">
-        {React.createElement(getAreaIcon(mesa.area), { className: "size-3.5 shrink-0" })}
+        <areaConfig.icon className="size-3.5 shrink-0" />
         <span className="truncate">{area}</span>
         <span>·</span>
         <Users className="size-3.5 shrink-0" />
@@ -661,59 +649,30 @@ function MesaCard({
       </p>
 
       <div className="mt-auto flex min-h-8 items-center justify-end gap-1 border-t border-slate-100 pt-2 dark:border-stone-800">
-        {confirmando ? (
-          <div className="flex w-full items-center justify-between gap-1">
-            <span className="text-xs font-medium text-red-700 dark:text-red-300">¿Eliminar?</span>
-            <div className="flex items-center gap-1">
-              <button
-                type="button"
-                disabled={eliminando}
-                onClick={async () => {
-                  await onEliminar(mesa)
-                  setConfirmando(false)
-                }}
-                className="h-8 cursor-pointer rounded-full bg-red-600 px-3 text-xs font-semibold text-white transition-colors hover:bg-red-700 disabled:opacity-60 dark:bg-red-500 dark:hover:bg-red-400"
-              >
-                Sí
-              </button>
-              <button
-                type="button"
-                disabled={eliminando}
-                onClick={() => setConfirmando(false)}
-                className="h-8 cursor-pointer rounded-full px-3 text-xs font-semibold text-slate-600 transition-colors hover:bg-slate-100 dark:text-stone-300 dark:hover:bg-stone-800"
-              >
-                No
-              </button>
-            </div>
-          </div>
-        ) : (
-          <>
-            {!puedeEditar && !puedeEliminar && (
-              <span className="mr-auto text-[11px] text-slate-400 dark:text-stone-500">Solo lectura</span>
-            )}
-            {puedeEditar && (
-              <button
-                type="button"
-                onClick={() => onEditar(mesa)}
-                aria-label={`Editar ${mesa.nombre}`}
-                className={cn(botonIcono, "size-8")}
-              >
-                <Pencil className="size-4" />
-              </button>
-            )}
-            {puedeEliminar && (
-              <button
-                type="button"
-                onClick={() => setConfirmando(true)}
-                disabled={enUso}
-                title={enUso ? "Tiene un pedido en curso" : undefined}
-                aria-label={`Eliminar ${mesa.nombre}`}
-                className={cn(botonIcono, "size-8 hover:text-red-600 dark:hover:text-red-400")}
-              >
-                <Trash2 className="size-4" />
-              </button>
-            )}
-          </>
+        {!puedeEditar && !puedeEliminar && (
+          <span className="mr-auto text-[11px] text-slate-400 dark:text-stone-500">Solo lectura</span>
+        )}
+        {puedeEditar && (
+          <button
+            type="button"
+            onClick={() => onEditar(mesa)}
+            aria-label={`Editar ${mesa.numero}`}
+            className={cn(botonIcono, "size-8")}
+          >
+            <Pencil className="size-4" />
+          </button>
+        )}
+        {puedeEliminar && (
+          <button
+            type="button"
+            onClick={() => void onEliminar(mesa)}
+            disabled={enUso}
+            title={enUso ? "Tiene un pedido en curso" : undefined}
+            aria-label={`Eliminar ${mesa.numero}`}
+            className={cn(botonIcono, "size-8 hover:text-red-600 dark:hover:text-red-400")}
+          >
+            <Trash2 className="size-4" />
+          </button>
         )}
       </div>
     </article>
@@ -740,21 +699,6 @@ function SinResultados({ texto, onLimpiar }: { texto: string; onLimpiar: () => v
           Limpiar filtros
         </Button>
       </EmptyContent>
-    </Empty>
-  )
-}
-
-function AccesoRestringido({ rol, seccion }: { rol: string; seccion: string }) {
-  return (
-    <Empty className="h-full">
-      <Lock className="size-8 text-[#4C0107] dark:text-[#E7B7BC]" />
-      <EmptyHeader>
-        <EmptyTitle>Acceso restringido</EmptyTitle>
-        <EmptyDescription>
-          Tu rol actual (<span className="font-semibold text-slate-700 dark:text-stone-200">{rol}</span>) no tiene
-          acceso a {seccion}.
-        </EmptyDescription>
-      </EmptyHeader>
     </Empty>
   )
 }

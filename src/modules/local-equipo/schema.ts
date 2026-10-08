@@ -1,156 +1,59 @@
 import { z } from "zod"
-import type { AreaMesa, AreaPos, EstadoMesa, MesaPos } from "@/modules/pos/schema"
+
+import type { ModuloCatalogoDto, RolDetalleDto, RolResumenDto } from "@/dtos/roles"
+import type { CargoDto, EstadoUsuario, UsuarioDto } from "@/dtos/usuarios"
+import type { MesaConPedidoDto } from "@/dtos/mesas"
 
 /* -------------------------------------------------------------------------- */
-/*        Catálogo de módulos y acciones (tablas modulos / acciones)          */
+/*                         Roles (cargos) y permisos                          */
 /* -------------------------------------------------------------------------- */
 
-export type ModuloId = "dashboard" | "pos" | "kds" | "menu" | "personal" | "mesas" | "transacciones"
+export type Rol = RolResumenDto
+export type RolDetalle = RolDetalleDto
+export type ModuloCatalogo = ModuloCatalogoDto
 
-export interface AccionModulo {
-  id: string
-  nombre: string
+/** "MODULO:ACCION" de un permiso, igual al que entrega la sesión. */
+export const clavePermiso = (modulo: string, accion: string) => `${modulo}:${accion}`
+
+export const permisoDesdeClave = (clave: string) => {
+  const [modulo, accion] = clave.split(":")
+  return { modulo, accion }
 }
 
-export interface ModuloSistema {
-  id: ModuloId
-  nombre: string
-  acciones: AccionModulo[]
-}
+export const permisosDelRol = (rol: Pick<RolDetalleDto, "permisos">): string[] =>
+  rol.permisos.map((p) => clavePermiso(p.modulo, p.accion))
 
-// Cada permiso de un rol es una fila de rol_permisos: (id_rol, id_modulo, id_accion)
-export const MODULOS_SISTEMA: ModuloSistema[] = [
-  {
-    id: "dashboard",
-    nombre: "Dashboard",
-    acciones: [
-      { id: "ver", nombre: "Ver métricas globales" },
-      { id: "exportar", nombre: "Exportar reportes" },
-    ],
-  },
-  {
-    id: "pos",
-    nombre: "POS",
-    acciones: [
-      { id: "crear_ordenes", nombre: "Crear órdenes" },
-      { id: "aplicar_descuentos", nombre: "Aplicar descuentos" },
-      { id: "cortes_caja", nombre: "Cortes de caja" },
-    ],
-  },
-  {
-    id: "kds",
-    nombre: "KDS",
-    acciones: [
-      { id: "ver", nombre: "Ver comandas activas" },
-      { id: "completar", nombre: "Marcar como completado" },
-    ],
-  },
-  {
-    id: "menu",
-    nombre: "Menú",
-    acciones: [
-      { id: "ver", nombre: "Ver inventario" },
-      { id: "editar", nombre: "Editar precios/ítems" },
-    ],
-  },
-  {
-    id: "personal",
-    nombre: "Personal",
-    acciones: [
-      { id: "ver", nombre: "Ver lista de empleados" },
-      { id: "gestionar", nombre: "Gestionar roles y permisos" },
-    ],
-  },
-  {
-    id: "mesas",
-    nombre: "Mesas",
-    acciones: [
-      { id: "ver", nombre: "Ver plano de mesas" },
-      { id: "configurar", nombre: "Configurar plano y áreas" },
-    ],
-  },
-  {
-    id: "transacciones",
-    nombre: "Transacciones",
-    acciones: [
-      { id: "ver", nombre: "Ver historial de ventas" },
-      { id: "reembolsos", nombre: "Emitir reembolsos" },
-    ],
-  },
-]
-
-// Clave compacta de un permiso: "<id_modulo>:<id_accion>"
-export const clavePermiso = (modulo: ModuloId, accion: string) => `${modulo}:${accion}`
-
-export const TODOS_LOS_PERMISOS = MODULOS_SISTEMA.flatMap((m) => m.acciones.map((a) => clavePermiso(m.id, a.id)))
-
-export interface ModuloConAcceso {
-  id: ModuloId
-  etiqueta: string
-}
-
-// Resume los permisos de un rol en los módulos a los que tiene acceso
-export function modulosConAcceso(permisos: readonly string[]): ModuloConAcceso[] {
-  const asignados = new Set(permisos)
-  return MODULOS_SISTEMA.flatMap((modulo) => {
-    const acciones = modulo.acciones.filter((a) => asignados.has(clavePermiso(modulo.id, a.id)))
-    if (acciones.length === 0) return []
-    // Si solo puede consultar, se indica como acceso de lectura
-    const soloLectura = modulo.acciones.length > 1 && acciones.length === 1 && acciones[0].id === "ver"
-    return [{ id: modulo.id, etiqueta: soloLectura ? `${modulo.nombre} (Lectura)` : modulo.nombre }]
-  })
-}
-
-/* -------------------------------------------------------------------------- */
-/*                 Roles operativos (tablas roles / rol_permisos)             */
-/* -------------------------------------------------------------------------- */
-
-export interface Rol {
-  id: string
-  nombre: string
-  descripcion: string
-  permisos: string[]
-  // Rol base del sistema: no se puede eliminar ni cambiar sus permisos
-  esSistema: boolean
-}
+/** Todas las claves "MODULO:ACCION" que existen en el catálogo de permisos de la API. */
+export const todasLasClaves = (catalogo: ModuloCatalogo[]): string[] =>
+  catalogo.flatMap((m) => m.acciones.map((a) => clavePermiso(m.modulo, a.accion)))
 
 export const rolFormSchema = z.object({
   nombre: z
     .string()
     .trim()
-    .min(3, "El nombre debe tener al menos 3 caracteres.")
-    .max(40, "Máximo 40 caracteres."),
-  descripcion: z.string().trim().max(160, "Máximo 160 caracteres."),
+    .min(2, "El nombre debe tener al menos 2 caracteres.")
+    .max(50, "Máximo 50 caracteres."),
+  descripcion: z.string().trim().max(255, "Máximo 255 caracteres."),
   permisos: z.array(z.string()).min(1, "Selecciona al menos un permiso para el rol."),
 })
 
 export type RolFormValues = z.infer<typeof rolFormSchema>
-export type RolInput = RolFormValues
 
-export const rolToFormValues = (rol?: Rol): RolFormValues => ({
+export const rolToFormValues = (rol?: RolDetalle): RolFormValues => ({
   nombre: rol?.nombre ?? "",
   descripcion: rol?.descripcion ?? "",
-  permisos: rol ? [...rol.permisos] : [],
+  permisos: rol ? permisosDelRol(rol) : [],
 })
 
 /* -------------------------------------------------------------------------- */
-/*       RF-11: Gestión de Personal y Asignación de Roles (tabla usuarios)    */
+/*                 Gestión de personal y asignación de cargos                 */
 /* -------------------------------------------------------------------------- */
 
+export type Empleado = UsuarioDto
+export type Cargo = CargoDto
+export type EstadoEmpleado = EstadoUsuario
+
 export const estadoEmpleadoSchema = z.enum(["pendiente_activacion", "activo", "suspendido", "inactivo", "bloqueado"])
-export type EstadoEmpleado = z.infer<typeof estadoEmpleadoSchema>
-
-export type TipoCuenta = "OWNER" | "EMPLOYEE"
-
-export interface Empleado {
-  id: string
-  nombre: string
-  email: string
-  idRol: string | null
-  estado: EstadoEmpleado
-  tipoCuenta: TipoCuenta
-  fechaCreacion: string // ISO
-}
 
 export type FiltroEstadoEmpleado = EstadoEmpleado | "todos"
 export type FiltroRolEmpleado = string | "todos"
@@ -160,44 +63,41 @@ export const empleadoFormSchema = z.object({
     .string()
     .trim()
     .min(3, "Ingresa el nombre completo.")
-    .max(80, "Máximo 80 caracteres.")
+    .max(100, "Máximo 100 caracteres.")
     .regex(/^[A-Za-zÁÉÍÓÚÜÑáéíóúüñ' ]+$/, "Solo se permiten letras y espacios."),
-  email: z.string().trim().toLowerCase().email("Ingresa un correo válido."),
-  idRol: z.string().min(1, "Selecciona el rol operativo."),
+  email: z.string().trim().toLowerCase().email("Ingresa un correo válido.").max(150, "Máximo 150 caracteres."),
+  idRol: z.string().min(1, "Selecciona el cargo."),
 })
 
 export type EmpleadoFormValues = z.infer<typeof empleadoFormSchema>
-export type EmpleadoInput = EmpleadoFormValues
 
 export const empleadoToFormValues = (empleado?: Empleado, rolPorDefecto = ""): EmpleadoFormValues => ({
   nombre: empleado?.nombre ?? "",
   email: empleado?.email ?? "",
-  idRol: empleado?.idRol ?? rolPorDefecto,
+  idRol: empleado?.id_rol ?? rolPorDefecto,
 })
 
 /* -------------------------------------------------------------------------- */
-/*            RF-12: Configuración del Plano de Mesas (tabla mesas)           */
+/*                    Configuración del plano de mesas                        */
 /* -------------------------------------------------------------------------- */
 
-export type { AreaMesa, EstadoMesa }
-export type Mesa = MesaPos
-export type Area = AreaPos
+export type Mesa = MesaConPedidoDto
 
-export interface PlanoMesas {
-  areas: Area[]
-  mesas: Mesa[]
-}
+export const FILTRO_TODAS_LAS_AREAS = "todas" as const
+export const AREA_SIN_ASIGNAR = "Sin área"
 
-export const CAPACIDAD_MAXIMA_MESA = 20
+export const CAPACIDAD_MAXIMA_MESA = 50
 
-// "nombre" corresponde a mesas.numero (identificador visible de la mesa)
+/** Área de una mesa (texto libre que administra el propietario); sin área se agrupan en «Sin área». */
+export const areaDeMesa = (mesa: Pick<Mesa, "area">): string => mesa.area?.trim() || AREA_SIN_ASIGNAR
+
+export const areasDeMesas = (mesas: Pick<Mesa, "area">[]): string[] =>
+  [...new Set(mesas.map(areaDeMesa))].sort((a, b) => a.localeCompare(b, "es"))
+
+// `numero` es el identificador visible de la mesa
 export const mesaFormSchema = z.object({
-  nombre: z
-    .string()
-    .trim()
-    .min(1, "Ingresa el identificador de la mesa.")
-    .max(20, "Máximo 20 caracteres."),
-  area: z.string().min(1, "Selecciona un área de atención."),
+  numero: z.string().trim().min(1, "Ingresa el identificador de la mesa.").max(10, "Máximo 10 caracteres."),
+  area: z.string().trim().max(30, "Máximo 30 caracteres."),
   capacidad: z
     .string()
     .trim()
@@ -208,40 +108,9 @@ export const mesaFormSchema = z.object({
 
 export type MesaFormValues = z.infer<typeof mesaFormSchema>
 
-export interface MesaInput {
-  nombre: string
-  area: AreaMesa
-  capacidad: number
-}
-
-export const mesaFormToInput = (values: MesaFormValues): MesaInput => ({
-  nombre: values.nombre.trim(),
-  area: values.area,
-  capacidad: Number(values.capacidad),
-})
-
 export const mesaToFormValues = (mesa?: Mesa, areaPorDefecto = ""): MesaFormValues => ({
-  nombre: mesa?.nombre ?? "",
+  numero: mesa?.numero ?? "",
   area: mesa?.area ?? areaPorDefecto,
   capacidad: mesa ? String(mesa.capacidad) : "4",
 })
 
-export const areaFormSchema = z.object({
-  nombre: z
-    .string()
-    .trim()
-    .min(2, "El nombre debe tener al menos 2 caracteres.")
-    .max(30, "Máximo 30 caracteres."),
-})
-
-export type AreaFormValues = z.infer<typeof areaFormSchema>
-
-// Genera un identificador legible a partir del nombre ("Segundo Piso" → "segundo-piso")
-export const slugArea = (nombre: string) =>
-  nombre
-    .normalize("NFD")
-    .replace(/[̀-ͯ]/g, "")
-    .toLowerCase()
-    .trim()
-    .replace(/[^a-z0-9]+/g, "-")
-    .replace(/^-+|-+$/g, "")

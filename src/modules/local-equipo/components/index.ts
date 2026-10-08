@@ -15,10 +15,20 @@ import {
   type LucideIcon,
 } from "lucide-react"
 import { normalizarTexto } from "@/shared/utils/formatters"
-import type { EstadoEmpleado, ModuloId } from "../schema"
+import type { EstadoEmpleado } from "../schema"
 
-// Se reutiliza la misma identidad visual del POS (paneles, chips, estados e íconos de área)
-export { ESTADO_MESA_CONFIG, getAreaIcon, opcionClass, panelClass } from "@/modules/pos/components"
+// Misma identidad visual que el POS para el estado de las mesas y el ícono de cada área
+export { ESTADO_MESA_CONFIG, getAreaConfig } from "@/shared/utils/mesa-visual"
+
+// Superficie base de los paneles (claro / oscuro), alineada con POS y dashboard
+export const panelClass =
+  "rounded-2xl border border-slate-100 bg-slate-50/60 dark:border-stone-800 dark:bg-stone-950/40 transition-colors"
+
+// Clases para opciones seleccionables (chips de cargo y de área)
+export const opcionClass = (activa: boolean) =>
+  activa
+    ? "border-[#4C0107] bg-[#4C0107] text-white dark:border-stone-100 dark:bg-stone-100 dark:text-stone-900"
+    : "border-slate-200 bg-white text-slate-700 hover:border-[#4C0107]/40 hover:text-[#4C0107] dark:border-stone-700 dark:bg-stone-900 dark:text-stone-200 dark:hover:border-stone-500"
 
 // Superficie de tarjeta usada en todas las vistas de Local y Equipo
 export const tarjetaClass =
@@ -41,19 +51,23 @@ export const selectClass =
 /*                         Íconos de módulos del sistema                      */
 /* -------------------------------------------------------------------------- */
 
-// Mismos íconos que la barra lateral para reconocer cada módulo
-export const MODULO_ICONOS: Record<ModuloId, LucideIcon> = {
-  dashboard: LayoutDashboard,
-  pos: ReceiptText,
-  kds: Refrigerator,
-  menu: UtensilsCrossed,
-  personal: Users,
-  mesas: Grid2X2,
-  transacciones: FileText,
+// Mismos íconos que la barra lateral para reconocer cada módulo (nombres de módulo de la API)
+const MODULO_ICONOS: Record<string, LucideIcon> = {
+  DASHBOARD: LayoutDashboard,
+  ORDERS: ReceiptText,
+  KDS: Refrigerator,
+  MENU: UtensilsCrossed,
+  USERS: Users,
+  ROLES: ShieldCheck,
+  TABLES: Grid2X2,
+  TRANSACTIONS: FileText,
 }
 
+/** Ícono de un módulo como objeto: se usa en JSX como `<config.icon />` sin crear un componente al renderizar. */
+export const getModuloConfig = (modulo: string): { icon: LucideIcon } => ({ icon: MODULO_ICONOS[modulo] ?? Tag })
+
 /* -------------------------------------------------------------------------- */
-/*                 Identidad visual de los roles operativos                   */
+/*                 Identidad visual de los cargos (roles operativos)          */
 /* -------------------------------------------------------------------------- */
 
 interface RolVisual {
@@ -89,14 +103,14 @@ const ROL_GENERICO: RolVisual = {
   className: "bg-[#EDE5E6] text-[#4C0107] dark:bg-[#E7B7BC]/15 dark:text-[#E7B7BC]",
 }
 
-// Los roles son dinámicos: se reconoce el tipo por el nombre y si no, se usa un estilo neutro
+// Los cargos son dinámicos: se reconoce el tipo por el nombre y si no, se usa un estilo neutro
 export function getRolVisual(nombre: string): RolVisual {
   const texto = normalizarTexto(nombre)
   return ROL_VISUALES.find((r) => texto.includes(r.clave))?.visual ?? ROL_GENERICO
 }
 
 /* -------------------------------------------------------------------------- */
-/*                Estados de usuario (usuarios.estado en la BD)               */
+/*                        Estados del empleado (usuario)                      */
 /* -------------------------------------------------------------------------- */
 
 export const ESTADO_EMPLEADO_CONFIG: Record<EstadoEmpleado, { label: string; className: string }> = {

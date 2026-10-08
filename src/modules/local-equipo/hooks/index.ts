@@ -1,188 +1,194 @@
 "use client"
 
 import * as React from "react"
-import { useEntityList } from "@/shared/hooks"
-import { toast } from "@/shared/components/ui/toast"
+
+import type { BaseResponse } from "@/dtos/core/baseResponse.dto"
 import { normalizarTexto } from "@/shared/utils/formatters"
-import { suscribirseCambiosCatalogo } from "@/modules/pos/actions/pos.actions"
+import { toastResponse } from "@/shared/utils/toast-response"
+
 import {
+  actualizarEmpleado,
+  actualizarMesa,
+  actualizarRol,
+  crearEmpleado,
+  crearMesa,
+  crearRol,
+  darDeBajaEmpleado,
+  eliminarMesa,
+  eliminarRol,
+  getCargos,
+  getCatalogoPermisos,
   getEmpleados,
-  getPlanoMesas,
+  getMesas,
+  getRol,
   getRoles,
-  reactivarEmpleado,
-  registrarArea,
-  renombrarArea,
+  reemplazarPermisosRol,
+  reenviarActivacion,
 } from "../actions/local-equipo.actions"
-import type {
-  Area,
-  AreaMesa,
-  Empleado,
-  EstadoEmpleado,
-  FiltroEstadoEmpleado,
-  FiltroRolEmpleado,
-  Mesa,
-  PlanoMesas,
-  Rol,
+import {
+  FILTRO_TODAS_LAS_AREAS,
+  areaDeMesa,
+  areasDeMesas,
+  permisoDesdeClave,
+  type Cargo,
+  type Empleado,
+  type EmpleadoFormValues,
+  type EstadoEmpleado,
+  type FiltroEstadoEmpleado,
+  type FiltroRolEmpleado,
+  type Mesa,
+  type MesaFormValues,
+  type ModuloCatalogo,
+  type Rol,
+  type RolDetalle,
+  type RolFormValues,
 } from "../schema"
 
-/* -------------------------------------------------------------------------- */
-/*                         Datos compartidos del equipo                       */
-/* -------------------------------------------------------------------------- */
-
-// Roles y usuarios se cargan con el hook genérico de shared (DataQuery)
-function useEquipo() {
-  const roles = useEntityList<Rol>(getRoles)
-  const empleados = useEntityList<Empleado>(getEmpleados)
-  const { fetchEntities: cargarRoles } = roles
-  const { fetchEntities: cargarEmpleados } = empleados
-  // Indica si ya terminó la primera carga (las recargas posteriores no muestran el esqueleto)
-  const [cargado, setCargado] = React.useState(false)
-
-  React.useEffect(() => {
-    Promise.all([cargarRoles(), cargarEmpleados()]).finally(() => setCargado(true))
-  }, [cargarRoles, cargarEmpleados])
-
-  const recargar = React.useCallback(() => {
-    void Promise.all([cargarRoles(), cargarEmpleados()])
-  }, [cargarRoles, cargarEmpleados])
-
-  const rolesPorId = React.useMemo(() => new Map(roles.entities.map((r) => [r.id, r])), [roles.entities])
-
-  const error =
-    roles.hasError || empleados.hasError
-      ? (roles.errorMessage ?? empleados.errorMessage ?? "No se pudo cargar la información del equipo.")
-      : null
-
-  return {
-    roles: roles.entities,
-    empleados: empleados.entities,
-    rolesPorId,
-    cargado,
-    error,
-    recargar,
-    cargarRoles,
-    cargarEmpleados,
+// La API entrega como máximo 100 empleados por página: se leen todas las páginas
+async function getTodosLosEmpleados(): Promise<{ empleados: Empleado[]; error: string | null }> {
+  const primera = await getEmpleados(1)
+  if (!primera.isOk()) return { empleados: [], error: primera.getMessage() }
+  const empleados = [...primera.data]
+  for (let pagina = 2; pagina <= primera.meta.total_paginas; pagina++) {
+    const siguiente = await getEmpleados(pagina)
+    if (!siguiente.isOk()) return { empleados, error: siguiente.getMessage() }
+    empleados.push(...siguiente.data)
   }
+  return { empleados, error: null }
 }
 
 /* -------------------------------------------------------------------------- */
-/*                      Roles operativos y sus permisos                       */
-/* -------------------------------------------------------------------------- */
-
-export function useRoles() {
-  const equipo = useEquipo()
-  const { cargarRoles } = equipo
-
-  // Empleados vigentes (no dados de baja) por rol
-  const empleadosPorRol = React.useMemo(() => {
-    const mapa = new Map<string, number>()
-    for (const e of equipo.empleados) {
-      if (e.idRol && e.estado !== "inactivo") mapa.set(e.idRol, (mapa.get(e.idRol) ?? 0) + 1)
-    }
-    return mapa
-  }, [equipo.empleados])
-
-  const rolGuardado = React.useCallback(
-    (nombre: string, esNuevo: boolean) => {
-      toast.add({ type: "success", title: esNuevo ? `Rol "${nombre}" creado.` : `Permisos de "${nombre}" actualizados.` })
-      void cargarRoles()
-    },
-    [cargarRoles]
-  )
-
-  const rolEliminado = React.useCallback(
-    (rol: Rol) => {
-      toast.add({ type: "success", title: `Rol "${rol.nombre}" eliminado.` })
-      void cargarRoles()
-    },
-    [cargarRoles]
-  )
-
-  return {
-    roles: equipo.roles,
-    empleadosPorRol,
-    cargado: equipo.cargado,
-    error: equipo.error,
-    recargar: equipo.recargar,
-    rolGuardado,
-    rolEliminado,
-  }
-}
-
-/* -------------------------------------------------------------------------- */
-/*            RF-11: Gestión de Personal y Asignación de Roles                */
+/*                 Gestión de personal y asignación de cargos                 */
 /* -------------------------------------------------------------------------- */
 
 export function usePersonal() {
-  const equipo = useEquipo()
-  const { cargarEmpleados, rolesPorId } = equipo
+  const [empleados, setEmpleados] = React.useState<Empleado[]>([])
+  const [cargos, setCargos] = React.useState<Cargo[]>([])
+  const [cargado, setCargado] = React.useState(false)
+  const [error, setError] = React.useState<string | null>(null)
+  const [reloadKey, setReloadKey] = React.useState(0)
 
   const [busqueda, setBusqueda] = React.useState("")
   const [rol, setRol] = React.useState<FiltroRolEmpleado>("todos")
   const [estado, setEstado] = React.useState<FiltroEstadoEmpleado>("todos")
 
+  React.useEffect(() => {
+    let vigente = true
+
+    Promise.all([getTodosLosEmpleados(), getCargos()])
+      .then(([lista, respuestaCargos]) => {
+        if (!vigente) return
+        if (lista.error) {
+          setError(lista.error)
+          return
+        }
+        setEmpleados(lista.empleados)
+        setCargos(respuestaCargos.isOk() ? (respuestaCargos.data ?? []) : [])
+        setError(null)
+      })
+      .catch(() => {
+        if (vigente) setError("No se pudo cargar la información del equipo.")
+      })
+      .finally(() => {
+        if (vigente) setCargado(true)
+      })
+
+    return () => {
+      vigente = false
+    }
+  }, [reloadKey])
+
+  const recargar = React.useCallback(() => {
+    setCargado(false)
+    setReloadKey((k) => k + 1)
+  }, [])
+
+  const refrescar = React.useCallback(() => setReloadKey((k) => k + 1), [])
+
   const empleadosFiltrados = React.useMemo(() => {
     const termino = normalizarTexto(busqueda)
 
-    return equipo.empleados
+    return empleados
       .filter((e) => {
-        const coincideRol = rol === "todos" || e.idRol === rol
+        const coincideRol = rol === "todos" || e.id_rol === rol
         const coincideEstado = estado === "todos" || e.estado === estado
-        const nombreRol = e.idRol ? (rolesPorId.get(e.idRol)?.nombre ?? "") : ""
         const coincideBusqueda =
           !termino ||
           normalizarTexto(e.nombre).includes(termino) ||
           normalizarTexto(e.email).includes(termino) ||
-          normalizarTexto(nombreRol).includes(termino)
+          normalizarTexto(e.rol_nombre ?? "").includes(termino)
         return coincideRol && coincideEstado && coincideBusqueda
       })
       .sort((a, b) => {
         // El Dueño primero; luego los de baja al final y orden alfabético
-        if (a.tipoCuenta !== b.tipoCuenta) return a.tipoCuenta === "OWNER" ? -1 : 1
+        if (a.tipo_cuenta !== b.tipo_cuenta) return a.tipo_cuenta === "OWNER" ? -1 : 1
         if ((a.estado === "inactivo") !== (b.estado === "inactivo")) return a.estado === "inactivo" ? 1 : -1
         return a.nombre.localeCompare(b.nombre, "es")
       })
-  }, [equipo.empleados, rolesPorId, busqueda, rol, estado])
+  }, [empleados, busqueda, rol, estado])
 
   const conteoPorEstado = React.useMemo(() => {
     const mapa = new Map<EstadoEmpleado, number>()
-    for (const e of equipo.empleados) mapa.set(e.estado, (mapa.get(e.estado) ?? 0) + 1)
+    for (const e of empleados) mapa.set(e.estado, (mapa.get(e.estado) ?? 0) + 1)
     return mapa
-  }, [equipo.empleados])
+  }, [empleados])
 
-  // Se invoca desde EmpleadoForm (useEntityForm de shared) tras guardar con éxito
-  const empleadoGuardado = React.useCallback(
-    (nombre: string, esNuevo: boolean) => {
-      toast.add({
-        type: "success",
-        title: esNuevo ? `${nombre} registrado. Su cuenta queda pendiente de activación.` : `Datos de ${nombre} actualizados.`,
+  /** Registra un empleado (la API le envía el correo de activación) o actualiza sus datos y su cargo. */
+  const guardarEmpleado = React.useCallback(
+    async (values: EmpleadoFormValues, empleado?: Empleado): Promise<boolean> => {
+      const base = { nombre: values.nombre.trim(), email: values.email, id_rol: values.idRol }
+      const respuesta = await toastResponse(
+        empleado ? actualizarEmpleado(empleado.id_usuario, base) : crearEmpleado(base),
+        {
+          loading: empleado ? "Guardando los cambios…" : "Registrando al empleado…",
+          success: empleado
+            ? `Datos de ${base.nombre} actualizados`
+            : `${base.nombre} registrado`,
+          successDescription: empleado ? undefined : "Su cuenta queda pendiente de activación por correo.",
+          error: empleado ? "No se pudo guardar el empleado" : "No se pudo registrar al empleado",
+        },
+      )
+      if (respuesta.isOk()) refrescar()
+      return respuesta.isOk()
+    },
+    [refrescar],
+  )
+
+  /** Cambia el estado de la cuenta: reactivar, suspender o volver a activar tras una baja. */
+  const cambiarEstado = React.useCallback(
+    async (empleado: Empleado, nuevo: "activo" | "suspendido"): Promise<boolean> => {
+      const respuesta = await toastResponse(actualizarEmpleado(empleado.id_usuario, { estado: nuevo }), {
+        loading: nuevo === "activo" ? "Reactivando…" : "Suspendiendo…",
+        success: nuevo === "activo" ? `${empleado.nombre} fue reactivado` : `${empleado.nombre} fue suspendido`,
+        error: "No se pudo cambiar el estado",
       })
-      void cargarEmpleados()
+      if (respuesta.isOk()) refrescar()
+      return respuesta.isOk()
     },
-    [cargarEmpleados]
+    [refrescar],
   )
 
-  // Se invoca desde BajaEmpleadoForm (useEntityDelete de shared) tras la baja
-  const empleadoDadoDeBaja = React.useCallback(
-    (empleado: Empleado) => {
-      toast.add({ type: "success", title: `${empleado.nombre} fue dado de baja.` })
-      void cargarEmpleados()
+  const darDeBaja = React.useCallback(
+    async (empleado: Empleado): Promise<boolean> => {
+      const respuesta = await toastResponse(darDeBajaEmpleado(empleado.id_usuario), {
+        loading: "Dando de baja…",
+        success: `${empleado.nombre} fue dado de baja`,
+        error: "No se pudo dar de baja al empleado",
+      })
+      if (respuesta.isOk()) refrescar()
+      return respuesta.isOk()
     },
-    [cargarEmpleados]
+    [refrescar],
   )
 
-  const reactivar = React.useCallback(
-    async (empleado: Empleado) => {
-      const respuesta = await reactivarEmpleado(empleado.id)
-      if (respuesta.isOk()) {
-        toast.add({ type: "success", title: `${empleado.nombre} fue reactivado.` })
-        await cargarEmpleados()
-      } else {
-        toast.add({ type: "error", title: "No se pudo reactivar al empleado.", description: respuesta.getMessage() })
-      }
-    },
-    [cargarEmpleados]
-  )
+  const reenviar = React.useCallback(async (empleado: Empleado): Promise<boolean> => {
+    const respuesta = await toastResponse(reenviarActivacion(empleado.id_usuario), {
+      loading: "Enviando el correo de activación…",
+      success: `Correo de activación enviado a ${empleado.email}`,
+      error: "No se pudo enviar el correo",
+    })
+    return respuesta.isOk()
+  }, [])
 
   const limpiarFiltros = React.useCallback(() => {
     setBusqueda("")
@@ -191,14 +197,13 @@ export function usePersonal() {
   }, [])
 
   return {
-    roles: equipo.roles,
-    rolesPorId,
-    empleados: equipo.empleados,
+    cargos,
+    empleados,
     empleadosFiltrados,
     conteoPorEstado,
-    cargado: equipo.cargado,
-    error: equipo.error,
-    recargar: equipo.recargar,
+    cargado,
+    error,
+    recargar,
     busqueda,
     setBusqueda,
     rol,
@@ -206,32 +211,128 @@ export function usePersonal() {
     estado,
     setEstado,
     limpiarFiltros,
-    empleadoGuardado,
-    empleadoDadoDeBaja,
-    reactivar,
+    guardarEmpleado,
+    cambiarEstado,
+    darDeBaja,
+    reenviar,
   }
 }
 
 /* -------------------------------------------------------------------------- */
-/*                 RF-12: Configuración del Plano de Mesas                    */
+/*                       Cargos (roles) y sus permisos                        */
 /* -------------------------------------------------------------------------- */
 
-// El plano mantiene estado propio porque se sincroniza en vivo con los terminales POS
-export function usePlanoMesas() {
-  const [plano, setPlano] = React.useState<PlanoMesas | null>(null)
-  const [isLoading, setIsLoading] = React.useState(true)
+export function useRoles() {
+  const [roles, setRoles] = React.useState<Rol[]>([])
+  const [catalogo, setCatalogo] = React.useState<ModuloCatalogo[]>([])
+  const [cargado, setCargado] = React.useState(false)
   const [error, setError] = React.useState<string | null>(null)
   const [reloadKey, setReloadKey] = React.useState(0)
-  const [areaFiltro, setAreaFiltro] = React.useState<AreaMesa | "todas">("todas")
 
   React.useEffect(() => {
     let vigente = true
 
-    getPlanoMesas()
+    Promise.all([getRoles(), getCatalogoPermisos()])
+      .then(([respuestaRoles, respuestaCatalogo]) => {
+        if (!vigente) return
+        if (!respuestaRoles.isOk()) {
+          setError(respuestaRoles.getMessage())
+          return
+        }
+        setRoles(respuestaRoles.data ?? [])
+        setCatalogo(respuestaCatalogo.isOk() ? (respuestaCatalogo.data ?? []) : [])
+        setError(null)
+      })
+      .catch(() => {
+        if (vigente) setError("No se pudieron cargar los roles.")
+      })
+      .finally(() => {
+        if (vigente) setCargado(true)
+      })
+
+    return () => {
+      vigente = false
+    }
+  }, [reloadKey])
+
+  const recargar = React.useCallback(() => {
+    setCargado(false)
+    setReloadKey((k) => k + 1)
+  }, [])
+
+  const refrescar = React.useCallback(() => setReloadKey((k) => k + 1), [])
+
+  /** Lee el rol con sus permisos para editarlo; devuelve null (y avisa con un toast) si no se pudo. */
+  const cargarDetalle = React.useCallback(async (id: string): Promise<RolDetalle | null> => {
+    const respuesta = await toastResponse(getRol(id), {
+      loading: "Cargando el rol…",
+      success: "Rol cargado",
+      error: "No se pudo cargar el rol",
+    })
+    return respuesta.isOk() ? respuesta.data : null
+  }, [])
+
+  /** Crea el rol con sus permisos o actualiza nombre, descripción y permisos de uno existente. */
+  const guardarRol = React.useCallback(
+    async (values: RolFormValues, rol?: RolDetalle): Promise<boolean> => {
+      const nombre = values.nombre.trim()
+      const permisos = values.permisos.map(permisoDesdeClave)
+
+      const operacion = (async (): Promise<BaseResponse> => {
+        if (!rol) return crearRol({ nombre, descripcion: values.descripcion.trim() || undefined, permisos })
+        const datos = await actualizarRol(rol.id_rol, { nombre, descripcion: values.descripcion.trim() })
+        if (!datos.isOk()) return datos
+        return reemplazarPermisosRol(rol.id_rol, { permisos })
+      })()
+
+      const respuesta = await toastResponse(operacion, {
+        loading: rol ? "Guardando el rol…" : "Creando el rol…",
+        success: rol ? `Permisos de "${nombre}" actualizados` : `Rol "${nombre}" creado`,
+        error: rol ? "No se pudo guardar el rol" : "No se pudo crear el rol",
+      })
+      if (respuesta.isOk()) refrescar()
+      return respuesta.isOk()
+    },
+    [refrescar],
+  )
+
+  const quitarRol = React.useCallback(
+    async (rol: RolDetalle): Promise<boolean> => {
+      const respuesta = await toastResponse(eliminarRol(rol.id_rol), {
+        loading: "Eliminando el rol…",
+        success: `Rol "${rol.nombre}" eliminado`,
+        error: "No se pudo eliminar el rol",
+      })
+      if (respuesta.isOk()) refrescar()
+      return respuesta.isOk()
+    },
+    [refrescar],
+  )
+
+  return { roles, catalogo, cargado, error, recargar, cargarDetalle, guardarRol, quitarRol }
+}
+
+/* -------------------------------------------------------------------------- */
+/*                    Configuración del plano de mesas                        */
+/* -------------------------------------------------------------------------- */
+
+const REFRESCO_MESAS_MS = 30_000
+
+export function usePlanoMesas() {
+  const [mesas, setMesas] = React.useState<Mesa[]>([])
+  const [isLoading, setIsLoading] = React.useState(true)
+  const [error, setError] = React.useState<string | null>(null)
+  const [reloadKey, setReloadKey] = React.useState(0)
+  const [areaFiltro, setAreaFiltro] = React.useState<string>(FILTRO_TODAS_LAS_AREAS)
+
+  React.useEffect(() => {
+    let vigente = true
+
+    getMesas()
       .then((respuesta) => {
         if (!vigente) return
         if (respuesta.isOk()) {
-          setPlano(respuesta.data)
+          setMesas(respuesta.data ?? [])
           setError(null)
         } else {
           setError(respuesta.getMessage())
@@ -249,89 +350,84 @@ export function usePlanoMesas() {
     }
   }, [reloadKey])
 
-  // Mantiene el plano alineado si cambia desde otra pestaña o terminal (incluido el estado de las mesas)
-  React.useEffect(
-    () =>
-      suscribirseCambiosCatalogo(({ areas, mesas }) => {
-        setPlano({ areas: areas.map((a) => ({ ...a })), mesas: mesas.map((m) => ({ ...m })) })
-      }),
-    []
-  )
+  // El estado de las mesas lo mueve la operación (POS): se mantiene al día sin tocar nada
+  React.useEffect(() => {
+    const refrescar = () => {
+      if (document.visibilityState === "visible") setReloadKey((k) => k + 1)
+    }
+    const timer = window.setInterval(refrescar, REFRESCO_MESAS_MS)
+    document.addEventListener("visibilitychange", refrescar)
+    return () => {
+      window.clearInterval(timer)
+      document.removeEventListener("visibilitychange", refrescar)
+    }
+  }, [])
 
   const recargar = React.useCallback(() => {
     setIsLoading(true)
     setReloadKey((k) => k + 1)
   }, [])
 
-  // Si el área filtrada se elimina, se vuelve a mostrar todo el plano
-  const areaActiva = areaFiltro !== "todas" && plano?.areas.some((a) => a.id === areaFiltro) ? areaFiltro : "todas"
+  const refrescar = React.useCallback(() => setReloadKey((k) => k + 1), [])
 
-  const mesasFiltradas = React.useMemo(() => {
-    if (!plano) return []
-    return plano.mesas
-      .filter((m) => areaActiva === "todas" || m.area === areaActiva)
-      .sort((a, b) => a.nombre.localeCompare(b.nombre, "es", { numeric: true }))
-  }, [plano, areaActiva])
+  // Las áreas salen de las mesas (texto libre que administra el propietario)
+  const areas = React.useMemo(() => areasDeMesas(mesas), [mesas])
+
+  // Si el área filtrada ya no existe (se quedó sin mesas), se vuelve a mostrar todo el plano
+  const areaActiva = areaFiltro !== FILTRO_TODAS_LAS_AREAS && areas.includes(areaFiltro) ? areaFiltro : FILTRO_TODAS_LAS_AREAS
+
+  const mesasFiltradas = React.useMemo(
+    () =>
+      mesas
+        .filter((m) => areaActiva === FILTRO_TODAS_LAS_AREAS || areaDeMesa(m) === areaActiva)
+        .sort((a, b) => a.numero.localeCompare(b.numero, "es", { numeric: true })),
+    [mesas, areaActiva],
+  )
 
   const mesasPorArea = React.useMemo(() => {
-    const mapa = new Map<AreaMesa, number>()
-    for (const m of plano?.mesas ?? []) mapa.set(m.area, (mapa.get(m.area) ?? 0) + 1)
+    const mapa = new Map<string, number>()
+    for (const m of mesas) mapa.set(areaDeMesa(m), (mapa.get(areaDeMesa(m)) ?? 0) + 1)
     return mapa
-  }, [plano])
+  }, [mesas])
 
   const resumen = React.useMemo(
     () => ({
       mesas: mesasFiltradas.length,
       capacidad: mesasFiltradas.reduce((acc, m) => acc + m.capacidad, 0),
     }),
-    [mesasFiltradas]
+    [mesasFiltradas],
   )
 
-  // Se invoca desde MesaForm (useEntityForm de shared) tras guardar con éxito
-  const mesaGuardada = React.useCallback((mesa: Mesa, esNueva: boolean) => {
-    setPlano((prev) => {
-      if (!prev) return prev
-      const existe = prev.mesas.some((m) => m.id === mesa.id)
-      return {
-        ...prev,
-        mesas: existe ? prev.mesas.map((m) => (m.id === mesa.id ? mesa : m)) : [...prev.mesas, mesa],
-      }
-    })
-    toast.add({ type: "success", title: esNueva ? `"${mesa.nombre}" registrada en el plano.` : `"${mesa.nombre}" actualizada.` })
-  }, [])
-
-  // Se invoca desde la vista (useEntityDelete de shared) tras eliminar con éxito
-  const mesaEliminada = React.useCallback((mesa: Mesa) => {
-    setPlano((prev) => (prev ? { ...prev, mesas: prev.mesas.filter((m) => m.id !== mesa.id) } : prev))
-    toast.add({ type: "success", title: `"${mesa.nombre}" eliminada del plano.` })
-  }, [])
-
-  // Alta o renombrado de área; devuelve la respuesta para mostrar el error en el formulario
-  const guardarArea = React.useCallback(async (nombre: string, id?: string) => {
-    const respuesta = id ? await renombrarArea(id, nombre) : await registrarArea(nombre)
-    if (respuesta.isOk()) {
-      const guardada = respuesta.data
-      setPlano((prev) => {
-        if (!prev) return prev
-        const existe = prev.areas.some((a) => a.id === guardada.id)
-        return {
-          ...prev,
-          areas: existe ? prev.areas.map((a) => (a.id === guardada.id ? guardada : a)) : [...prev.areas, guardada],
-        }
+  const guardarMesa = React.useCallback(
+    async (values: MesaFormValues, mesa?: Mesa): Promise<boolean> => {
+      const base = { numero: values.numero.trim(), area: values.area.trim(), capacidad: Number(values.capacidad) }
+      const respuesta = await toastResponse(mesa ? actualizarMesa(mesa.id_mesa, base) : crearMesa(base), {
+        loading: mesa ? "Guardando la mesa…" : "Registrando la mesa…",
+        success: mesa ? `"${base.numero}" actualizada` : `"${base.numero}" registrada en el plano`,
+        error: mesa ? "No se pudo guardar la mesa" : "No se pudo registrar la mesa",
       })
-      toast.add({ type: "success", title: id ? `Área renombrada a "${guardada.nombre}".` : `Área "${guardada.nombre}" creada.` })
-    }
-    return respuesta
-  }, [])
+      if (respuesta.isOk()) refrescar()
+      return respuesta.isOk()
+    },
+    [refrescar],
+  )
 
-  // Se invoca desde AreasForm (useEntityDelete de shared) tras eliminar con éxito
-  const areaEliminada = React.useCallback((area: Area) => {
-    setPlano((prev) => (prev ? { ...prev, areas: prev.areas.filter((a) => a.id !== area.id) } : prev))
-    toast.add({ type: "success", title: `Área "${area.nombre}" eliminada.` })
-  }, [])
+  const quitarMesa = React.useCallback(
+    async (mesa: Mesa): Promise<boolean> => {
+      const respuesta = await toastResponse(eliminarMesa(mesa.id_mesa), {
+        loading: "Eliminando la mesa…",
+        success: `"${mesa.numero}" eliminada del plano`,
+        error: "No se pudo eliminar la mesa",
+      })
+      if (respuesta.isOk()) refrescar()
+      return respuesta.isOk()
+    },
+    [refrescar],
+  )
 
   return {
-    plano,
+    mesas,
+    areas,
     mesasFiltradas,
     mesasPorArea,
     resumen,
@@ -340,9 +436,7 @@ export function usePlanoMesas() {
     recargar,
     areaFiltro: areaActiva,
     setAreaFiltro,
-    mesaGuardada,
-    mesaEliminada,
-    guardarArea,
-    areaEliminada,
+    guardarMesa,
+    quitarMesa,
   }
 }
