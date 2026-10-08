@@ -1,7 +1,17 @@
 import type { FiltroDisponibilidad } from "../schema"
 
-// Se reutiliza la misma identidad visual del POS (paneles, íconos y colores por categoría)
-export { getCategoriaConfig, opcionClass, panelClass } from "@/modules/pos/components"
+// Misma identidad visual que el POS: el ícono y el color de cada categoría salen de su nombre
+export { getCategoriaConfig } from "@/shared/utils/categoria-visual"
+
+// Superficie base de los paneles del menú (claro / oscuro), alineada con POS y dashboard
+export const panelClass =
+  "rounded-2xl border border-slate-100 bg-slate-50/60 dark:border-stone-800 dark:bg-stone-950/40 transition-colors"
+
+// Clases para opciones seleccionables (chips de categoría y filtros)
+export const opcionClass = (activa: boolean) =>
+  activa
+    ? "border-[#4C0107] bg-[#4C0107] text-white dark:border-stone-100 dark:bg-stone-100 dark:text-stone-900"
+    : "border-slate-200 bg-white text-slate-700 hover:border-[#4C0107]/40 hover:text-[#4C0107] dark:border-stone-700 dark:bg-stone-900 dark:text-stone-200 dark:hover:border-stone-500"
 
 // Etiqueta de estado del producto, legible en modo claro y oscuro
 export const ESTADO_PRODUCTO_CLASS = {

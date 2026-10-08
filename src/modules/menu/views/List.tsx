@@ -10,13 +10,15 @@ import {
   RefreshCw,
   Search,
   SearchX,
+  SlidersHorizontal,
   Tags,
+  Trash2,
   Zap,
 } from "lucide-react"
 
 import { Badge } from "@/shared/components/ui/badge"
 import { Button } from "@/shared/components/ui/button"
-import { Empty, EmptyContent, EmptyDescription, EmptyHeader, EmptyTitle } from "@/shared/components/ui/empty"
+import { Empty, EmptyContent, EmptyDescription } from "@/shared/components/ui/empty"
 import { Input } from "@/shared/components/ui/input"
 import { Skeleton } from "@/shared/components/ui/skeleton"
 import {
@@ -28,13 +30,15 @@ import {
   PaginationPrevious,
 } from "@/shared/components/ui/pagination"
 import { cn } from "@/shared/utils/cn"
-import { formatToCurrency } from "@/shared/utils/formatters"
-import { useWorkspaceLayout } from "@/shared/context/workspace-layout-context"
-import { PERMISO, ROL_LABELS, tienePermiso } from "@/shared/constants/permisos"
+import { formatearDinero } from "@/shared/utils/dinero"
+import { useCan } from "@/modules/auth"
+import { ACCION, MODULO } from "@/shared/constants/permisos"
+import { useConfirm } from "@/shared/providers/confirm-provider"
 
 import { useMenu } from "../hooks"
 import { ESTADO_PRODUCTO_CLASS, RESUMEN_CONFIG, getCategoriaConfig, opcionClass, panelClass } from "../components"
 import {
+  FILTRO_TODOS,
   filtroDisponibilidadSchema,
   type CategoriaMenu,
   type FiltroCategoria,
@@ -42,23 +46,24 @@ import {
   type ProductoMenu,
   type ResumenMenu,
 } from "../schema"
-import ProductoForm, { CategoriasForm } from "./Form"
+import ProductoForm, { CategoriasForm, GruposForm } from "./Form"
 
 type ModalMenu =
   | { modo: "crear" }
   | { modo: "editar"; producto: ProductoMenu }
   | { modo: "categorias" }
+  | { modo: "grupos" }
   | null
 
 export default function MenuView() {
-  const { rol } = useWorkspaceLayout()
-  const puedeVer = tienePermiso(rol, PERMISO.READ_MENU)
-  const puedeCambiarStock = tienePermiso(rol, PERMISO.TOGGLE_STOCK)
-  // RF-09: administración de productos y categorías (Dueño / Administrador)
-  const puedeCrear = tienePermiso(rol, PERMISO.CREATE_PRODUCT)
-  const puedeEditar = tienePermiso(rol, PERMISO.UPDATE_PRODUCT)
-  const puedeEliminar = tienePermiso(rol, PERMISO.DELETE_PRODUCT)
+  // Ver el menú lo exige la ruta (MENU:LEER); aquí se decide qué más puede hacer cada cargo
+  const { puede } = useCan()
+  const puedeCambiarStock = puede({ modulo: MODULO.MENU, accion: ACCION.DISPONIBILIDAD })
+  const puedeCrear = puede({ modulo: MODULO.MENU, accion: ACCION.CREAR })
+  const puedeEditar = puede({ modulo: MODULO.MENU, accion: ACCION.EDITAR })
+  const puedeEliminar = puede({ modulo: MODULO.MENU, accion: ACCION.ELIMINAR })
   const puedeGestionarCategorias = puedeCrear || puedeEditar || puedeEliminar
+  const confirm = useConfirm()
 
   const menu = useMenu()
   const [modal, setModal] = React.useState<ModalMenu>(null)
@@ -125,8 +130,6 @@ export default function MenuView() {
     return productosFiltrados.slice(inicio, inicio + itemsPorPagina)
   }, [productosFiltrados, paginaValida, itemsPorPagina])
 
-  if (!puedeVer) return <AccesoRestringido rol={ROL_LABELS[rol]} />
-
   return (
     <div className="flex flex-col gap-6 pb-2 w-full">
       {/* Barra superior integrada: 3 contenedores de conteo de productos y los 3 botones ajustados sin espacio vacío a la izquierda */}
@@ -153,6 +156,20 @@ export default function MenuView() {
           >
             Actualizar
           </Button>
+
+          {puedeGestionarCategorias && (
+            <Button
+              type="button"
+              variant="outline"
+              size="sm"
+              onClick={() => setModal({ modo: "grupos" })}
+              disabled={!catalogo}
+              leftIcon={<SlidersHorizontal className="size-4" />}
+              className="h-10 rounded-xl px-4 dark:border-stone-700 dark:text-stone-200 dark:hover:bg-stone-800 cursor-pointer shadow-xs"
+            >
+              Personalización
+            </Button>
+          )}
 
           {puedeGestionarCategorias && (
             <Button
@@ -190,7 +207,7 @@ export default function MenuView() {
           <span className="font-semibold">Control rápido de disponibilidad:</span> toca el botón de estado en
           cualquier tarjeta para marcarlo como <span className="font-semibold">Agotado</span>. Los mozos ya no
           podrán seleccionarlo en el POS en tiempo real.
-          {!puedeCambiarStock && " Tu rol actual no tiene permiso para alternar la disponibilidad."}
+          {!puedeCambiarStock && " Tu cargo no tiene permiso para alternar la disponibilidad."}
         </p>
       </div>
 
@@ -218,17 +235,21 @@ export default function MenuView() {
               <ul className="grid grid-cols-12 gap-4 items-stretch list-none p-0 m-0">
                 {productosPaginados.map((producto) => (
                   <li
-                    key={producto.id}
+                    key={producto.id_producto}
                     className="col-span-12 sm:col-span-6 lg:col-span-4 2xl:col-span-3 flex flex-col"
                   >
                     <ProductoCard
                       producto={producto}
-                      categoria={catalogo.categorias.find((c) => c.id === producto.categoriaId)?.nombre ?? ""}
-                      pendiente={menu.pendientes.has(producto.id)}
+                      categoria={catalogo.categorias.find((c) => c.id_categoria === producto.id_categoria)?.nombre ?? ""}
+                      pendiente={menu.pendientes.has(producto.id_producto)}
                       puedeCambiarStock={puedeCambiarStock}
                       puedeEditar={puedeEditar}
+                      puedeEliminar={puedeEliminar}
                       onToggle={menu.toggleDisponibilidad}
                       onEditar={(p) => setModal({ modo: "editar", producto: p })}
+                      onEliminar={async (p) => {
+                        if (await confirm({ variant: "destructive" })) await menu.quitarProducto(p)
+                      }}
                     />
                   </li>
                 ))}
@@ -290,11 +311,27 @@ export default function MenuView() {
         </>
       )}
 
-      {modal && catalogo && modal.modo !== "categorias" && (
+      {modal && catalogo && (modal.modo === "crear" || modal.modo === "editar") && (
         <ProductoForm
           producto={modal.modo === "editar" ? modal.producto : undefined}
           categorias={catalogo.categorias}
-          onGuardado={menu.productoGuardado}
+          grupos={menu.grupos}
+          onGuardar={menu.guardarProducto}
+          onClose={cerrarModal}
+        />
+      )}
+
+      {modal?.modo === "grupos" && catalogo && (
+        <GruposForm
+          grupos={menu.grupos}
+          puedeCrear={puedeCrear}
+          puedeEditar={puedeEditar}
+          puedeEliminar={puedeEliminar}
+          onGuardarGrupo={menu.guardarGrupo}
+          onEliminarGrupo={menu.quitarGrupo}
+          onGuardarOpcion={menu.guardarOpcion}
+          onAlternarOpcion={menu.alternarOpcion}
+          onEliminarOpcion={menu.quitarOpcion}
           onClose={cerrarModal}
         />
       )}
@@ -307,7 +344,7 @@ export default function MenuView() {
           puedeEditar={puedeEditar}
           puedeEliminar={puedeEliminar}
           onGuardar={menu.guardarCategoria}
-          onEliminada={menu.categoriaEliminada}
+          onEliminar={(c) => menu.quitarCategoria(c.id_categoria, c.nombre)}
           onClose={cerrarModal}
         />
       )}
@@ -381,9 +418,12 @@ function Filtros({
   busqueda: string
   onBusqueda: (valor: string) => void
   categoria: ReturnType<typeof useMenu>["categoria"]
-  onCategoria: ReturnType<typeof useMenu>["setCategoria"]
+  onCategoria: (categoria: FiltroCategoria) => void
 }) {
-  const opciones = [{ id: "todos" as const, nombre: "Todos" }, ...categorias]
+  const opciones = [
+    { id: FILTRO_TODOS as string, nombre: "Todos", categoria: null as CategoriaMenu | null },
+    ...categorias.map((c) => ({ id: c.id_categoria, nombre: c.nombre, categoria: c as CategoriaMenu | null })),
+  ]
 
   return (
     <div className="grid grid-cols-12 gap-3 items-center">
@@ -408,7 +448,7 @@ function Filtros({
           className="flex flex-wrap items-center gap-1.5 sm:gap-2 p-1.5 rounded-2xl bg-slate-100/70 dark:bg-stone-900/60 border border-slate-200/60 dark:border-stone-800"
         >
           {opciones.map((c) => {
-            const Icono = getCategoriaConfig(c.id).icon
+            const Icono = getCategoriaConfig(c.categoria ?? FILTRO_TODOS).icon
             const activa = categoria === c.id
             return (
               <button
@@ -443,18 +483,22 @@ function ProductoCard({
   pendiente,
   puedeCambiarStock,
   puedeEditar,
+  puedeEliminar,
   onToggle,
   onEditar,
+  onEliminar,
 }: {
   producto: ProductoMenu
   categoria: string
   pendiente: boolean
   puedeCambiarStock: boolean
   puedeEditar: boolean
+  puedeEliminar: boolean
   onToggle: (producto: ProductoMenu) => void
   onEditar: (producto: ProductoMenu) => void
+  onEliminar: (producto: ProductoMenu) => void
 }) {
-  const config = getCategoriaConfig(producto.categoriaId)
+  const config = getCategoriaConfig({ nombre: categoria })
   const Icono = config.icon
   const agotado = !producto.disponible
 
@@ -497,14 +541,14 @@ function ProductoCard({
         </p>
         <p className="mt-auto pt-1 text-[11px] font-medium text-slate-400 dark:text-stone-500">
           {categoria}
-          {producto.permitePersonalizacion && " · Personalizable"}
+          {producto.grupos_modificadores.length > 0 && " · Personalizable"}
         </p>
       </div>
 
       {/* Pie de la tarjeta con precio y acciones ancladas a la misma altura */}
       <div className="mt-auto shrink-0 flex items-center justify-between gap-2 border-t border-slate-100 pt-3 dark:border-stone-800 min-h-[52px]">
         <span className="text-base font-black tabular-nums text-[#4C0107] dark:text-[#E7B7BC] truncate">
-          {formatToCurrency(producto.precio)}
+          {formatearDinero(producto.precio)}
         </span>
 
         <div className="flex items-center gap-1.5 shrink-0">
@@ -516,6 +560,16 @@ function ProductoCard({
               className="flex size-9 cursor-pointer items-center justify-center rounded-full text-slate-500 transition-colors hover:bg-slate-100 hover:text-slate-900 dark:text-stone-400 dark:hover:bg-stone-800 dark:hover:text-stone-100 shrink-0"
             >
               <Pencil className="size-4" />
+            </button>
+          )}
+          {puedeEliminar && (
+            <button
+              type="button"
+              onClick={() => onEliminar(producto)}
+              aria-label={`Eliminar ${producto.nombre}`}
+              className="flex size-9 shrink-0 cursor-pointer items-center justify-center rounded-full text-slate-500 transition-colors hover:bg-red-50 hover:text-red-600 dark:text-stone-400 dark:hover:bg-red-500/10 dark:hover:text-red-400"
+            >
+              <Trash2 className="size-4" />
             </button>
           )}
 
@@ -574,21 +628,6 @@ function SinResultados({ onLimpiar }: { onLimpiar: () => void }) {
           Limpiar filtros
         </Button>
       </EmptyContent>
-    </Empty>
-  )
-}
-
-function AccesoRestringido({ rol }: { rol: string }) {
-  return (
-    <Empty>
-      <Lock className="size-8 text-[#4C0107] dark:text-[#E7B7BC]" />
-      <EmptyHeader>
-        <EmptyTitle>Acceso restringido</EmptyTitle>
-        <EmptyDescription>
-          Tu rol actual (<span className="font-semibold text-slate-700 dark:text-stone-200">{rol}</span>) no puede
-          ver el menú.
-        </EmptyDescription>
-      </EmptyHeader>
     </Empty>
   )
 }

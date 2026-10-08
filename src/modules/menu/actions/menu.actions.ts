@@ -1,172 +1,109 @@
+import { apiRequest } from "@/lib/api/client"
 import { CheckStatus } from "@/dtos/core/checkStatus.dto"
 import { OneQuery } from "@/dtos/core/oneQuery.dto"
-import { getCatalogoPos, notificarCambioCatalogo } from "@/modules/pos/actions/pos.actions"
-import { slugCategoria, type CatalogoMenu, type CategoriaMenu, type ProductoInput, type ProductoMenu } from "../schema"
+import type {
+  ActualizarCategoriaPayload,
+  ActualizarGrupoPayload,
+  ActualizarOpcionPayload,
+  ActualizarProductoPayload,
+  AsignarGruposPayload,
+  CategoriaCatalogoDto,
+  CategoriaDto,
+  CrearCategoriaPayload,
+  CrearGrupoPayload,
+  CrearOpcionPayload,
+  CrearProductoPayload,
+  DisponibilidadPayload,
+  GrupoModificadorDto,
+  ProductoDto,
+} from "@/dtos/menu"
 
-// TODO: reemplazar por las llamadas reales al backend cuando estén disponibles.
-// Mientras tanto, el menú opera sobre el mismo catálogo en memoria que consume el POS
-// y avisa a los terminales POS abiertos en cada cambio (RF-09 / RF-10).
-// Las respuestas usan los DTOs de dtos/core para integrarse con los hooks de shared.
+// Llamadas finas a la API NestJS (/menu). Nombres únicos, precios y baja lógica los valida el backend.
 
-const esperar = (ms: number) => new Promise((resolve) => setTimeout(resolve, ms))
+/** Catálogo completo (incluye productos agotados): categorías con productos y los grupos de cada uno. */
+export const getCatalogoMenu = () =>
+  apiRequest<CheckStatus<CategoriaCatalogoDto[]>>(CheckStatus, { method: "GET", url: "/menu/catalogo-pos" })
 
-const copiar = (producto: ProductoMenu): ProductoMenu => ({ ...producto })
+/** Todos los grupos de personalización con sus opciones (para asignarlos a productos y administrarlos). */
+export const getGrupos = () =>
+  apiRequest<CheckStatus<GrupoModificadorDto[]>>(CheckStatus, { method: "GET", url: "/menu/grupos-modificadores" })
 
-const mismoNombre = (a: string, b: string) => a.trim().toLowerCase() === b.trim().toLowerCase()
+/* ------------------------------- Categorías -------------------------------- */
 
-const mensajeDe = (e: unknown, porDefecto: string) => (e instanceof Error ? e.message : porDefecto)
+export const crearCategoria = (payload: CrearCategoriaPayload) =>
+  apiRequest<OneQuery<CategoriaDto>>(OneQuery, { method: "POST", url: "/menu/categorias", data: payload })
 
-async function obtenerProducto(id: string) {
-  const catalogo = await getCatalogoPos()
-  const index = catalogo.productos.findIndex((p) => p.id === id)
-  if (index === -1) throw new Error("El producto no existe o fue eliminado.")
-  return { catalogo, index }
-}
+export const actualizarCategoria = (id: string, payload: ActualizarCategoriaPayload) =>
+  apiRequest<OneQuery<CategoriaDto>>(OneQuery, { method: "PATCH", url: `/menu/categorias/${id}`, data: payload })
 
-async function obtenerCategoria(id: string) {
-  const catalogo = await getCatalogoPos()
-  const index = catalogo.categorias.findIndex((c) => c.id === id)
-  if (index === -1) throw new Error("La categoría no existe o fue eliminada.")
-  return { catalogo, index }
-}
+export const eliminarCategoria = (id: string) =>
+  apiRequest<CheckStatus>(CheckStatus, { method: "DELETE", url: `/menu/categorias/${id}` })
 
-export async function getCatalogoMenu(): Promise<OneQuery<CatalogoMenu>> {
-  try {
-    const catalogo = await getCatalogoPos()
-    return OneQuery.ok({
-      categorias: catalogo.categorias.map((c) => ({ ...c })),
-      productos: catalogo.productos.map(copiar),
-    })
-  } catch (e) {
-    return OneQuery.error(mensajeDe(e, "No se pudo cargar el catálogo del menú."))
-  }
-}
+/* -------------------------------- Productos -------------------------------- */
 
-/* -------------------------------------------------------------------------- */
-/*              RF-10: Control Rápido de Disponibilidad / Stock               */
-/* -------------------------------------------------------------------------- */
+export const crearProducto = (payload: CrearProductoPayload) =>
+  apiRequest<OneQuery<ProductoDto>>(OneQuery, { method: "POST", url: "/menu/productos", data: payload })
 
-/**
- * Marca un producto como disponible o "Agotado" con un solo toque.
- * Al quedar agotado, los terminales POS deshabilitan su selección al instante.
- */
-export async function cambiarDisponibilidadProducto(id: string, disponible: boolean): Promise<OneQuery<ProductoMenu>> {
-  try {
-    await esperar(150)
-    const { catalogo, index } = await obtenerProducto(id)
-    const actualizado = { ...catalogo.productos[index], disponible }
-    catalogo.productos[index] = actualizado
-    notificarCambioCatalogo()
-    return OneQuery.ok(copiar(actualizado))
-  } catch (e) {
-    return OneQuery.error(mensajeDe(e, "No se pudo actualizar la disponibilidad."))
-  }
-}
+export const actualizarProducto = (id: string, payload: ActualizarProductoPayload) =>
+  apiRequest<OneQuery<ProductoDto>>(OneQuery, { method: "PATCH", url: `/menu/productos/${id}`, data: payload })
 
-/* -------------------------------------------------------------------------- */
-/*                 RF-09: Administración de productos                         */
-/* -------------------------------------------------------------------------- */
+export const eliminarProducto = (id: string) =>
+  apiRequest<CheckStatus>(CheckStatus, { method: "DELETE", url: `/menu/productos/${id}` })
 
-async function validarProducto(input: ProductoInput, id?: string) {
-  const catalogo = await getCatalogoPos()
-  if (!catalogo.categorias.some((c) => c.id === input.categoriaId)) {
-    throw new Error("La categoría seleccionada ya no existe.")
-  }
-  if (catalogo.productos.some((p) => p.id !== id && mismoNombre(p.nombre, input.nombre))) {
-    throw new Error("Ya existe un producto con ese nombre.")
-  }
-  return catalogo
-}
+/** Disponible ↔ Agotado con un toque. Requiere MENU:DISPONIBILIDAD. */
+export const cambiarDisponibilidadProducto = (id: string, disponible: boolean) =>
+  apiRequest<OneQuery<ProductoDto>>(OneQuery, {
+    method: "PATCH",
+    url: `/menu/productos/${id}/toggle-disponibilidad`,
+    data: { disponible } satisfies DisponibilidadPayload,
+  })
 
-export async function crearProducto(input: ProductoInput): Promise<OneQuery<ProductoMenu>> {
-  try {
-    await esperar(300)
-    const catalogo = await validarProducto(input)
-    const nuevo: ProductoMenu = { id: `p${Date.now().toString(36)}`, ...input }
-    catalogo.productos.push(nuevo)
-    notificarCambioCatalogo()
-    return OneQuery.ok(copiar(nuevo))
-  } catch (e) {
-    return OneQuery.error(mensajeDe(e, "No se pudo crear el producto."))
-  }
-}
+/** Reemplaza TODOS los grupos de personalización del producto (lista vacía = ninguno). */
+export const asignarGrupos = (idProducto: string, payload: AsignarGruposPayload) =>
+  apiRequest<CheckStatus<GrupoModificadorDto[]>>(CheckStatus, {
+    method: "PUT",
+    url: `/menu/productos/${idProducto}/grupos-modificadores`,
+    data: payload,
+  })
 
-export async function actualizarProducto(id: string, input: ProductoInput): Promise<CheckStatus> {
-  try {
-    await esperar(300)
-    await validarProducto(input, id)
-    const { catalogo, index } = await obtenerProducto(id)
-    catalogo.productos[index] = { ...catalogo.productos[index], ...input }
-    notificarCambioCatalogo()
-    return CheckStatus.ok()
-  } catch (e) {
-    return CheckStatus.error(mensajeDe(e, "No se pudo actualizar el producto."))
-  }
-}
+/* ------------------------- Grupos de personalización ----------------------- */
 
-/* -------------------------------------------------------------------------- */
-/*                 RF-09: Administración de categorías                        */
-/* -------------------------------------------------------------------------- */
+export const crearGrupo = (payload: CrearGrupoPayload) =>
+  apiRequest<OneQuery<GrupoModificadorDto>>(OneQuery, { method: "POST", url: "/menu/grupos-modificadores", data: payload })
 
-export async function crearCategoria(nombre: string): Promise<OneQuery<CategoriaMenu>> {
-  try {
-    await esperar(250)
-    const catalogo = await getCatalogoPos()
-    const limpio = nombre.trim()
+export const actualizarGrupo = (id: string, payload: ActualizarGrupoPayload) =>
+  apiRequest<OneQuery<GrupoModificadorDto>>(OneQuery, {
+    method: "PATCH",
+    url: `/menu/grupos-modificadores/${id}`,
+    data: payload,
+  })
 
-    if (catalogo.categorias.some((c) => mismoNombre(c.nombre, limpio))) {
-      throw new Error("Ya existe una categoría con ese nombre.")
-    }
+export const eliminarGrupo = (id: string) =>
+  apiRequest<CheckStatus>(CheckStatus, { method: "DELETE", url: `/menu/grupos-modificadores/${id}` })
 
-    // Evita colisiones de identificador (p. ej. dos nombres que generan el mismo slug)
-    const base = slugCategoria(limpio) || "categoria"
-    let id = base
-    for (let i = 2; catalogo.categorias.some((c) => c.id === id); i++) id = `${base}-${i}`
+/* --------------------------------- Opciones -------------------------------- */
+// Todas devuelven el grupo ya actualizado con sus opciones.
 
-    const nueva: CategoriaMenu = { id, nombre: limpio }
-    catalogo.categorias.push(nueva)
-    notificarCambioCatalogo()
-    return OneQuery.ok({ ...nueva })
-  } catch (e) {
-    return OneQuery.error(mensajeDe(e, "No se pudo crear la categoría."))
-  }
-}
+export const crearOpcion = (idGrupo: string, payload: CrearOpcionPayload) =>
+  apiRequest<OneQuery<GrupoModificadorDto>>(OneQuery, {
+    method: "POST",
+    url: `/menu/grupos-modificadores/${idGrupo}/opciones`,
+    data: payload,
+  })
 
-export async function actualizarCategoria(id: string, nombre: string): Promise<OneQuery<CategoriaMenu>> {
-  try {
-    await esperar(250)
-    const { catalogo, index } = await obtenerCategoria(id)
-    const limpio = nombre.trim()
+export const actualizarOpcion = (idOpcion: string, payload: ActualizarOpcionPayload) =>
+  apiRequest<OneQuery<GrupoModificadorDto>>(OneQuery, {
+    method: "PATCH",
+    url: `/menu/opciones-modificador/${idOpcion}`,
+    data: payload,
+  })
 
-    if (catalogo.categorias.some((c) => c.id !== id && mismoNombre(c.nombre, limpio))) {
-      throw new Error("Ya existe otra categoría con ese nombre.")
-    }
+export const cambiarDisponibilidadOpcion = (idOpcion: string, disponible: boolean) =>
+  apiRequest<OneQuery<GrupoModificadorDto>>(OneQuery, {
+    method: "PATCH",
+    url: `/menu/opciones-modificador/${idOpcion}/toggle-disponibilidad`,
+    data: { disponible } satisfies DisponibilidadPayload,
+  })
 
-    const actualizada = { ...catalogo.categorias[index], nombre: limpio }
-    catalogo.categorias[index] = actualizada
-    notificarCambioCatalogo()
-    return OneQuery.ok({ ...actualizada })
-  } catch (e) {
-    return OneQuery.error(mensajeDe(e, "No se pudo renombrar la categoría."))
-  }
-}
-
-export async function eliminarCategoria(id: string): Promise<CheckStatus> {
-  try {
-    await esperar(250)
-    const { catalogo, index } = await obtenerCategoria(id)
-
-    const enUso = catalogo.productos.filter((p) => p.categoriaId === id).length
-    if (enUso > 0) {
-      throw new Error(
-        `No se puede eliminar: tiene ${enUso} ${enUso === 1 ? "producto asociado" : "productos asociados"}. Muévelos a otra categoría primero.`
-      )
-    }
-
-    catalogo.categorias.splice(index, 1)
-    notificarCambioCatalogo()
-    return CheckStatus.ok()
-  } catch (e) {
-    return CheckStatus.error(mensajeDe(e, "No se pudo eliminar la categoría."))
-  }
-}
+export const eliminarOpcion = (idOpcion: string) =>
+  apiRequest<OneQuery<GrupoModificadorDto>>(OneQuery, { method: "DELETE", url: `/menu/opciones-modificador/${idOpcion}` })
