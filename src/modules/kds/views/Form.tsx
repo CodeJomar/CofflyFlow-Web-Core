@@ -10,26 +10,40 @@ import {
 import { Button } from "@/shared/components/ui/button"
 import { cn } from "@/shared/utils/cn"
 
-import { ESTADO_COMANDA_CONFIG, urgenciaClass } from "../components"
-import type { ComandaKds } from "../schema"
+import type { TarjetaKdsDto } from "@/dtos/kds"
+import { ESTADO_COMANDA_CONFIG, ESTADO_ITEM_CONFIG, urgenciaClass } from "../components"
+import {
+  codigoComanda,
+  destinoComanda,
+  minutosDesde,
+  textoMinutos,
+  textoModificadores,
+  TIPO_PEDIDO_LABELS,
+  totalUnidades,
+} from "../schema"
 
 /* -------------------------------------------------------------------------- */
 /*              Modal de detalle de comanda (vista de solo lectura)             */
 /* -------------------------------------------------------------------------- */
 
 interface DetalleComandaModalProps {
-  comanda: ComandaKds
+  tarjeta: TarjetaKdsDto
+  /** Hora actual (la mantiene al día la vista principal). */
+  ahora: number
   onClose: () => void
 }
 
 export default function DetalleComandaModal({
-  comanda,
+  tarjeta,
+  ahora,
   onClose,
 }: DetalleComandaModalProps) {
   const dialogRef = React.useRef<HTMLDivElement>(null)
   const tituloId = React.useId()
-  const config = ESTADO_COMANDA_CONFIG[comanda.estado]
+  const estado = tarjeta.estado === "en_preparacion" ? "en_preparacion" : "pendiente"
+  const config = ESTADO_COMANDA_CONFIG[estado]
   const Icono = config.icon
+  const minutos = minutosDesde(tarjeta.fecha_creacion, ahora)
 
   React.useEffect(() => {
     dialogRef.current?.focus()
@@ -41,12 +55,11 @@ export default function DetalleComandaModal({
   }, [onClose])
 
   const filas = [
-    { label: "Código", valor: comanda.codigo },
-    { label: "Mesa / Destino", valor: comanda.mesa },
-    { label: "Mozo", valor: comanda.mozo },
-    { label: "Tipo", valor: comanda.tipoPedido === "mesa" ? "En mesa" : "Para llevar" },
-    { label: "Tiempo", valor: comanda.tiempoTranscurrido },
-    { label: "Total productos", valor: `${comanda.items.reduce((a, i) => a + i.cantidad, 0)} u.` },
+    { label: "Código", valor: codigoComanda(tarjeta) },
+    { label: "Mesa / Destino", valor: destinoComanda(tarjeta) },
+    { label: "Tipo", valor: TIPO_PEDIDO_LABELS[tarjeta.tipo_pedido] },
+    { label: "Tiempo", valor: textoMinutos(minutos) },
+    { label: "Total productos", valor: `${totalUnidades(tarjeta)} u.` },
   ]
 
   return (
@@ -92,11 +105,11 @@ export default function DetalleComandaModal({
               <span
                 className={cn(
                   "flex items-center gap-1 text-xs font-semibold tabular-nums",
-                  urgenciaClass(comanda.minutosTranscurridos)
+                  urgenciaClass(minutos)
                 )}
               >
                 <Clock className="size-3" />
-                {comanda.tiempoTranscurrido}
+                {textoMinutos(minutos)}
               </span>
             </div>
           </div>
@@ -132,28 +145,27 @@ export default function DetalleComandaModal({
               Productos
             </span>
             <ul className="flex flex-col gap-2 rounded-2xl border border-slate-100 px-4 py-3 dark:border-stone-800">
-              {comanda.items.map((item) => (
-                <li key={item.id} className="flex flex-col gap-0.5">
-                  <div className="flex items-center justify-between text-sm">
-                    <span className="text-slate-700 dark:text-stone-200">
-                      <span className="font-semibold tabular-nums text-slate-900 dark:text-stone-100">
-                        {item.cantidad}x
-                      </span>{" "}
-                      {item.nombre}
-                    </span>
-                  </div>
-                  {item.modificadores && (
-                    <span className="text-[11px] text-slate-400 dark:text-stone-500 pl-5">
-                      {item.modificadores}
-                    </span>
-                  )}
-                  {item.notas && (
-                    <span className="text-[11px] italic text-amber-600 dark:text-amber-400 pl-5">
-                      📝 {item.notas}
-                    </span>
-                  )}
-                </li>
-              ))}
+              {tarjeta.items.map((item) => {
+                const estadoItem = ESTADO_ITEM_CONFIG[item.estado_kds]
+                const modificadores = textoModificadores(item)
+                return (
+                  <li key={item.id_pedido_detalle} className="flex flex-col gap-0.5">
+                    <div className="flex items-center justify-between gap-2 text-sm">
+                      <span className="text-slate-700 dark:text-stone-200">
+                        <span className="font-semibold tabular-nums text-slate-900 dark:text-stone-100">{item.cantidad}x</span>{" "}
+                        {item.nombre_producto}
+                      </span>
+                      <span className={cn("shrink-0 rounded-full px-2 py-0.5 text-[10px] font-semibold", estadoItem.chip)}>
+                        {estadoItem.label}
+                      </span>
+                    </div>
+                    {modificadores && <span className="text-[11px] text-slate-400 dark:text-stone-500 pl-5">{modificadores}</span>}
+                    {item.notas_preparacion && (
+                      <span className="text-[11px] italic text-amber-600 dark:text-amber-400 pl-5">📝 {item.notas_preparacion}</span>
+                    )}
+                  </li>
+                )
+              })}
             </ul>
           </div>
         </div>
