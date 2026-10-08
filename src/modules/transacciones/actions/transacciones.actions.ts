@@ -12,8 +12,17 @@ import type {
   TransaccionCajaDto,
   TurnoActualDto,
   TurnoCajaDto,
+  TurnoListadoDto,
 } from "@/dtos/caja"
-import type { CambiarEstadoPedidoPayload, ComprobanteDto, ListarPedidosQuery, PedidoDto, PedidoListadoDto } from "@/dtos/pedidos"
+import type {
+  CambiarEstadoPedidoPayload,
+  ComprobanteDto,
+  EventoPedidoDto,
+  ListarPedidosQuery,
+  PedidoDto,
+  PedidoListadoDto,
+  ReimpresionComprobanteDto,
+} from "@/dtos/pedidos"
 
 // Llamadas finas a la API NestJS: caja única (un solo turno abierto), libro de caja de solo inserción y pedidos.
 
@@ -28,6 +37,10 @@ export const getHistorialCaja = (idTurno?: string) =>
     url: "/transactions/historial",
     params: idTurno ? { id_turno: idTurno } : undefined,
   })
+
+/** Turnos de caja con cajero, diferencia, conteo y lo vendido (más recientes primero). */
+export const getTurnos = (pagina = 1, limite = 20) =>
+  apiRequest<DataQuery<TurnoListadoDto>>(DataQuery, { method: "GET", url: "/transactions/turnos", params: { pagina, limite } })
 
 export const abrirTurno = (payload: AperturaTurnoPayload) =>
   apiRequest<OneQuery<TurnoCajaDto>>(OneQuery, { method: "POST", url: "/transactions/turnos/apertura", data: payload })
@@ -66,3 +79,11 @@ export const anularPedido = (idPedido: string, motivo: string) =>
     url: `/orders/${idPedido}/estado`,
     data: { estado: "anulado", motivo } satisfies CambiarEstadoPedidoPayload,
   })
+
+/** Bitácora del pedido: creación, cobros, devoluciones, anulación, reversiones y reimpresiones. */
+export const getBitacoraPedido = (idPedido: string) =>
+  apiRequest<CheckStatus<EventoPedidoDto[]>>(CheckStatus, { method: "GET", url: `/orders/${idPedido}/historial` })
+
+/** Reimprime el comprobante: queda registrado quién lo pidió y se devuelve marcado como copia. */
+export const reimprimirComprobante = (idPedido: string) =>
+  apiRequest<OneQuery<ReimpresionComprobanteDto>>(OneQuery, { method: "POST", url: `/orders/${idPedido}/comprobante/reimprimir` })
