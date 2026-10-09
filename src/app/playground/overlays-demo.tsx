@@ -109,7 +109,7 @@ export function OverlaysDemo() {
         description="Recibirá un correo para activar su cuenta y definir su contraseña."
         footer={
           <>
-            <Button variant="outline" size="md" onClick={() => setPanelAbierto(false)}>
+            <Button variant="neutral" size="md" onClick={() => setPanelAbierto(false)}>
               Cancelar
             </Button>
             <Button

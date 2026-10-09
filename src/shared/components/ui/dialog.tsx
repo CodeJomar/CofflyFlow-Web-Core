@@ -104,14 +104,15 @@ function DialogFooter({
     <div
       data-slot="dialog-footer"
       className={cn(
-        "flex shrink-0 flex-col-reverse gap-2 border-t border-slate-100 p-4 sm:flex-row sm:items-center sm:justify-end dark:border-stone-800",
+        // Estándar de acciones: dos botones centrados y del mismo tamaño; uno solo, a la derecha
+        "flex shrink-0 flex-col-reverse gap-3 border-t border-slate-100 p-4 dark:border-stone-800 [&>*]:w-full sm:flex-row sm:items-center sm:justify-end sm:has-[>:nth-child(2)]:justify-center sm:[&>*]:w-44",
         className
       )}
       {...props}
     >
       {children}
       {showCloseButton && (
-        <DialogPrimitive.Close render={<Button variant="outline" />}>
+        <DialogPrimitive.Close render={<Button variant="neutral" />}>
           Cerrar
         </DialogPrimitive.Close>
       )}
