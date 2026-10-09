@@ -1,26 +1,13 @@
 "use client"
 
 import * as React from "react"
-import {
-  ChefHat,
-  Clock,
-  X,
-} from "lucide-react"
-
+import { ChefHat, Clock, X } from "lucide-react"
 import { Button } from "@/shared/components/ui/button"
 import { cn } from "@/shared/utils/cn"
-
 import type { TarjetaKdsDto } from "@/dtos/kds"
-import { ESTADO_COMANDA_CONFIG, ESTADO_ITEM_CONFIG, urgenciaClass } from "../components"
-import {
-  codigoComanda,
-  destinoComanda,
-  minutosDesde,
-  textoMinutos,
-  textoModificadores,
-  TIPO_PEDIDO_LABELS,
-  totalUnidades,
-} from "../schema"
+import { codigoComanda, destinoComanda, minutosDesde, textoMinutos, textoModificadores, TIPO_PEDIDO_LABELS, totalUnidades } from "../schema"
+import { ESTADO_COMANDA_CONFIG, ESTADO_ITEM_CONFIG } from "./config-estados"
+import { urgenciaClass } from "./estilos"
 
 /* -------------------------------------------------------------------------- */
 /*              Modal de detalle de comanda (vista de solo lectura)             */
@@ -33,7 +20,7 @@ interface DetalleComandaModalProps {
   onClose: () => void
 }
 
-export default function DetalleComandaModal({
+export function DetalleComandaModal({
   tarjeta,
   ahora,
   onClose,
@@ -57,6 +44,7 @@ export default function DetalleComandaModal({
   const filas = [
     { label: "Código", valor: codigoComanda(tarjeta) },
     { label: "Mesa / Destino", valor: destinoComanda(tarjeta) },
+    ...(tarjeta.cliente_nombre ? [{ label: "Cliente", valor: tarjeta.cliente_nombre }] : []),
     { label: "Tipo", valor: TIPO_PEDIDO_LABELS[tarjeta.tipo_pedido] },
     { label: "Tiempo", valor: textoMinutos(minutos) },
     { label: "Total productos", valor: `${totalUnidades(tarjeta)} u.` },

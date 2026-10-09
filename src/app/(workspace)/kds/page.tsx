@@ -1,4 +1,4 @@
-import KdsView from "@/modules/kds/views/List"
+import { KdsView } from "@/modules/kds"
 
 export default function KDSPage() {
   return <KdsView />

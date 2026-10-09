@@ -52,7 +52,8 @@ export const COMANDAS_POR_PAGINA = 8
 /* -------------------------------------------------------------------------- */
 
 /** La API no tiene un correlativo de comanda: se usa el inicio del identificador del pedido (como en el comprobante). */
-export const codigoComanda = (tarjeta: Pick<TarjetaKdsDto, "id_pedido">): string => tarjeta.id_pedido.slice(0, 8).toUpperCase()
+export const codigoComanda = (tarjeta: Pick<TarjetaKdsDto, "id_pedido" | "correlativo">): string =>
+  tarjeta.correlativo ? `#${tarjeta.correlativo}` : tarjeta.id_pedido.slice(0, 8).toUpperCase()
 
 /** "Mesa 4", "Para llevar" o "Delivery". */
 export function destinoComanda(tarjeta: Pick<TarjetaKdsDto, "tipo_pedido" | "mesa_numero">): string {
