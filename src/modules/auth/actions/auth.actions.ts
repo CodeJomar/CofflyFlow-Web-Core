@@ -17,6 +17,9 @@ export const loginAction = (email: string, password: string) =>
     data: { email, password },
   })
 
+/** Latido de actividad real del usuario: mantiene viva la sesión (las consultas automáticas no cuentan). */
+export const actividadAction = () => apiRequest<CheckStatus>(CheckStatus, { method: "POST", url: "/auth/actividad", data: {} })
+
 export const logoutAction = () =>
   apiRequest<CheckStatus>(CheckStatus, { method: "POST", url: "/auth/logout", data: {} })
 

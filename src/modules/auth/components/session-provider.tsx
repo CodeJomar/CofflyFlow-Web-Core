@@ -6,7 +6,7 @@ import { usePathname, useRouter } from "next/navigation"
 import { Spinner } from "@/shared/components/ui/spinner"
 import type { SesionUsuarioDto } from "@/dtos/auth"
 import { logoutAction, perfilAction } from "../actions/auth.actions"
-import { pestanaMarcada } from "../pestana"
+import { useInactividad } from "../hooks/use-inactividad"
 
 const SessionContext = React.createContext<SesionUsuarioDto | null>(null)
 const RefrescarSesionContext = React.createContext<(() => Promise<void>) | null>(null)
@@ -55,12 +55,6 @@ export function SessionProvider({ children }: { children: React.ReactNode }) {
   React.useEffect(() => {
     let cancelado = false
 
-    // Pestaña sin marca de inicio de sesión (nueva, enlace pegado o navegador reabierto): la sesión no se hereda.
-    if (!pestanaMarcada()) {
-      void logoutAction().finally(() => router.replace(`/login?siguiente=${encodeURIComponent(rutaActual.current)}`))
-      return
-    }
-
     const confirmarSesion = () =>
       perfilAction().then((res) => {
         if (cancelado) return
@@ -79,6 +73,11 @@ export function SessionProvider({ children }: { children: React.ReactNode }) {
       document.removeEventListener("visibilitychange", alVolver)
     }
   }, [router])
+
+  // Sin actividad del usuario durante el tiempo que fija la API, la sesión se cierra y se vuelve al login.
+  useInactividad(usuario?.inactividad_segundos, () => {
+    void logoutAction().finally(() => router.replace("/login?motivo=inactividad"))
+  })
 
   if (!usuario) {
     return (

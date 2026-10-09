@@ -4,7 +4,6 @@ import * as React from "react"
 import { useRouter } from "next/navigation"
 
 import { logoutAction } from "../actions/auth.actions"
-import { quitarMarcaPestana } from "../pestana"
 
 export function useLogout() {
   const router = useRouter()
@@ -13,7 +12,6 @@ export function useLogout() {
   const logout = async () => {
     setIsLoggingOut(true)
     // Aunque la API no responda, se vuelve al login: las cookies expiran o se revocan en el servidor.
-    quitarMarcaPestana()
     await logoutAction()
     router.replace("/login")
   }

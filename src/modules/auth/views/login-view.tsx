@@ -10,9 +10,11 @@ import { useLogin } from "../hooks/use-login"
 interface LoginViewProps {
   /** Ruta a la que volver tras iniciar sesión (la fija el Proxy al redirigir), vía ?siguiente= */
   siguiente?: string
+  /** La sesión se cerró por falta de actividad: se avisa al volver al login. */
+  porInactividad?: boolean
 }
 
-export function LoginView({ siguiente }: LoginViewProps) {
+export function LoginView({ siguiente, porInactividad }: LoginViewProps) {
   const [showPassword, setShowPassword] = React.useState(false)
   const { form, submit, bloqueoSegundos } = useLogin(siguiente)
   const {
@@ -35,6 +37,11 @@ export function LoginView({ siguiente }: LoginViewProps) {
         <p className="text-xs text-slate-500 font-medium">
           Acceso de Personal
         </p>
+        {porInactividad && (
+          <p role="status" className="mt-1 rounded-xl bg-amber-50 px-3 py-2 text-xs text-amber-800">
+            Tu sesión se cerró por inactividad. Ingresa de nuevo para continuar.
+          </p>
+        )}
       </div>
 
       {/* Formulario utilizando FloatingInput y Button base */}

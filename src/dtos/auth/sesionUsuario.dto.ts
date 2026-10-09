@@ -9,4 +9,6 @@ export type SesionUsuarioDto = {
   rol_nombre: string | null
   /** Permisos efectivos "MODULO:ACCION"; el propietario recibe ["*"]. Solo ayuda de UX: la API vuelve a autorizar. */
   permisos: string[]
+  /** Segundos sin actividad tras los cuales la sesión se cierra sola. */
+  inactividad_segundos: number
 }
