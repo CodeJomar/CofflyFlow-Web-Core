@@ -1,6 +1,6 @@
 import { z } from "zod"
 
-import type { MetodoPago, MovimientoHistorialDto, TipoMovimiento, TipoMovimientoManual, TurnoActualDto } from "@/dtos/caja"
+import type { MetodoPago, TipoMovimiento, TipoMovimientoManual, TurnoActualDto } from "@/dtos/caja"
 import type { EstadoPedido } from "@/dtos/pedidos"
 import { aCentimos, desdeCentimos } from "@/shared/utils/dinero"
 
@@ -18,6 +18,9 @@ export const METODO_PAGO_LABELS: Record<MetodoPago, string> = {
 
 // Límite razonable para un movimiento o el fondo de apertura de una cafetería
 export const MAX_MONTO_CAJA = 10000
+
+// Cuántos turnos anteriores se traen para el panel de turnos
+export const TURNOS_ANTERIORES = 20
 
 // Cuántos pedidos se piden a la API por consulta (máximo que acepta el listado)
 export const LIMITE_PEDIDOS = 100
@@ -118,40 +121,9 @@ export function resumirTurno(actual: TurnoActualDto): ResumenTurno {
   }
 }
 
-/** Turno ya cerrado (o de otro día) reconstruido a partir del libro de caja, porque la API no lista turnos. */
-export interface TurnoArchivado {
-  id: string
-  codigo: string
-  desde: string
-  movimientos: number
-  ventasCentimos: number
-  registradoPor: string
-}
-
-export function agruparTurnosArchivados(historial: MovimientoHistorialDto[], idTurnoActual: string | null): TurnoArchivado[] {
-  const porTurno = new Map<string, MovimientoHistorialDto[]>()
-  for (const mov of historial) {
-    if (mov.id_turno_caja === idTurnoActual) continue
-    porTurno.set(mov.id_turno_caja, [...(porTurno.get(mov.id_turno_caja) ?? []), mov])
-  }
-  return [...porTurno.entries()]
-    .map(([id, movs]) => {
-      const ordenados = [...movs].sort((a, b) => a.fecha_creacion.localeCompare(b.fecha_creacion))
-      return {
-        id,
-        codigo: id.slice(0, 8).toUpperCase(),
-        desde: ordenados[0].fecha_creacion,
-        movimientos: movs.length,
-        ventasCentimos: movs.filter((m) => m.tipo_movimiento === "venta").reduce((acc, m) => acc + aCentimos(m.monto), 0),
-        registradoPor: ordenados[0].registrado_por,
-      }
-    })
-    .sort((a, b) => b.desde.localeCompare(a.desde))
-}
-
 const textoMonto = z.union([z.string(), z.number()])
 
-export const aperturaCajaSchema = z.object({ montoInicial: textoMonto }).superRefine((data, ctx) => {
+export const aperturaCajaSchema = z.object({ montoInicial: textoMonto, notaApertura: z.string().trim().max(255, "Máximo 255 caracteres.").optional() }).superRefine((data, ctx) => {
   const monto = centimosDeTexto(data.montoInicial)
   if (Number.isNaN(monto)) {
     ctx.addIssue({ code: z.ZodIssueCode.custom, message: "Ingresa el monto inicial en efectivo.", path: ["montoInicial"] })
@@ -256,8 +228,11 @@ export const ESTADO_PEDIDO_LABELS: Record<EstadoPedido, string> = {
   anulado: "Anulado",
 }
 
-/** Código corto del pedido para mostrar (los 8 primeros caracteres del id). */
-export const codigoPedido = (idPedido: string) => idPedido.slice(0, 8).toUpperCase()
+/** Número legible del pedido (#12), el que se dice en voz alta y se ve en cocina. */
+export const numeroPedido = (correlativo: number) => `#${correlativo}`
+
+/** Código corto a partir del id, para los movimientos del libro de caja (que no traen el número del pedido). */
+export const codigoCortoPedido = (idPedido: string) => idPedido.slice(0, 8).toUpperCase()
 
 export const anulacionSchema = z.object({
   motivo: z
