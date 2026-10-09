@@ -67,6 +67,19 @@ export const empleadoFormSchema = z.object({
     .regex(/^[A-Za-zÁÉÍÓÚÜÑáéíóúüñ' ]+$/, "Solo se permiten letras y espacios."),
   email: z.string().trim().toLowerCase().email("Ingresa un correo válido.").max(150, "Máximo 150 caracteres."),
   idRol: z.string().min(1, "Selecciona el cargo."),
+  // Ficha del empleado (opcional): las mismas reglas que valida la API
+  dni: z
+    .string()
+    .trim()
+    .refine((v) => v === "" || /^[A-Za-z0-9-]{6,15}$/.test(v), "Entre 6 y 15 letras, números o guiones."),
+  telefono: z
+    .string()
+    .trim()
+    .refine((v) => v === "" || /^[0-9+\-() ]{6,20}$/.test(v), "Entre 6 y 20 caracteres: números, +, guiones y paréntesis."),
+  fechaIngreso: z
+    .string()
+    .trim()
+    .refine((v) => v === "" || /^\d{4}-\d{2}-\d{2}$/.test(v), "Usa el formato AAAA-MM-DD."),
 })
 
 export type EmpleadoFormValues = z.infer<typeof empleadoFormSchema>
@@ -75,7 +88,17 @@ export const empleadoToFormValues = (empleado?: Empleado, rolPorDefecto = ""): E
   nombre: empleado?.nombre ?? "",
   email: empleado?.email ?? "",
   idRol: empleado?.id_rol ?? rolPorDefecto,
+  dni: empleado?.dni ?? "",
+  telefono: empleado?.telefono ?? "",
+  fechaIngreso: empleado?.fecha_ingreso ?? "",
 })
+
+/** Motivo opcional al dar de baja a un empleado. */
+export const bajaFormSchema = z.object({
+  motivo: z.string().trim().max(255, "Máximo 255 caracteres."),
+})
+
+export type BajaFormValues = z.infer<typeof bajaFormSchema>
 
 /* -------------------------------------------------------------------------- */
 /*                    Configuración del plano de mesas                        */
@@ -114,3 +137,10 @@ export const mesaToFormValues = (mesa?: Mesa, areaPorDefecto = ""): MesaFormValu
   capacidad: mesa ? String(mesa.capacidad) : "4",
 })
 
+
+/** Renombrar un área del local (se aplica a todas sus mesas). */
+export const areaFormSchema = z.object({
+  nombre: z.string().trim().min(1, "Ingresa el nombre del área.").max(30, "Máximo 30 caracteres."),
+})
+
+export type AreaFormValues = z.infer<typeof areaFormSchema>

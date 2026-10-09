@@ -1,4 +1,4 @@
-import { MesasView } from "@/modules/local-equipo/views/List"
+import { MesasView } from "@/modules/local-equipo"
 
 export default function MesasPage() {
   return <MesasView />
