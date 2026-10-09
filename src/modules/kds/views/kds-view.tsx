@@ -4,11 +4,12 @@ import * as React from "react"
 import { RefreshCw, UtensilsCrossed, Wifi, WifiOff } from "lucide-react"
 import { useCan } from "@/modules/auth"
 import { Button } from "@/shared/components/ui/button"
-import { Pagination, PaginationContent, PaginationItem, PaginationLink, PaginationNext, PaginationPrevious } from "@/shared/components/ui/pagination"
+import { BarraPaginacion } from "@/shared/components/ui/pagination"
+import { usePaginacionSimple } from "@/shared/hooks/use-paginacion-simple"
 import { ACCION, MODULO } from "@/shared/constants/permisos"
 import { useAhora } from "@/shared/hooks/use-ahora"
 import { cn } from "@/shared/utils/cn"
-import { COMANDAS_POR_PAGINA, type FiltroEstadoKds } from "../schema"
+import { COMANDAS_POR_PAGINA } from "../schema"
 import { useTableroKds } from "../hooks/use-tablero-kds"
 import { FiltroEstados } from "../components/filtro-estados"
 import { KdsSkeleton } from "../components/kds-skeleton"
@@ -43,26 +44,13 @@ export function KdsView() {
   // Los minutos transcurridos se recalculan en el navegador cada medio minuto.
   const ahora = useAhora(30_000)
 
-  const [pagina, setPagina] = React.useState(1)
   const [idDetalle, setIdDetalle] = React.useState<string | null>(null)
   // El detalle se busca en la lista viva: si el pedido sale de la cola, el modal se cierra solo.
   const detalle = idDetalle ? (tarjetas.find((t) => t.id_pedido === idDetalle) ?? null) : null
 
-  const handleCambioFiltro = React.useCallback(
-    (nuevoFiltro: FiltroEstadoKds) => {
-      setFiltro(nuevoFiltro)
-      setPagina(1)
-    },
-    [setFiltro],
-  )
-
-  const totalPaginas = Math.ceil(tarjetas.length / COMANDAS_POR_PAGINA)
-  const paginaValida = Math.min(Math.max(1, pagina), Math.max(1, totalPaginas))
-
-  const tarjetasPaginadas = React.useMemo(() => {
-    const inicio = (paginaValida - 1) * COMANDAS_POR_PAGINA
-    return tarjetas.slice(inicio, inicio + COMANDAS_POR_PAGINA)
-  }, [tarjetas, paginaValida])
+  // Al cambiar el filtro la paginación vuelve a la primera página sola (la clave cambia)
+  const paginacion = usePaginacionSimple(tarjetas, { porPagina: COMANDAS_POR_PAGINA, clave: String(filtro) })
+  const tarjetasPaginadas = paginacion.visibles
 
   return (
     <div className="flex flex-col gap-5 w-full">
@@ -99,7 +87,7 @@ export function KdsView() {
       </div>
 
       {/* Barra de filtros por estado */}
-      <FiltroEstados filtro={filtro} setFiltro={handleCambioFiltro} contadores={contadores} />
+      <FiltroEstados filtro={filtro} setFiltro={setFiltro} contadores={contadores} />
 
       {isLoading ? (
         <KdsSkeleton />
@@ -110,7 +98,7 @@ export function KdsView() {
           icono={UtensilsCrossed}
           titulo="Sin comandas"
           descripcion={filtro === "todas" ? "No hay comandas en la cola en este momento." : "No hay comandas con el estado seleccionado."}
-          accion={filtro === "todas" ? undefined : { texto: "Limpiar filtro", onClick: () => handleCambioFiltro("todas") }}
+          accion={filtro === "todas" ? undefined : { texto: "Limpiar filtro", onClick: () => setFiltro("todas") }}
         />
       ) : (
         <div className="flex flex-col gap-5">
@@ -129,45 +117,7 @@ export function KdsView() {
             ))}
           </div>
 
-          {totalPaginas > 1 && (
-            <div className="flex flex-col sm:flex-row items-center justify-between gap-3 pt-2">
-              <span className="text-xs text-slate-500 dark:text-stone-400">
-                Mostrando {(paginaValida - 1) * COMANDAS_POR_PAGINA + 1} -{" "}
-                {Math.min(paginaValida * COMANDAS_POR_PAGINA, tarjetas.length)} de {tarjetas.length} comandas
-              </span>
-
-              <Pagination className="mx-0 w-auto justify-end">
-                <PaginationContent>
-                  <PaginationItem>
-                    <PaginationPrevious
-                      onClick={() => setPagina((p) => Math.max(1, p - 1))}
-                      disabled={paginaValida <= 1}
-                      className={cn("cursor-pointer", paginaValida <= 1 && "pointer-events-none opacity-50")}
-                    />
-                  </PaginationItem>
-
-                  {Array.from({ length: totalPaginas }).map((_, i) => {
-                    const num = i + 1
-                    return (
-                      <PaginationItem key={num}>
-                        <PaginationLink isActive={paginaValida === num} onClick={() => setPagina(num)} className="cursor-pointer">
-                          {num}
-                        </PaginationLink>
-                      </PaginationItem>
-                    )
-                  })}
-
-                  <PaginationItem>
-                    <PaginationNext
-                      onClick={() => setPagina((p) => Math.min(totalPaginas, p + 1))}
-                      disabled={paginaValida >= totalPaginas}
-                      className={cn("cursor-pointer", paginaValida >= totalPaginas && "pointer-events-none opacity-50")}
-                    />
-                  </PaginationItem>
-                </PaginationContent>
-              </Pagination>
-            </div>
-          )}
+          <BarraPaginacion paginacion={paginacion} etiqueta="comandas" />
         </div>
       )}
 

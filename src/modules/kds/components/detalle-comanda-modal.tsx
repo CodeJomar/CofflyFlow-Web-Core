@@ -159,14 +159,8 @@ export function DetalleComandaModal({
         </div>
 
         {/* Footer */}
-        <div className="flex gap-2 border-t border-slate-100 p-5 dark:border-stone-800">
-          <Button
-            type="button"
-            variant="outline"
-            size="sm"
-            onClick={onClose}
-            className="flex-1"
-          >
+        <div className="flex justify-end border-t border-slate-100 p-5 dark:border-stone-800">
+          <Button type="button" variant="neutral" size="md" onClick={onClose} className="w-44">
             Cerrar
           </Button>
         </div>

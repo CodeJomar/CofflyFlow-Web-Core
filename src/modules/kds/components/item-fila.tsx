@@ -103,7 +103,7 @@ function AccionItem({
       className={cn(
         "inline-flex h-7 items-center gap-1 rounded-lg border px-2.5 text-[11px] font-semibold transition-colors cursor-pointer disabled:cursor-not-allowed disabled:opacity-50",
         fuerte
-          ? "border-emerald-200 bg-emerald-50 text-emerald-800 hover:bg-emerald-100 dark:border-emerald-900/40 dark:bg-emerald-500/10 dark:text-emerald-300"
+          ? "border-[#4C0107] bg-[#4C0107] text-white hover:bg-[#4C0107]/90 dark:border-white dark:bg-white dark:text-black dark:hover:bg-slate-200"
           : "border-slate-200 bg-white text-slate-600 hover:bg-slate-50 dark:border-stone-700 dark:bg-stone-900 dark:text-stone-300 dark:hover:bg-stone-800",
       )}
     >
