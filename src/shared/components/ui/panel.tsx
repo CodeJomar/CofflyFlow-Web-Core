@@ -98,7 +98,9 @@ function PanelFooter({ className, ...props }: React.ComponentProps<"div">) {
     <div
       data-slot="panel-footer"
       className={cn(
-        "mt-auto flex flex-col-reverse gap-2 border-t border-[#EDE5E6] px-6 py-4 sm:flex-row sm:justify-end dark:border-stone-800",
+        // Estándar de acciones: abajo; dos botones centrados y del mismo tamaño, uno solo pegado a la derecha.
+        // La acción principal va en el color del negocio y «Cancelar/Volver» en la variante neutral.
+        "mt-auto flex flex-col-reverse gap-3 border-t border-[#EDE5E6] px-6 py-4 dark:border-stone-800 [&>*]:w-full sm:flex-row sm:justify-end sm:has-[>:nth-child(2)]:justify-center sm:[&>*]:w-44",
         className
       )}
       {...props}
