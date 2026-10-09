@@ -65,7 +65,7 @@ export const productoFormSchema = z.object({
     .string()
     .trim()
     .max(500, "La URL no puede superar los 500 caracteres.")
-    .refine((v) => v === "" || /^https?:\/\//i.test(v), "Usa una URL que empiece con http:// o https://."),
+    .refine((v) => v === "" || /^https:\/\//i.test(v), "Usa una dirección que empiece con https://."),
   // Grupos de personalización (leche, endulzante...) que se ofrecen al pedir este producto
   grupos: z.array(z.string()),
 })
