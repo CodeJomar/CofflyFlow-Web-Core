@@ -152,18 +152,6 @@ export function EmpleadoForm({ empleado, cargos, onGuardar, onClose }: EmpleadoF
           </div>
         </div>
 
-        <div className="flex flex-col gap-1.5">
-          <FloatingInput
-            id="emp-ingreso"
-            label="Fecha de ingreso"
-            {...register("fechaIngreso")}
-            type="date"
-            state={errors.fechaIngreso ? "error" : "default"}
-            aria-invalid={Boolean(errors.fechaIngreso)}
-          />
-          {errors.fechaIngreso && <p className={errorClass}>{errors.fechaIngreso.message}</p>}
-        </div>
-
         <p className="flex items-start gap-2 rounded-xl bg-slate-50 px-3 py-2 text-xs text-slate-600 dark:bg-stone-950/60 dark:text-stone-300">
           <Info className="mt-0.5 size-3.5 shrink-0" />
           {esEdicion

@@ -114,11 +114,10 @@ export function usePersonal() {
   /** Registra un empleado (la API le envía el correo de activación) o actualiza sus datos y su cargo. */
   const guardarEmpleado = React.useCallback(
     async (values: EmpleadoFormValues, empleado?: Empleado): Promise<boolean> => {
-      // La ficha solo envía lo que se llenó (la API valida el formato de cada dato)
+      // La ficha solo envía lo que se llenó (la API valida el formato). La fecha de ingreso la fija la API al registrar.
       const ficha = {
         ...(values.dni ? { dni: values.dni } : {}),
         ...(values.telefono ? { telefono: values.telefono } : {}),
-        ...(values.fechaIngreso ? { fecha_ingreso: values.fechaIngreso } : {}),
       }
       const base = { nombre: values.nombre.trim(), email: values.email, id_rol: values.idRol, ...ficha }
       const respuesta = await toastResponse(

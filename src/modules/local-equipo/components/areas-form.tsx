@@ -38,7 +38,7 @@ export function AreasForm({
       title="Áreas del local"
       description="Renombra un área y todas sus mesas pasan a la nueva."
       footer={
-        <Button type="button" variant="outline" size="md" onClick={onClose}>
+        <Button type="button" variant="neutral" size="md" onClick={onClose}>
           Cerrar
         </Button>
       }
