@@ -1,7 +1,7 @@
 "use client"
 
 import * as React from "react"
-import { ArrowDownCircle, ArrowUpCircle, LockKeyhole, LockKeyholeOpen } from "lucide-react"
+import { ArrowLeftRight, LockKeyhole, LockKeyholeOpen } from "lucide-react"
 import type { TipoMovimientoManual } from "@/dtos/caja"
 import { Button } from "@/shared/components/ui/button"
 import { cn } from "@/shared/utils/cn"
@@ -11,7 +11,7 @@ import { TransaccionesSkeleton } from "./transacciones-skeleton"
 import { EstadoError } from "@/shared/components/composed/estado-error"
 import { AperturaCajaForm } from "./apertura-caja-form"
 import { PanelTurnos } from "./panel-turnos"
-import { botonSecundarioClass, tarjetaClass, textoSecundario, textoTitulo } from "./estilos"
+import { tarjetaClass, textoSecundario, textoTitulo } from "./estilos"
 import { formatHora, formatTranscurrido } from "../utils"
 import { MetricasTurno } from "./metricas-turno"
 import { PanelMovimientos } from "./panel-movimientos"
@@ -90,33 +90,20 @@ export function SeccionCajas({ puedeAbrirCerrar, puedeMover }: { puedeAbrirCerra
             </div>
           </div>
 
-          {/* Acciones del turno: Entradas, Salidas y Arqueo/Cierre */}
-          <div className="grid shrink-0 grid-cols-3 gap-2 sm:flex sm:items-center">
+          {/* Acciones del turno: movimiento de efectivo (entrada o salida, se elige en el panel) y Arqueo/Cierre */}
+          <div className="grid shrink-0 grid-cols-2 gap-2 sm:flex sm:items-center">
             {puedeMover && (
-              <>
-                <Button
-                  id="caja-btn-entrada"
-                  type="button"
-                  variant="outline"
-                  size="sm"
-                  onClick={() => setModalMovimiento("ingreso_manual")}
-                  leftIcon={<ArrowDownCircle className="size-4" />}
-                  className={cn("w-full gap-1.5 px-2 sm:w-auto sm:px-4", botonSecundarioClass)}
-                >
-                  Entrada
-                </Button>
-                <Button
-                  id="caja-btn-salida"
-                  type="button"
-                  variant="outline"
-                  size="sm"
-                  onClick={() => setModalMovimiento("retiro_manual")}
-                  leftIcon={<ArrowUpCircle className="size-4" />}
-                  className={cn("w-full gap-1.5 px-2 sm:w-auto sm:px-4", botonSecundarioClass)}
-                >
-                  Salida
-                </Button>
-              </>
+              <Button
+                id="caja-btn-movimiento"
+                type="button"
+                variant="neutral"
+                size="sm"
+                onClick={() => setModalMovimiento("ingreso_manual")}
+                leftIcon={<ArrowLeftRight className="size-4" />}
+                className="w-full gap-1.5 px-2 sm:w-auto sm:px-4"
+              >
+                Movimiento
+              </Button>
             )}
             {puedeAbrirCerrar && (
               <Button

@@ -11,7 +11,7 @@ import { aCentimos, formatearCentimos, formatearDinero } from "@/shared/utils/di
 import { ESTADO_PEDIDO_LABELS, METODO_PAGO_LABELS, numeroPedido } from "../schema"
 import { formatFechaHora } from "../utils"
 import { ESTADO_PEDIDO_CONFIG, EVENTO_PAGO_CONFIG } from "./config-visual"
-import { botonPeligroClass, botonSecundarioClass, textoCuerpo, textoEtiqueta, textoSecundario, textoTitulo } from "./estilos"
+import { botonPeligroClass, textoCuerpo, textoEtiqueta, textoSecundario, textoTitulo } from "./estilos"
 import { ModalShell, PieAcciones } from "./modal-shell"
 import { BitacoraPedido } from "./bitacora-pedido"
 
@@ -189,22 +189,21 @@ export function ComprobanteModal({
 
       <PieAcciones>
         {puedeAnular && comprobante.estado !== "anulado" && comprobante.estado !== "pagado" && sinPagos && (
-          <Button type="button" size="sm" onClick={onAnular} leftIcon={<Ban className="size-4" />} className={cn("flex-1", botonPeligroClass)}>
+          <Button type="button" size="md" onClick={onAnular} leftIcon={<Ban className="size-4" />} className={botonPeligroClass}>
             Anular
           </Button>
         )}
         <Button
           type="button"
-          variant="outline"
-          size="sm"
+          variant="neutral"
+          size="md"
           onClick={onReimprimir}
           disabled={reimprimiendo}
           leftIcon={<Printer className="size-4" />}
-          className={cn("flex-1", botonSecundarioClass)}
         >
           {reimprimiendo ? "Preparando…" : "Reimprimir"}
         </Button>
-        <Button id="comprobante-cerrar" type="button" size="sm" onClick={onClose} className="flex-1">
+        <Button id="comprobante-cerrar" type="button" size="md" onClick={onClose}>
           Cerrar
         </Button>
       </PieAcciones>

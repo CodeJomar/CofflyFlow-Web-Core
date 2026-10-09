@@ -49,7 +49,7 @@ export function AnularPedidoForm({ idPedido, numero, detalle, onClose, onAnular 
       description={detalle}
       footer={
         <>
-          <Button type="button" variant="outline" size="md" onClick={onClose} disabled={isSubmitting}>
+          <Button type="button" variant="neutral" size="md" onClick={onClose} disabled={isSubmitting}>
             Volver
           </Button>
           <Button id="pedido-confirmar-anulacion" type="submit" form={formId} size="md" disabled={isSubmitting} leftIcon={<Ban className="size-4" />} className={botonPeligroClass}>
