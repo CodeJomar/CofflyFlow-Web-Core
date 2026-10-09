@@ -19,7 +19,9 @@ import { TarjetaModulo } from "./tarjeta-modulo"
 
 const botonPrimario = cn(botonPrimarioBase, "px-5")
 const botonSecundario = cn(botonSecundarioBase, "px-5")
-const ALTO_TARJETA_MODULO = 200
+// Cada acción ocupa una fila: la tarjeta crece con el módulo que más tiene para que ninguna haga scroll interno
+const ALTO_BASE_TARJETA_MODULO = 84
+const ALTO_FILA_ACCION = 32
 
 /** Vista «Crear nuevo rol» / «Editar permisos»: datos del cargo y permisos por módulo. */
 export function RolForm({
@@ -61,7 +63,8 @@ export function RolForm({
 
   const permisos = useWatch({ control, name: "permisos" })
   const todas = React.useMemo(() => todasLasClaves(catalogo), [catalogo])
-  const paginacion = usePaginacionAjustada(catalogo, { altoItem: ALTO_TARJETA_MODULO, anchoMinimo: 220 })
+  const altoTarjeta = ALTO_BASE_TARJETA_MODULO + Math.max(1, ...catalogo.map((m) => m.acciones.length)) * ALTO_FILA_ACCION
+  const paginacion = usePaginacionAjustada(catalogo, { altoItem: altoTarjeta, anchoMinimo: 220 })
 
   const todosSeleccionados = todas.length > 0 && permisos.length === todas.length
 
@@ -174,7 +177,7 @@ export function RolForm({
         <BarraPaginacion paginacion={paginacion} etiqueta="módulos" />
 
         {/* Acciones */}
-        <div className="flex shrink-0 items-center justify-between gap-2 border-t border-slate-200 pt-4 dark:border-stone-800 [@media(max-height:700px)]:pt-2.5">
+        <div className="grid shrink-0 grid-cols-[1fr_auto_1fr] items-center gap-2 border-t border-slate-200 pt-4 dark:border-stone-800 [@media(max-height:700px)]:pt-2.5">
           <div className="min-w-0">
             {esEdicion && !soloLectura && puedeEliminar && rol && (
               <Button
@@ -199,23 +202,24 @@ export function RolForm({
             )}
           </div>
 
-          <div className="flex items-center gap-2">
+          <div className="flex items-center justify-center gap-3">
             <Button
               type="button"
-              variant="outline"
+              variant="neutral"
               size="sm"
               onClick={onVolver}
               disabled={isSubmitting || eliminando}
-              className={botonSecundario}
+              className={cn(botonSecundario, "w-40")}
             >
               {soloLectura ? "Volver" : "Cancelar"}
             </Button>
             {!soloLectura && (
-              <Button type="submit" size="sm" disabled={isSubmitting || eliminando} className={botonPrimario}>
+              <Button type="submit" size="sm" disabled={isSubmitting || eliminando} className={cn(botonPrimario, "w-40")}>
                 {esEdicion ? "Guardar cambios" : "Crear Rol"}
               </Button>
             )}
           </div>
+          <div aria-hidden />
         </div>
       </div>
     </form>

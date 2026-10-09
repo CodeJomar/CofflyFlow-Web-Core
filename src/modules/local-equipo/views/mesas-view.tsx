@@ -7,12 +7,11 @@ import { useCan } from "@/modules/auth"
 import { EstadoError } from "@/shared/components/composed/estado-error"
 import { EstadoVacio } from "@/shared/components/composed/estado-vacio"
 import { Button } from "@/shared/components/ui/button"
-import { NativeSelect, NativeSelectOption } from "@/shared/components/ui/native-select"
+import { FiltroSelect } from "@/shared/components/composed/filtro-select"
 import { BarraPaginacion, GrillaAjustada } from "@/shared/components/ui/pagination"
 import { ACCION, MODULO } from "@/shared/constants/permisos"
 import { usePaginacionAjustada } from "@/shared/hooks"
 import { useConfirm } from "@/shared/providers/confirm-provider"
-import { cn } from "@/shared/utils/cn"
 
 import {
   AreasForm,
@@ -22,7 +21,6 @@ import {
   MesaForm,
   botonPrimario,
   botonSecundario,
-  selectClass,
 } from "../components"
 import { usePlanoMesas } from "../hooks"
 import { AREA_SIN_ASIGNAR, FILTRO_TODAS_LAS_AREAS, type Mesa } from "../schema"
@@ -92,20 +90,17 @@ export function MesasView() {
 
       {/* Filtro por área y resumen */}
       <div className="flex shrink-0 items-center justify-between gap-3">
-        <NativeSelect
+        <FiltroSelect
+          label="Área de atención"
           value={plano.areaFiltro}
-          onChange={(e) => plano.setAreaFiltro(e.target.value)}
+          onValueChange={plano.setAreaFiltro}
           disabled={isLoading}
-          aria-label="Filtrar por área de atención"
-          className={cn("w-full min-w-0 sm:w-56", selectClass)}
-        >
-          <NativeSelectOption value={FILTRO_TODAS_LAS_AREAS}>Todas las áreas ({mesas.length})</NativeSelectOption>
-          {areas.map((a) => (
-            <NativeSelectOption key={a} value={a}>
-              {a} ({mesasPorArea.get(a) ?? 0})
-            </NativeSelectOption>
-          ))}
-        </NativeSelect>
+          opciones={[
+            { value: FILTRO_TODAS_LAS_AREAS, label: `Todas las áreas (${mesas.length})` },
+            ...areas.map((a) => ({ value: a, label: `${a} (${mesasPorArea.get(a) ?? 0})` })),
+          ]}
+          className="w-full min-w-0 sm:w-60"
+        />
         <p className="shrink-0 text-xs text-slate-500 tabular-nums dark:text-stone-400">
           {resumen.mesas} {resumen.mesas === 1 ? "mesa" : "mesas"} · {resumen.capacidad}{" "}
           <span className="hidden sm:inline">personas</span>

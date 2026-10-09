@@ -44,7 +44,7 @@ export function TarjetaModulo({
         </span>
       </div>
 
-      <ul className="flex flex-col gap-2 overflow-y-auto">
+      <ul className="flex flex-col gap-2">
         {modulo.acciones.map((accion) => {
           const clave = clavePermiso(modulo.modulo, accion.accion)
           const marcado = seleccionados.includes(clave)

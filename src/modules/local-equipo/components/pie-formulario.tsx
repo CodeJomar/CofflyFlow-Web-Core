@@ -14,7 +14,7 @@ export function PieFormulario({
 }) {
   return (
     <>
-      <Button type="button" variant="outline" size="md" onClick={onCancelar} disabled={enviando}>
+      <Button type="button" variant="neutral" size="md" onClick={onCancelar} disabled={enviando}>
         Cancelar
       </Button>
       <Button type="submit" form={formId} size="md" disabled={enviando}>

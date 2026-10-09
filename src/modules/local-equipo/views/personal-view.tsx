@@ -8,21 +8,19 @@ import { EstadoError } from "@/shared/components/composed/estado-error"
 import { EstadoVacio } from "@/shared/components/composed/estado-vacio"
 import { SearchInput } from "@/shared/components/composed/search-input"
 import { Button } from "@/shared/components/ui/button"
-import { NativeSelect, NativeSelectOption } from "@/shared/components/ui/native-select"
+import { FiltroSelect } from "@/shared/components/composed/filtro-select"
 import { BarraPaginacion, GrillaAjustada } from "@/shared/components/ui/pagination"
 import { ACCION, MODULO } from "@/shared/constants/permisos"
 import { usePaginacionAjustada } from "@/shared/hooks"
-import { cn } from "@/shared/utils/cn"
 
 import {
-  BajaForm,
+  BajaDialog,
   ESTADO_EMPLEADO_CONFIG,
   EmpleadoCard,
   EmpleadoForm,
   EncabezadoSeccion,
   GrillaSkeleton,
   botonPrimario,
-  selectClass,
 } from "../components"
 import { usePersonal } from "../hooks"
 import { estadoEmpleadoSchema, type Empleado, type FiltroEstadoEmpleado } from "../schema"
@@ -82,32 +80,26 @@ export function PersonalView() {
           className="min-w-0 flex-1"
         />
         <div className="grid grid-cols-2 gap-2 sm:flex">
-          <NativeSelect
+          <FiltroSelect
+            label="Cargo"
             value={personal.rol}
-            onChange={(e) => personal.setRol(e.target.value)}
-            aria-label="Filtrar por cargo"
-            className={cn("w-full sm:w-44", selectClass)}
-          >
-            <NativeSelectOption value="todos">Todos los cargos</NativeSelectOption>
-            {cargos.map((c) => (
-              <NativeSelectOption key={c.id_rol} value={c.id_rol}>
-                {c.nombre}
-              </NativeSelectOption>
-            ))}
-          </NativeSelect>
-          <NativeSelect
+            onValueChange={personal.setRol}
+            opciones={[{ value: "todos", label: "Todos los cargos" }, ...cargos.map((c) => ({ value: c.id_rol, label: c.nombre }))]}
+            className="sm:w-48"
+          />
+          <FiltroSelect
+            label="Estado"
             value={personal.estado}
-            onChange={(e) => personal.setEstado(e.target.value as FiltroEstadoEmpleado)}
-            aria-label="Filtrar por estado"
-            className={cn("w-full sm:w-44", selectClass)}
-          >
-            <NativeSelectOption value="todos">Todos ({empleados.length})</NativeSelectOption>
-            {estadoEmpleadoSchema.options.map((estado) => (
-              <NativeSelectOption key={estado} value={estado}>
-                {ESTADO_EMPLEADO_CONFIG[estado].label} ({conteoPorEstado.get(estado) ?? 0})
-              </NativeSelectOption>
-            ))}
-          </NativeSelect>
+            onValueChange={(valor) => personal.setEstado(valor as FiltroEstadoEmpleado)}
+            opciones={[
+              { value: "todos", label: `Todos (${empleados.length})` },
+              ...estadoEmpleadoSchema.options.map((estado) => ({
+                value: estado,
+                label: `${ESTADO_EMPLEADO_CONFIG[estado].label} (${conteoPorEstado.get(estado) ?? 0})`,
+              })),
+            ]}
+            className="sm:w-48"
+          />
         </div>
       </div>
 
@@ -153,7 +145,7 @@ export function PersonalView() {
       )}
 
       {modal?.modo === "baja" && (
-        <BajaForm empleado={modal.empleado} onConfirmar={personal.darDeBaja} onClose={cerrarModal} />
+        <BajaDialog empleado={modal.empleado} onConfirmar={personal.darDeBaja} onClose={cerrarModal} />
       )}
     </div>
   )

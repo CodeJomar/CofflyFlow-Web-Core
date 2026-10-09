@@ -63,7 +63,7 @@ export function RolCard({
         </Button>
       </div>
 
-      <p className="line-clamp-1 text-sm text-slate-600 dark:text-stone-300" title={rol.descripcion ?? undefined}>
+      <p className="line-clamp-2 min-h-10 text-sm leading-5 text-slate-600 dark:text-stone-300" title={rol.descripcion ?? undefined}>
         {rol.descripcion || "Sin descripción."}
       </p>
 

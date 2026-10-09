@@ -76,10 +76,6 @@ export const empleadoFormSchema = z.object({
     .string()
     .trim()
     .refine((v) => v === "" || /^[0-9+\-() ]{6,20}$/.test(v), "Entre 6 y 20 caracteres: números, +, guiones y paréntesis."),
-  fechaIngreso: z
-    .string()
-    .trim()
-    .refine((v) => v === "" || /^\d{4}-\d{2}-\d{2}$/.test(v), "Usa el formato AAAA-MM-DD."),
 })
 
 export type EmpleadoFormValues = z.infer<typeof empleadoFormSchema>
@@ -90,7 +86,6 @@ export const empleadoToFormValues = (empleado?: Empleado, rolPorDefecto = ""): E
   idRol: empleado?.id_rol ?? rolPorDefecto,
   dni: empleado?.dni ?? "",
   telefono: empleado?.telefono ?? "",
-  fechaIngreso: empleado?.fecha_ingreso ?? "",
 })
 
 /** Motivo opcional al dar de baja a un empleado. */
