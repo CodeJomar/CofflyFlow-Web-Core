@@ -1,8 +1,7 @@
 "use client"
 
-import { ChefHat, ReceiptText, ShoppingBag, Trash2, User, Utensils } from "lucide-react"
+import { ChefHat, ReceiptText, ShoppingBag, Trash2, Utensils } from "lucide-react"
 import type { PedidoListadoDto } from "@/dtos/pedidos"
-import { FloatingInput } from "@/shared/components/composed/floating-input"
 import { FloatingSelect } from "@/shared/components/composed/floating-select"
 import { Button } from "@/shared/components/ui/button"
 import { SelectContent, SelectItem } from "@/shared/components/ui/select"
@@ -26,10 +25,7 @@ export function TicketPanel({
   mesaSeleccionada,
   pedidosMesa,
   saldoMesaCentimos,
-  onAbrirMapaMesas,
   onMesaChange,
-  nombreCliente,
-  onNombreClienteChange,
   onCambiarCantidad,
   productosAgotados,
   onQuitar,
@@ -53,10 +49,7 @@ export function TicketPanel({
   mesaSeleccionada: MesaPos | null
   pedidosMesa: PedidoListadoDto[]
   saldoMesaCentimos: number
-  onAbrirMapaMesas: () => void
   onMesaChange: (mesaId: string) => void
-  nombreCliente: string
-  onNombreClienteChange: (nombre: string) => void
   onCambiarCantidad: (uid: string, delta: number) => void
   productosAgotados: ReadonlySet<string>
   onQuitar: (uid: string) => void
@@ -127,31 +120,9 @@ export function TicketPanel({
           })}
         </div>
 
-        {/* Nombre del cliente (opcional): sirve para llamarlo cuando el pedido esté listo */}
-        <FloatingInput
-          id="pos-cliente"
-          label="Nombre del cliente (opcional)"
-          leftIcon={<User size={18} />}
-          value={nombreCliente}
-          onChange={(e) => onNombreClienteChange(e.target.value)}
-          maxLength={100}
-          autoComplete="off"
-        />
-
-        {/* Selección de mesa física con estado y acceso al mapa */}
+        {/* Selección de mesa (el mapa de mesas está en la pestaña de arriba) */}
         {tipoPedido === "salon" && (
-          <div className="flex flex-col gap-2 rounded-2xl border border-slate-200/80 bg-white p-3 dark:border-stone-800 dark:bg-stone-900">
-            <div className="flex items-center justify-between">
-              <span className="text-xs font-semibold uppercase tracking-wider text-slate-500 dark:text-stone-400">Mesa física</span>
-              <button
-                type="button"
-                onClick={onAbrirMapaMesas}
-                className="text-xs font-semibold text-[#4C0107] hover:underline dark:text-[#E7B7BC] cursor-pointer"
-              >
-                Ver mapa
-              </button>
-            </div>
-
+          <div className="flex flex-col gap-2">
             <FloatingSelect
               id="pos-mesa"
               label="Seleccionar mesa"

@@ -70,10 +70,7 @@ export function PosView() {
             mesaSeleccionada={pos.mesaSeleccionada}
             pedidosMesa={pos.pedidosMesa}
             saldoMesaCentimos={pos.saldoMesaCentimos}
-            onAbrirMapaMesas={() => pos.setVistaActiva("mesas")}
             onMesaChange={(id) => pos.setMesaSeleccionadaId(id || null)}
-            nombreCliente={pos.nombreCliente}
-            onNombreClienteChange={pos.setNombreCliente}
             onCambiarCantidad={carrito.cambiarCantidad}
             productosAgotados={pos.productosAgotados}
             onQuitar={carrito.quitar}

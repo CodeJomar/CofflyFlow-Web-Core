@@ -45,7 +45,6 @@ export function CatalogoPanel({ catalogo, cantidades, puedeCrear, busquedaRef, o
         onValueChange={setBusqueda}
         placeholder="Buscar producto…"
         atajo="/"
-        className="[&_input]:rounded-full"
       />
 
       {!isLoading && <CategoriaChips categorias={categorias} productos={productos} activa={categoria} onChange={setCategoria} />}

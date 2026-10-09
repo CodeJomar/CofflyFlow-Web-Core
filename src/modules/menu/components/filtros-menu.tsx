@@ -29,14 +29,9 @@ export function Filtros({
   ]
 
   return (
-    <div className="grid grid-cols-12 gap-3 items-center">
-      {/* Buscador de productos */}
-      <div className="col-span-12 md:col-span-5 lg:col-span-4">
-        <SearchInput value={busqueda} onValueChange={onBusqueda} placeholder="Buscar producto..." />
-      </div>
-
+    <div className="flex flex-col gap-3">
       {/* Categorías responsivas (flex-wrap sin scroll horizontal, visibles 100% en mobile) */}
-      <div className="col-span-12 md:col-span-7 lg:col-span-8">
+      <div>
         <div
           role="radiogroup"
           aria-label="Categoría"
@@ -64,6 +59,9 @@ export function Filtros({
           })}
         </div>
       </div>
+
+      {/* Buscador de productos, a todo el ancho */}
+      <SearchInput value={busqueda} onValueChange={onBusqueda} placeholder="Buscar producto..." />
     </div>
   )
 }

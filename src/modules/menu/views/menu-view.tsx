@@ -1,7 +1,7 @@
 "use client"
 
 import * as React from "react"
-import { Plus, RefreshCw, SlidersHorizontal, Tags, Zap } from "lucide-react"
+import { Plus, RefreshCw, SlidersHorizontal, Tags } from "lucide-react"
 import { Button } from "@/shared/components/ui/button"
 import { EstadoError } from "@/shared/components/composed/estado-error"
 import { EstadoVacio } from "@/shared/components/composed/estado-vacio"
@@ -138,17 +138,6 @@ export function MenuView() {
             </Button>
           )}
         </div>
-      </div>
-
-      {/* Aviso RF-10 */}
-      <div className="flex items-start gap-3 rounded-2xl border border-amber-200 bg-amber-50 p-3.5 text-sm text-amber-900 dark:border-amber-500/20 dark:bg-amber-500/10 dark:text-amber-200 shadow-xs">
-        <Zap className="mt-0.5 size-4 shrink-0 text-amber-600 dark:text-amber-400" />
-        <p className="leading-snug">
-          <span className="font-semibold">Control rápido de disponibilidad:</span> toca el botón de estado en
-          cualquier tarjeta para marcarlo como <span className="font-semibold">Agotado</span>. Los mozos ya no
-          podrán seleccionarlo en el POS en tiempo real.
-          {!puedeCambiarStock && " Tu cargo no tiene permiso para alternar la disponibilidad."}
-        </p>
       </div>
 
       {error ? (

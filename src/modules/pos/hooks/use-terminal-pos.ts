@@ -72,7 +72,6 @@ export function useTerminalPos({ puedeCrear, puedeCobrar }: PermisosPos) {
 
   const [tipoPedido, setTipoPedido] = React.useState<TipoAtencion>("salon")
   const [mesaSeleccionadaId, setMesaSeleccionadaId] = React.useState<string | null>(null)
-  const [nombreCliente, setNombreCliente] = React.useState("")
   const mesaSeleccionada = React.useMemo(
     () => mesas.find((m) => m.id_mesa === mesaSeleccionadaId) ?? null,
     [mesas, mesaSeleccionadaId],
@@ -104,11 +103,10 @@ export function useTerminalPos({ puedeCrear, puedeCobrar }: PermisosPos) {
   const enviarACocina = async () => {
     if (!puedeEnviar) return
     const destino = destinoActual
-    const pedido = await envio.enviar(items, tipoPedido, mesaSeleccionadaId, nombreCliente)
+    const pedido = await envio.enviar(items, tipoPedido, mesaSeleccionadaId)
     if (pedido) {
       setDestinoEnviado(destino)
       vaciar()
-      setNombreCliente("")
       void recargarMesas(true)
     }
   }
@@ -118,11 +116,10 @@ export function useTerminalPos({ puedeCrear, puedeCobrar }: PermisosPos) {
     if (!puedeCobrarAhora) return
     if (items.length > 0) {
       const destino = destinoActual
-      const pedido = await envio.enviar(items, tipoPedido, mesaSeleccionadaId, nombreCliente)
+      const pedido = await envio.enviar(items, tipoPedido, mesaSeleccionadaId)
       if (!pedido) return
       envio.limpiar() // el aviso de "comanda enviada" no hace falta: se pasa directo al cobro
       vaciar()
-      setNombreCliente("")
       void recargarMesas(true)
       setPedidosParaCobrar([
         {
@@ -178,8 +175,6 @@ export function useTerminalPos({ puedeCrear, puedeCobrar }: PermisosPos) {
     setTipoPedido,
     mesaSeleccionada,
     setMesaSeleccionadaId,
-    nombreCliente,
-    setNombreCliente,
     pedidosMesa,
     saldoMesaCentimos,
     faltaMesa,
