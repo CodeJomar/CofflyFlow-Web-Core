@@ -5,6 +5,7 @@ import { useForm, useWatch } from "react-hook-form"
 import { zodResolver } from "@hookform/resolvers/zod"
 import { Calculator, LockKeyhole, Printer } from "lucide-react"
 import type { ConteoArqueo, TurnoActualDto, TurnoCajaDto } from "@/dtos/caja"
+import { FloatingInput } from "@/shared/components/composed/floating-input"
 import { FloatingTextarea } from "@/shared/components/composed/floating-textarea"
 import { Button } from "@/shared/components/ui/button"
 import { cn } from "@/shared/utils/cn"
@@ -12,7 +13,7 @@ import { aCentimos, desdeCentimos, formatearCentimos, formatearDinero } from "@/
 import { DENOMINACIONES, RESULTADO_ARQUEO_LABELS, calcularContadoCentimos, crearCierreCajaSchema, obtenerResultadoArqueo, type CierreCajaValues, type ResumenTurno } from "../schema"
 import { RESULTADO_ARQUEO_CONFIG } from "./config-visual"
 import { CampoError, ModalShell, PieAcciones } from "./modal-shell"
-import { botonSecundarioClass, textoCuerpo, textoEtiqueta, textoSecundario, textoTitulo } from "./estilos"
+import { textoCuerpo, textoEtiqueta, textoSecundario, textoTitulo } from "./estilos"
 import { formatHora, formatTranscurrido } from "../utils"
 
 /* -------------------------------------------------------------------------- */
@@ -94,15 +95,14 @@ export function CierreCajaForm({
         <PieAcciones>
           <Button
             type="button"
-            variant="outline"
-            size="sm"
+            variant="neutral"
+            size="md"
             onClick={() => window.print()}
             leftIcon={<Printer className="size-4" />}
-            className={cn("flex-1", botonSecundarioClass)}
           >
             Imprimir
           </Button>
-          <Button type="button" size="sm" onClick={onClose} className="flex-[2]">
+          <Button type="button" size="md" onClick={onClose}>
             Finalizar
           </Button>
         </PieAcciones>
@@ -115,42 +115,34 @@ export function CierreCajaForm({
       titulo="Arqueo y cierre de caja"
       subtitulo={`Abierto hace ${formatTranscurrido(turno.fecha_apertura)} por ${turno.abierto_por}`}
       icono={<Calculator className="size-5" />}
-      ancho="max-w-3xl"
+      ancho="max-w-6xl"
       bloqueado={isSubmitting}
       onClose={onClose}
     >
       <form onSubmit={handleSubmit(onSubmit)} noValidate className="flex min-h-0 flex-1 flex-col">
-        <div className="grid min-h-0 grid-cols-1 gap-5 overflow-y-auto p-5 md:grid-cols-[minmax(0,1fr)_280px]">
+        <div className="grid min-h-0 grid-cols-1 gap-5 overflow-y-auto p-5 lg:grid-cols-[minmax(0,1fr)_340px]">
           {/* Conteo físico por denominación */}
           <fieldset className="flex flex-col gap-3">
             <legend className={cn("mb-3", textoEtiqueta)}>Conteo de efectivo</legend>
-            <div className="grid grid-cols-2 gap-2 sm:grid-cols-3">
+            <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 xl:grid-cols-4">
               {DENOMINACIONES.map((d) => {
                 const cantidad = Number(conteo?.[d.clave]) || 0
                 return (
-                  <label
-                    key={d.clave}
-                    htmlFor={`caja-conteo-${d.clave}`}
-                    className="flex flex-col gap-1 rounded-xl border border-slate-200 bg-white p-2.5 dark:border-stone-700 dark:bg-stone-950/60"
-                  >
-                    <span className="flex items-center justify-between text-xs">
-                      <span className={cn("font-semibold", textoTitulo)}>S/ {d.centimos < 100 ? (d.centimos / 100).toFixed(2) : d.centimos / 100}</span>
-                      <span className={cn("capitalize", textoSecundario)}>{d.tipo}</span>
-                    </span>
-                    <input
+                  <div key={d.clave} className="flex flex-col gap-1">
+                    <FloatingInput
                       id={`caja-conteo-${d.clave}`}
+                      label={`S/ ${d.centimos < 100 ? (d.centimos / 100).toFixed(2) : d.centimos / 100} · ${d.tipo}`}
                       type="number"
                       inputMode="numeric"
                       min={0}
                       step={1}
-                      placeholder="0"
-                      className="h-9 w-full rounded-lg border border-slate-300 bg-slate-50 px-2 text-sm tabular-nums text-slate-900 outline-none placeholder:text-slate-400 focus:border-slate-600 focus:bg-white dark:border-stone-700 dark:bg-stone-900 dark:text-stone-100 dark:placeholder:text-stone-500 dark:focus:border-stone-300"
+                      className="[&_input]:tabular-nums"
                       {...register(`conteo.${d.clave}`)}
                     />
-                    <span className={cn("text-right text-[11px] tabular-nums", textoSecundario)}>
+                    <span className={cn("px-1 text-right text-[11px] tabular-nums", textoSecundario)}>
                       {formatearCentimos(cantidad * d.centimos)}
                     </span>
-                  </label>
+                  </div>
                 )
               })}
             </div>
@@ -215,21 +207,20 @@ export function CierreCajaForm({
         <PieAcciones>
           <Button
             type="button"
-            variant="outline"
-            size="sm"
+            variant="neutral"
+            size="md"
             onClick={onClose}
             disabled={isSubmitting}
-            className={cn("flex-1", botonSecundarioClass)}
           >
             Cancelar
           </Button>
           <Button
             id="caja-confirmar-cierre"
             type="submit"
-            size="sm"
+            size="md"
             loading={isSubmitting}
             leftIcon={<LockKeyhole className="size-4" />}
-            className="flex-[2]"
+            className="sm:w-80!"
           >
             Cerrar caja con {formatearCentimos(contado)}
           </Button>

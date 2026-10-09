@@ -92,6 +92,11 @@ export function CampoError({ mensaje }: { mensaje?: string }) {
   return <span className="text-xs font-medium text-red-600 dark:text-red-400">{mensaje}</span>
 }
 
+/** Pie estándar de acciones: dos o más botones centrados y del mismo tamaño; uno solo, a la derecha. */
 export function PieAcciones({ children }: { children: React.ReactNode }) {
-  return <div className="flex gap-2 border-t border-slate-100 p-5 dark:border-stone-800">{children}</div>
+  return (
+    <div className="flex flex-col-reverse gap-3 border-t border-slate-100 p-5 dark:border-stone-800 [&>*]:w-full sm:flex-row sm:justify-end sm:has-[>:nth-child(2)]:justify-center sm:[&>*]:w-44">
+      {children}
+    </div>
+  )
 }

@@ -65,7 +65,7 @@ export function DevolucionForm({ cobro, numero, onClose, onDevolver }: Devolucio
       description={`${METODO_PAGO_LABELS[cobro.metodo_pago]} · cobrado ${formatearDinero(cobro.monto)}`}
       footer={
         <>
-          <Button type="button" variant="outline" size="md" onClick={onClose} disabled={isSubmitting}>
+          <Button type="button" variant="neutral" size="md" onClick={onClose} disabled={isSubmitting}>
             Volver
           </Button>
           <Button id="devolucion-confirmar" type="submit" form={formId} size="md" disabled={isSubmitting} leftIcon={<Undo2 className="size-4" />} className={cn(botonPeligroClass)}>

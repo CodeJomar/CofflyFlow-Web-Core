@@ -60,7 +60,7 @@ export function MovimientoCajaForm({ tipoInicial, efectivoDisponibleCentimos, on
       description={`Efectivo disponible: ${formatearCentimos(efectivoDisponibleCentimos)}`}
       footer={
         <>
-          <Button type="button" variant="outline" size="md" onClick={onClose} disabled={isSubmitting}>
+          <Button type="button" variant="neutral" size="md" onClick={onClose} disabled={isSubmitting}>
             Cancelar
           </Button>
           <Button id="caja-movimiento-guardar" type="submit" form={formId} size="md" disabled={isSubmitting}>
