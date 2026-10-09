@@ -6,12 +6,12 @@ import { SearchX } from "lucide-react"
 import { EstadoError } from "@/shared/components/composed/estado-error"
 import { EstadoVacio } from "@/shared/components/composed/estado-vacio"
 import { SearchInput } from "@/shared/components/composed/search-input"
-import { BarraPaginacion } from "@/shared/components/ui/pagination"
-import { usePaginacionSimple } from "@/shared/hooks"
+import { BarraPaginacion, GrillaAjustada } from "@/shared/components/ui/pagination"
+import { usePaginacionAjustada } from "@/shared/hooks"
 import { cn } from "@/shared/utils/cn"
 
 import type { useCatalogoPos } from "../hooks/use-catalogo-pos"
-import { FILTRO_TODOS, PRODUCTOS_POR_PAGINA, type ProductoPos } from "../schema"
+import { FILTRO_TODOS, type ProductoPos } from "../schema"
 import { CatalogoSkeleton } from "./catalogo-skeleton"
 import { CategoriaChips } from "./categoria-chips"
 import { panelClass } from "./estilos"
@@ -27,13 +27,17 @@ interface CatalogoPanelProps {
   onPersonalizar: (producto: ProductoPos) => void
 }
 
+// Alto fijo de cada tarjeta de producto (foto + datos)
+const ALTO_PRODUCTO = 176
+
 /** Catálogo del POS: buscador, categorías y cuadrícula de productos con paginación. */
 export function CatalogoPanel({ catalogo, cantidades, puedeCrear, busquedaRef, onAgregar, onPersonalizar }: CatalogoPanelProps) {
   const { categorias, productos, productosFiltrados, busqueda, setBusqueda, categoria, setCategoria, isLoading, error, recargar } = catalogo
-  const paginacion = usePaginacionSimple(productosFiltrados, { porPagina: PRODUCTOS_POR_PAGINA, clave: `${busqueda}|${categoria}` })
+  // Cuántas tarjetas caben se calcula con el espacio disponible: el catálogo no hace scroll, solo se pagina
+  const paginacion = usePaginacionAjustada(productosFiltrados, { altoItem: ALTO_PRODUCTO, anchoMinimo: 190, gap: 12, clave: `${busqueda}|${categoria}` })
 
   return (
-    <section className={cn(panelClass, "flex h-full min-w-0 flex-col gap-3.5 p-4 lg:p-5")} aria-label="Catálogo de productos">
+    <section className={cn(panelClass, "flex h-full min-h-0 min-w-0 flex-col gap-3.5 p-4 lg:p-5")} aria-label="Catálogo de productos">
       <SearchInput
         ref={busquedaRef}
         id="pos-buscar-producto"
@@ -65,9 +69,9 @@ export function CatalogoPanel({ catalogo, cantidades, puedeCrear, busquedaRef, o
         />
       ) : (
         <>
-          <ul className="grid grid-cols-2 gap-3 sm:grid-cols-3 xl:grid-cols-4">
+          <GrillaAjustada paginacion={paginacion} etiqueta="Productos">
             {paginacion.visibles.map((producto) => (
-              <li key={producto.id_producto}>
+              <li key={producto.id_producto} className="min-h-0">
                 <ProductoCard
                   producto={producto}
                   cantidad={cantidades.get(producto.id_producto) ?? 0}
@@ -77,10 +81,8 @@ export function CatalogoPanel({ catalogo, cantidades, puedeCrear, busquedaRef, o
                 />
               </li>
             ))}
-          </ul>
-          <div className="mt-auto border-t border-slate-100 pt-3 dark:border-stone-800/80">
-            <BarraPaginacion paginacion={paginacion} etiqueta="productos" />
-          </div>
+          </GrillaAjustada>
+          <BarraPaginacion paginacion={paginacion} etiqueta="productos" />
         </>
       )}
     </section>

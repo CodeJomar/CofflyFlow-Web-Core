@@ -1,14 +1,14 @@
 "use client"
 
 import { cn } from "@/shared/utils/cn"
-import { FILTRO_TODOS, type CategoriaPos, type FiltroCategoria, type ProductoCatalogo } from "../schema"
 import { getCategoriaConfig } from "@/shared/utils/categoria-visual"
-import { opcionClass } from "./estilos"
 
-/* -------------------------------------------------------------------------- */
-/*                                 Catálogo                                   */
-/* -------------------------------------------------------------------------- */
+import { FILTRO_TODOS, type CategoriaPos, type FiltroCategoria, type ProductoCatalogo } from "../schema"
 
+/**
+ * Categorías del catálogo como fichas con ícono (estilo carta de cafetería): una sola fila que se desplaza a los lados,
+ * con la categoría activa resaltada en el color del negocio y la cantidad de productos de cada una.
+ */
 export function CategoriaChips({
   categorias,
   productos,
@@ -31,7 +31,7 @@ export function CategoriaChips({
   ]
 
   return (
-    <div className="flex flex-wrap items-center gap-2" role="toolbar" aria-label="Filtrar por categoría">
+    <div className="-mx-1 flex shrink-0 items-stretch gap-2 overflow-x-auto px-1 pb-1 no-scrollbar" role="toolbar" aria-label="Filtrar por categoría">
       {opciones.map((opcion) => {
         const Icono = opcion.config.icon
         const esActiva = activa === opcion.id
@@ -43,20 +43,22 @@ export function CategoriaChips({
             aria-pressed={esActiva}
             onClick={() => onChange(opcion.id)}
             className={cn(
-              "inline-flex h-8 sm:h-9 items-center gap-1.5 sm:gap-2 rounded-full border px-3 sm:px-3.5 text-xs font-semibold transition-colors cursor-pointer",
-              opcionClass(esActiva),
+              "flex w-[84px] shrink-0 cursor-pointer flex-col items-center gap-1 rounded-2xl border px-2 py-2 text-center transition-all",
+              esActiva
+                ? "border-[#4C0107] bg-[#4C0107] text-white shadow-md dark:border-stone-100 dark:bg-stone-100 dark:text-stone-900"
+                : "border-slate-100 bg-white text-slate-700 hover:border-[#4C0107]/30 hover:shadow-sm dark:border-stone-800 dark:bg-stone-900 dark:text-stone-200 dark:hover:border-stone-600",
             )}
           >
-            <Icono className="size-3.5 sm:size-4 shrink-0" />
-            <span>{opcion.nombre}</span>
             <span
               className={cn(
-                "rounded-full px-1.5 text-[10px] tabular-nums",
-                esActiva
-                  ? "bg-white/20 text-white dark:bg-stone-900/15 dark:text-stone-900"
-                  : "bg-slate-100 text-slate-600 dark:bg-stone-800 dark:text-stone-300",
+                "flex size-9 items-center justify-center rounded-full",
+                esActiva ? "bg-white/15 text-white dark:bg-stone-900/10 dark:text-stone-900" : opcion.config.className,
               )}
             >
+              <Icono className="size-[18px]" />
+            </span>
+            <span className="w-full truncate text-[11px] font-semibold leading-tight">{opcion.nombre}</span>
+            <span className={cn("text-[10px] tabular-nums", esActiva ? "text-white/70 dark:text-stone-600" : "text-slate-400 dark:text-stone-500")}>
               {opcion.total}
             </span>
           </button>

@@ -47,8 +47,6 @@ export const MAX_CANTIDAD_ITEM = 99
 export const MAX_NOTA_PREPARACION = 255
 
 /** Productos por página en el catálogo y mesas por página en el mapa. */
-export const PRODUCTOS_POR_PAGINA = 8
-export const MESAS_POR_PAGINA = 8
 
 /** Cada cuánto se vuelve a pedir el catálogo y las mesas (respaldo del tiempo real). */
 export const SONDEO_POS_MS = 30_000
