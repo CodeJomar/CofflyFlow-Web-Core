@@ -36,7 +36,7 @@ export function PasswordForm({
     >
       <div className="flex flex-col gap-0.5">
         <h3 className={tituloTarjeta}>Cambiar contraseña</h3>
-        <p className={descripcionTarjeta}>Mínimo 8 caracteres con letras y números. Se cerrarán tus sesiones en otros dispositivos.</p>
+        <p className={descripcionTarjeta}>Mínimo 8 caracteres con letras, números y un símbolo. Se cerrarán tus sesiones en otros dispositivos.</p>
       </div>
 
       <div className="flex flex-col gap-1.5">

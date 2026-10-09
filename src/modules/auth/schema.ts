@@ -1,11 +1,11 @@
 import { z } from "zod"
 
-// Misma política que el backend (NestJS la vuelve a validar): 8+ caracteres con letras y números.
+// Misma política que el backend (NestJS la vuelve a validar): 8+ caracteres con letras, números y un símbolo.
 export const passwordNuevaSchema = z
   .string()
   .min(8, "La contraseña debe tener al menos 8 caracteres.")
   .max(100, "La contraseña no puede exceder los 100 caracteres.")
-  .regex(/(?=.*[A-Za-z])(?=.*\d)/, "La contraseña debe incluir letras y números.")
+  .regex(/(?=.*[A-Za-z])(?=.*\d)(?=.*[^A-Za-z0-9])/, "La contraseña debe incluir letras, números y un símbolo (por ejemplo ! @ # $ . -).")
 
 export const loginSchema = z.object({
   email: z.string().trim().min(1, "El correo es obligatorio.").email("Ingresa un correo válido."),

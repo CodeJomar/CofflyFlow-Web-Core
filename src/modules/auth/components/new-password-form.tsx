@@ -64,7 +64,7 @@ export function NewPasswordForm({ description, submitLabel, onSubmit }: NewPassw
         {errors.password ? (
           <p className="px-2 text-[11px] text-red-600">{errors.password.message}</p>
         ) : (
-          <p className="px-2 text-[11px] text-slate-400">Mínimo 8 caracteres, con letras y números.</p>
+          <p className="px-2 text-[11px] text-slate-400">Mínimo 8 caracteres, con letras, números y un símbolo.</p>
         )}
       </div>
 
