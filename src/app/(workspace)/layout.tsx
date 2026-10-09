@@ -5,7 +5,7 @@ import { cn } from "@/shared/utils/cn"
 import { AppSidebar } from "@/shared/components/layout/app-sidebar"
 import { WorkspaceHeader } from "@/shared/components/layout/workspace-header"
 import { usePathname } from "next/navigation"
-import { AccesoDenegado } from "@/shared/components/composed/acceso-denegado"
+import { ErrorView } from "@/modules/errors"
 import { filtrarNavegacion, NAVEGACION, permisoDeRuta, rutaInicial } from "@/shared/constants/navegacion"
 import { SessionProvider, useSession, useCan, useLogout, etiquetaCuenta, etiquetaRol, iniciales } from "@/modules/auth"
 
@@ -101,7 +101,7 @@ function WorkspaceShell({ children }: { children: React.ReactNode }) {
           />
 
           <div className="flex-1 overflow-y-auto no-scrollbar pt-4">
-            {puedeVerRuta ? children : <AccesoDenegado rutaSegura={rutaInicial(puede)} />}
+            {puedeVerRuta ? children : <ErrorView codigo={403} embebido rutaInicio={rutaInicial(puede) ?? "/home"} />}
           </div>
         </main>
 

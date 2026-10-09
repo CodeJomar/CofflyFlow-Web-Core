@@ -12,6 +12,7 @@ import { FloatingSelect } from "@/shared/components/composed/floating-select";
 import { SelectContent, SelectItem } from "@/shared/components/ui/select";
 import { OverlaysDemo } from "./overlays-demo";
 import { ComposedDemo } from "./composed-demo";
+import { ErroresDemo } from "./errores-demo";
 
 export default function PlaygroundPage() {
   return (
@@ -132,6 +133,12 @@ export default function PlaygroundPage() {
         <section className="space-y-4">
           <h2 className="text-xl font-semibold">4. Composed: Textarea, Búsqueda y Estados</h2>
           <ComposedDemo />
+        </section>
+
+        {/* 5. Pantallas de error: una sola vista dinámica según el código */}
+        <section className="space-y-4">
+          <h2 className="text-xl font-semibold">5. Pantallas de error</h2>
+          <ErroresDemo />
         </section>
 
         <section className="space-y-4">
