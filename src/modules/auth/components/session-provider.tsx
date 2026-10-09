@@ -8,12 +8,20 @@ import type { SesionUsuarioDto } from "@/dtos/auth"
 import { perfilAction } from "../actions/auth.actions"
 
 const SessionContext = React.createContext<SesionUsuarioDto | null>(null)
+const RefrescarSesionContext = React.createContext<(() => Promise<void>) | null>(null)
 
 /** Usuario autenticado del workspace. Solo disponible dentro de <SessionProvider>. */
 export function useSession(): SesionUsuarioDto {
   const usuario = React.useContext(SessionContext)
   if (!usuario) throw new Error("useSession debe usarse dentro de <SessionProvider>.")
   return usuario
+}
+
+/** Vuelve a leer el usuario de la API (por ejemplo, tras cambiar el nombre desde el perfil). */
+export function useRefrescarSesion(): () => Promise<void> {
+  const refrescar = React.useContext(RefrescarSesionContext)
+  if (!refrescar) throw new Error("useRefrescarSesion debe usarse dentro de <SessionProvider>.")
+  return refrescar
 }
 
 /**
@@ -32,6 +40,16 @@ export function SessionProvider({ children }: { children: React.ReactNode }) {
   React.useEffect(() => {
     rutaActual.current = pathname
   }, [pathname])
+
+  // Vuelve a pedir la sesión: la usa el efecto de abajo y, desde el perfil, quien edita sus datos
+  const refrescar = React.useCallback(
+    () =>
+      perfilAction().then((res) => {
+        if (res.isOk()) setUsuario(res.data)
+        else router.replace(`/login?siguiente=${encodeURIComponent(rutaActual.current)}`)
+      }),
+    [router],
+  )
 
   React.useEffect(() => {
     let cancelado = false
@@ -63,5 +81,9 @@ export function SessionProvider({ children }: { children: React.ReactNode }) {
     )
   }
 
-  return <SessionContext.Provider value={usuario}>{children}</SessionContext.Provider>
+  return (
+    <SessionContext.Provider value={usuario}>
+      <RefrescarSesionContext.Provider value={refrescar}>{children}</RefrescarSesionContext.Provider>
+    </SessionContext.Provider>
+  )
 }

@@ -5,7 +5,7 @@ import Link from "next/link"
 import { usePathname } from "next/navigation"
 import { Coffee } from "lucide-react"
 
-import { HOME_HREF, type NavItem } from "@/shared/constants/navegacion"
+import { HOME_HREF, PERFIL_HREF, type NavItem } from "@/shared/constants/navegacion"
 import { SidebarNavItem } from "@/shared/components/composed/sidebar-nav-item"
 import { SidebarNavGroup } from "@/shared/components/composed/sidebar-nav-group"
 import { UserProfile } from "@/shared/components/composed/user-profile"
@@ -128,16 +128,25 @@ export function AppSidebar({
         {isCollapsed ? (
           <Tooltip>
             <TooltipTrigger render={
-              <button type="button" className="outline-none focus:outline-none cursor-pointer">
+              <Link href={PERFIL_HREF} aria-label="Mi perfil" className="outline-none focus:outline-none cursor-pointer">
                 <Avatar className="size-10">
                   <AvatarFallback>{userInitials}</AvatarFallback>
                 </Avatar>
-              </button>
+              </Link>
             } />
             <TooltipContent side="right">{`${userName} (${userRole})`}</TooltipContent>
           </Tooltip>
         ) : (
-          <UserProfile name={userName} role={userRole} initials={userInitials} className="cursor-pointer" />
+          <Link
+            href={PERFIL_HREF}
+            aria-label="Mi perfil"
+            className={cn(
+              "w-full rounded-2xl p-2 transition-colors outline-none hover:bg-[#EDE5E6]/60 focus-visible:ring-2 focus-visible:ring-[#4C0107]/40 dark:hover:bg-stone-800",
+              pathname === PERFIL_HREF && "bg-[#EDE5E6] dark:bg-stone-800"
+            )}
+          >
+            <UserProfile name={userName} role={userRole} initials={userInitials} className="cursor-pointer" />
+          </Link>
         )}
       </div>
     </div>
