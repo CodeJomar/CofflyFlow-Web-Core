@@ -1,0 +1,294 @@
+"use client"
+
+import { ChefHat, ReceiptText, ShoppingBag, Trash2, User, Utensils } from "lucide-react"
+import type { PedidoListadoDto } from "@/dtos/pedidos"
+import { FloatingInput } from "@/shared/components/composed/floating-input"
+import { FloatingSelect } from "@/shared/components/composed/floating-select"
+import { Button } from "@/shared/components/ui/button"
+import { SelectContent, SelectItem } from "@/shared/components/ui/select"
+import { cn } from "@/shared/utils/cn"
+import { formatearCentimos, formatearDinero } from "@/shared/utils/dinero"
+import { TIPOS_ATENCION, TIPO_ATENCION_LABELS, areaDeMesa, type ItemCarrito, type MesaPos, type TipoAtencion, type TotalesCarrito } from "../schema"
+import { opcionClass, panelClass } from "./estilos"
+import { ESTADO_MESA_CONFIG } from "@/shared/utils/mesa-visual"
+import { TicketItem } from "./ticket-item"
+
+/* -------------------------------------------------------------------------- */
+/*                                   Ticket                                   */
+/* -------------------------------------------------------------------------- */
+
+export function TicketPanel({
+  items,
+  totales,
+  mesas,
+  tipoPedido,
+  onTipoPedidoChange,
+  mesaSeleccionada,
+  pedidosMesa,
+  saldoMesaCentimos,
+  onAbrirMapaMesas,
+  onMesaChange,
+  nombreCliente,
+  onNombreClienteChange,
+  onCambiarCantidad,
+  productosAgotados,
+  onQuitar,
+  onVaciar,
+  puedeCrear,
+  puedeCobrar,
+  faltaMesa,
+  mesaPorLimpiar,
+  puedeEnviar,
+  puedeCobrarAhora,
+  enviandoComanda,
+  onEnviarCocina,
+  onCobrar,
+  className,
+}: {
+  items: ItemCarrito[]
+  totales: TotalesCarrito
+  mesas: MesaPos[]
+  tipoPedido: TipoAtencion
+  onTipoPedidoChange: (tipo: TipoAtencion) => void
+  mesaSeleccionada: MesaPos | null
+  pedidosMesa: PedidoListadoDto[]
+  saldoMesaCentimos: number
+  onAbrirMapaMesas: () => void
+  onMesaChange: (mesaId: string) => void
+  nombreCliente: string
+  onNombreClienteChange: (nombre: string) => void
+  onCambiarCantidad: (uid: string, delta: number) => void
+  productosAgotados: ReadonlySet<string>
+  onQuitar: (uid: string) => void
+  onVaciar: () => void
+  puedeCrear: boolean
+  puedeCobrar: boolean
+  faltaMesa: boolean
+  mesaPorLimpiar: boolean
+  puedeEnviar: boolean
+  puedeCobrarAhora: boolean
+  enviandoComanda: boolean
+  onEnviarCocina: () => void
+  onCobrar: () => void
+  className?: string
+}) {
+  const etiquetaCobro =
+    items.length > 0
+      ? `Cobrar en caja${totales.total > 0 ? ` (${formatearCentimos(totales.total)})` : ""}`
+      : pedidosMesa.length > 0
+        ? `Cobrar mesa (${formatearCentimos(saldoMesaCentimos)})`
+        : "Cobrar en caja"
+
+  return (
+    <aside className={cn(panelClass, "flex flex-col gap-3.5 p-4 lg:p-5 h-full", className)} aria-label="Ticket de venta y comanda">
+      <div className="flex items-start justify-between gap-3">
+        <div className="flex flex-col gap-0.5">
+          <h2 className="text-base font-semibold text-slate-900 dark:text-stone-100">Comanda actual</h2>
+          <p className="text-xs text-slate-500 dark:text-stone-400">
+            {totales.unidades} {totales.unidades === 1 ? "producto" : "productos"}
+          </p>
+        </div>
+        {items.length > 0 && (
+          <button
+            id="pos-vaciar-ticket"
+            type="button"
+            onClick={onVaciar}
+            className="inline-flex items-center gap-1 rounded-full px-2.5 py-1 text-xs font-semibold text-red-600 transition-colors hover:bg-red-50 dark:text-red-400 dark:hover:bg-red-500/10 cursor-pointer"
+          >
+            <Trash2 className="size-3.5" /> Vaciar
+          </button>
+        )}
+      </div>
+
+      {/* Tipo de pedido: Mesa o Llevar */}
+      <div className="grid grid-cols-2 gap-2" role="radiogroup" aria-label="Tipo de pedido">
+        {TIPOS_ATENCION.map((tipo) => {
+          const Icono = tipo === "salon" ? Utensils : ShoppingBag
+          const activo = tipoPedido === tipo
+          return (
+            <button
+              key={tipo}
+              id={`pos-tipo-${tipo}`}
+              type="button"
+              role="radio"
+              aria-checked={activo}
+              onClick={() => onTipoPedidoChange(tipo)}
+              className={cn(
+                "inline-flex h-10 items-center justify-center gap-2 rounded-full border text-xs font-semibold transition-colors cursor-pointer",
+                opcionClass(activo),
+              )}
+            >
+              <Icono className="size-4" />
+              {TIPO_ATENCION_LABELS[tipo]}
+            </button>
+          )
+        })}
+      </div>
+
+      {/* Nombre del cliente (opcional): sirve para llamarlo cuando el pedido esté listo */}
+      <FloatingInput
+        id="pos-cliente"
+        label="Nombre del cliente (opcional)"
+        leftIcon={<User size={18} />}
+        value={nombreCliente}
+        onChange={(e) => onNombreClienteChange(e.target.value)}
+        maxLength={100}
+        autoComplete="off"
+      />
+
+      {/* Selección de mesa física con estado y acceso al mapa */}
+      {tipoPedido === "salon" && (
+        <div className="flex flex-col gap-2 rounded-2xl border border-slate-200/80 bg-white p-3 dark:border-stone-800 dark:bg-stone-900">
+          <div className="flex items-center justify-between">
+            <span className="text-xs font-semibold uppercase tracking-wider text-slate-500 dark:text-stone-400">Mesa física</span>
+            <button
+              type="button"
+              onClick={onAbrirMapaMesas}
+              className="text-xs font-semibold text-[#4C0107] hover:underline dark:text-[#E7B7BC] cursor-pointer"
+            >
+              Ver mapa
+            </button>
+          </div>
+
+          <FloatingSelect
+            id="pos-mesa"
+            label="Seleccionar mesa"
+            value={mesaSeleccionada?.id_mesa ?? null}
+            onValueChange={(valor) => onMesaChange(String(valor ?? ""))}
+            items={mesas.map((m) => ({ value: m.id_mesa, label: `Mesa ${m.numero} · ${ESTADO_MESA_CONFIG[m.estado].label}` }))}
+          >
+            <SelectContent>
+              {mesas.map((m) => (
+                <SelectItem key={m.id_mesa} value={m.id_mesa} disabled={m.estado === "por_limpiar"}>
+                  Mesa {m.numero} · {ESTADO_MESA_CONFIG[m.estado].label}
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </FloatingSelect>
+
+          {mesaSeleccionada && (
+            <div className="flex items-center justify-between pt-1 text-xs">
+              <span className="text-slate-500 dark:text-stone-400">
+                Área: <strong>{areaDeMesa(mesaSeleccionada)}</strong> · {mesaSeleccionada.capacidad} personas
+              </span>
+              <span className={cn("rounded-full px-2 py-0.2 text-[10px] font-semibold", ESTADO_MESA_CONFIG[mesaSeleccionada.estado].badge)}>
+                {ESTADO_MESA_CONFIG[mesaSeleccionada.estado].label}
+              </span>
+            </div>
+          )}
+
+          {/* Pedidos de la mesa que siguen abiertos (se cobran desde aquí) */}
+          {pedidosMesa.length > 0 && (
+            <ul className="flex flex-col gap-1 border-t border-slate-100 pt-2 text-xs dark:border-stone-800">
+              {pedidosMesa.map((p) => (
+                <li key={p.id_pedido} className="flex items-center justify-between gap-2">
+                  <span className="font-semibold tabular-nums text-slate-700 dark:text-stone-200">
+                    #{p.correlativo}
+                  </span>
+                  <span className="text-slate-500 dark:text-stone-400">{p.estado === "en_preparacion" ? "preparando" : p.estado}</span>
+                  <span className="font-semibold tabular-nums text-slate-900 dark:text-stone-100">
+                    {formatearDinero(p.saldo_pendiente)}
+                  </span>
+                </li>
+              ))}
+            </ul>
+          )}
+        </div>
+      )}
+
+      {/* Items de la Comanda con modificadores y notas, con scroll interno contenido */}
+      <div className="-mx-1 min-h-0 max-h-[220px] lg:max-h-[260px] xl:max-h-[300px] flex-1 overflow-y-auto px-1 no-scrollbar">
+        {items.length === 0 ? (
+          <div className="flex flex-col items-center justify-center gap-2 rounded-2xl border-2 border-dashed border-slate-200 px-4 py-8 text-center dark:border-stone-700">
+            <span className="flex size-11 items-center justify-center rounded-full bg-[#EDE5E6] text-[#4C0107] dark:bg-stone-800 dark:text-stone-200">
+              <ReceiptText className="size-5" />
+            </span>
+            <p className="text-sm font-semibold text-slate-700 dark:text-stone-200">Comanda vacía</p>
+            <p className="max-w-[220px] text-xs text-slate-500 dark:text-stone-400">Agrega productos del catálogo para armar la orden.</p>
+          </div>
+        ) : (
+          <ul className="flex flex-col divide-y divide-slate-100 dark:divide-stone-800">
+            {items.map((item) => (
+              <TicketItem
+                key={item.uid}
+                item={item}
+                agotado={productosAgotados.has(item.producto.id_producto)}
+                onCambiarCantidad={onCambiarCantidad}
+                onQuitar={onQuitar}
+              />
+            ))}
+          </ul>
+        )}
+      </div>
+
+      {/* Totales calculados en tiempo real (los precios ya incluyen IGV) */}
+      <div className="flex flex-col gap-1.5 border-t border-slate-200 pt-3 text-sm dark:border-stone-800">
+        <div className="flex items-center justify-between text-xs">
+          <span className="text-slate-600 dark:text-stone-400">Subtotal base</span>
+          <span className="font-medium tabular-nums text-slate-900 dark:text-stone-100">{formatearCentimos(totales.subtotal)}</span>
+        </div>
+        <div className="flex items-center justify-between text-xs">
+          <span className="text-slate-600 dark:text-stone-400">IGV (18%)</span>
+          <span className="font-medium tabular-nums text-slate-900 dark:text-stone-100">{formatearCentimos(totales.igv)}</span>
+        </div>
+        <div className="flex items-center justify-between pt-1">
+          <span className="text-base font-bold text-slate-900 dark:text-stone-100">Total comanda</span>
+          <span className="text-2xl font-bold tabular-nums text-[#4C0107] dark:text-[#E7B7BC]">{formatearCentimos(totales.total)}</span>
+        </div>
+      </div>
+
+      {/* Acciones principales: Enviar a cocina y Cobrar en caja */}
+      <div className="flex flex-col gap-2">
+        <Button
+          id="pos-enviar-cocina"
+          type="button"
+          onClick={onEnviarCocina}
+          loading={enviandoComanda}
+          disabled={!puedeEnviar}
+          className={cn(
+            "w-full h-11 text-xs sm:text-sm font-bold min-w-0 justify-center transition-all px-3",
+            puedeEnviar
+              ? "bg-emerald-700 hover:bg-emerald-800 text-white dark:bg-emerald-600 dark:hover:bg-emerald-700 shadow-sm"
+              : "bg-slate-100 text-slate-400 dark:bg-stone-800/40 dark:text-stone-600 border border-slate-200 dark:border-stone-800",
+          )}
+          leftIcon={<ChefHat className="size-4 shrink-0" />}
+        >
+          <span className="truncate">Enviar a cocina / barra</span>
+        </Button>
+
+        {/* Cobro en caja: solo cargos con permiso de cobro */}
+        {puedeCobrar && (
+          <Button
+            id="pos-cobrar"
+            type="button"
+            onClick={onCobrar}
+            disabled={!puedeCobrarAhora || enviandoComanda}
+            variant="outline"
+            className={cn(
+              "w-full h-11 text-xs sm:text-sm font-bold min-w-0 justify-center transition-all px-3",
+              puedeCobrarAhora
+                ? "border-2 border-[#4C0107] text-[#4C0107] hover:bg-[#4C0107] hover:text-white dark:border-stone-600 dark:text-stone-100 dark:hover:bg-stone-100 dark:hover:text-stone-900"
+                : "border-slate-200 bg-slate-100/70 text-slate-400 dark:border-stone-800 dark:bg-stone-900/60 dark:text-stone-500",
+            )}
+            leftIcon={<ReceiptText className="size-4 shrink-0" />}
+          >
+            <span className="truncate">{etiquetaCobro}</span>
+          </Button>
+        )}
+
+        {!puedeCrear ? (
+          <p className="text-center text-xs text-slate-500 dark:text-stone-400">Tu cargo no tiene permiso para tomar pedidos.</p>
+        ) : mesaPorLimpiar ? (
+          <p className="text-center text-xs font-medium text-sky-700 dark:text-sky-400">
+            Esa mesa está por limpiar: márcala como lista en el mapa de mesas.
+          </p>
+        ) : (
+          items.length > 0 &&
+          faltaMesa && (
+            <p className="text-center text-xs font-medium text-amber-700 dark:text-amber-400">Selecciona una mesa física para continuar.</p>
+          )
+        )}
+      </div>
+    </aside>
+  )
+}
