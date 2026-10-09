@@ -16,6 +16,7 @@ import type {
   DisponibilidadPayload,
   GrupoModificadorDto,
   ProductoDto,
+  ReordenarPayload,
 } from "@/dtos/menu"
 
 // Llamadas finas a la API NestJS (/menu). Nombres únicos, precios y baja lógica los valida el backend.
@@ -38,6 +39,10 @@ export const actualizarCategoria = (id: string, payload: ActualizarCategoriaPayl
 
 export const eliminarCategoria = (id: string) =>
   apiRequest<CheckStatus>(CheckStatus, { method: "DELETE", url: `/menu/categorias/${id}` })
+
+/** Guarda el orden de las categorías (el primer id se muestra primero). */
+export const reordenarCategorias = (payload: ReordenarPayload) =>
+  apiRequest<CheckStatus>(CheckStatus, { method: "PATCH", url: "/menu/categorias-orden", data: payload })
 
 /* -------------------------------- Productos -------------------------------- */
 

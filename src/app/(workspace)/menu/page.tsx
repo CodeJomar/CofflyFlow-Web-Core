@@ -1,4 +1,4 @@
-import MenuView from "@/modules/menu/views/List"
+import { MenuView } from "@/modules/menu"
 
 export default function MenuPage() {
   return <MenuView />
