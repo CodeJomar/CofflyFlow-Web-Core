@@ -59,7 +59,7 @@ export function ProductoForm({ producto, categorias, grupos, onGuardar, onClose 
       }
       footer={
         <>
-          <Button type="button" variant="outline" size="md" onClick={onClose} disabled={isSubmitting}>
+          <Button type="button" variant="neutral" size="md" onClick={onClose} disabled={isSubmitting}>
             Cancelar
           </Button>
           <Button type="submit" form={formId} size="md" disabled={isSubmitting}>

@@ -1,11 +1,12 @@
 import { z } from "zod"
 
-import type { CategoriaCatalogoDto, GrupoModificadorDto, ProductoPosDto } from "@/dtos/menu"
+import type { CategoriaCatalogoDto, GrupoModificadorDto, OpcionModificadorDto, ProductoPosDto } from "@/dtos/menu"
 import { aCentimos } from "@/shared/utils/dinero"
 
 // El catálogo del menú sale del mismo endpoint que consume el POS: categorías con productos y modificadores
 export type ProductoMenu = ProductoPosDto
 export type GrupoMenu = GrupoModificadorDto
+export type OpcionMenu = OpcionModificadorDto
 
 /** Categoría del menú tal como la entrega el catálogo (incluye sus productos). */
 export type CategoriaMenu = CategoriaCatalogoDto
