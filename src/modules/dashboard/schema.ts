@@ -39,6 +39,8 @@ export interface DashboardKpi {
   titulo: string
   valor: string
   detalle: string
+  /** Variación porcentual frente al periodo anterior; null si no hay base de comparación; sin definir si no aplica. */
+  variacion?: number | null
 }
 
 // Intervalo de refresco automático de las métricas en vivo
