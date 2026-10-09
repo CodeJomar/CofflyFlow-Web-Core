@@ -124,6 +124,9 @@ export const NAVEGACION: NavItem[] = [
   },
 ]
 
+/** Mi perfil: no está en el menú; se abre desde el usuario al pie de la barra lateral y no pide permiso. */
+export const PERFIL_HREF = "/perfil"
+
 /** Una pantalla encontrada en el mapa, junto con el grupo al que pertenece (si lo tiene). */
 export interface RutaEncontrada {
   item: NavItem
@@ -149,6 +152,7 @@ export function permisoDeRuta(pathname: string): Requisito | undefined {
 
 /** Migas de pan [sección, pantalla] de una URL. */
 export function migasDe(pathname: string): [string, string] {
+  if (pathname === PERFIL_HREF) return ["Cuenta", "Mi perfil"]
   const ruta = rutaDe(pathname)
   if (!ruta) return ["Workspace", "General"]
   return ruta.item.migas ?? [ruta.grupo?.label ?? ruta.item.label, ruta.item.label]

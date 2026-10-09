@@ -1,7 +1,7 @@
 import { z } from "zod"
 
 // Misma política que el backend (NestJS la vuelve a validar): 8+ caracteres con letras y números.
-const passwordNueva = z
+export const passwordNuevaSchema = z
   .string()
   .min(8, "La contraseña debe tener al menos 8 caracteres.")
   .max(100, "La contraseña no puede exceder los 100 caracteres.")
@@ -23,7 +23,7 @@ export const otpSchema = z.object({
 /** Contraseña nueva + confirmación (activación de cuenta y recuperación). */
 export const nuevaPasswordSchema = z
   .object({
-    password: passwordNueva,
+    password: passwordNuevaSchema,
     confirmPassword: z.string().min(1, "Confirma tu contraseña."),
   })
   .refine((valores) => valores.password === valores.confirmPassword, {
