@@ -104,7 +104,7 @@ export function SeccionHistorialPedidos({ puedeDevolver, puedeAnular }: { puedeD
             value={busqueda}
             onValueChange={setBusqueda}
             placeholder="Buscar por cliente, mesa o #número…"
-            className="min-w-0 flex-1 [&_input]:rounded-full"
+            className="min-w-0 flex-1"
           />
 
           <div className="flex shrink-0 flex-wrap gap-1.5">
