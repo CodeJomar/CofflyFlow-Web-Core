@@ -80,12 +80,14 @@ export function useCatalogoPos() {
       onNuevaComanda: () => void cargarMesas(true),
       onComandaEstado: () => void cargarMesas(true),
       onPagoActualizado: () => void cargarMesas(true),
+      // Otra pantalla cambió el menú (precio, disponibilidad, categorías): el catálogo se vuelve a leer
+      onCatalogoActualizado: () => void cargarCatalogo(true),
       onConexion: setEnVivo,
     })
     return () => {
       cerrar?.()
     }
-  }, [cargarMesas])
+  }, [cargarMesas, cargarCatalogo])
 
   const categorias = React.useMemo<CategoriaPos[]>(
     () => categoriasApi.map((c) => ({ id: c.id_categoria, nombre: c.nombre })),
