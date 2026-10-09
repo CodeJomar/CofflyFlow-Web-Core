@@ -85,7 +85,7 @@ export function CategoriasForm({
       title="Categorías del menú"
       description="Organiza la carta en bebidas, postres, piqueos y más."
       footer={
-        <Button type="button" variant="outline" size="md" onClick={onClose}>
+        <Button type="button" variant="neutral" size="md" onClick={onClose}>
           Cerrar
         </Button>
       }
