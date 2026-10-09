@@ -1,4 +1,4 @@
-import { RolesPermisosView } from "@/modules/local-equipo/views/List"
+import { RolesPermisosView } from "@/modules/local-equipo"
 
 export default function RolesPermisosPage() {
   return <RolesPermisosView />

@@ -2,7 +2,15 @@ import { apiRequest } from "@/lib/api/client"
 import { CheckStatus } from "@/dtos/core/checkStatus.dto"
 import { DataQuery } from "@/dtos/core/dataQuery.dto"
 import { OneQuery } from "@/dtos/core/oneQuery.dto"
-import type { ActualizarMesaPayload, CrearMesaPayload, MesaConPedidoDto, MesaDto } from "@/dtos/mesas"
+import type {
+  ActualizarMesaPayload,
+  AreaDto,
+  CrearMesaPayload,
+  MesaConPedidoDto,
+  MesaDto,
+  RenombrarAreaPayload,
+  RenombrarAreaResultadoDto,
+} from "@/dtos/mesas"
 import type {
   ActualizarRolPayload,
   CrearRolPayload,
@@ -11,7 +19,13 @@ import type {
   RolDetalleDto,
   RolResumenDto,
 } from "@/dtos/roles"
-import type { ActualizarUsuarioPayload, CargoDto, CrearUsuarioPayload, UsuarioDto } from "@/dtos/usuarios"
+import type {
+  ActualizarUsuarioPayload,
+  BajaUsuarioPayload,
+  CargoDto,
+  CrearUsuarioPayload,
+  UsuarioDto,
+} from "@/dtos/usuarios"
 
 // Llamadas finas a la API NestJS. Unicidad, permisos delegables y bajas lógicas los valida el backend.
 
@@ -35,9 +49,9 @@ export const crearEmpleado = (payload: CrearUsuarioPayload) =>
 export const actualizarEmpleado = (id: string, payload: ActualizarUsuarioPayload) =>
   apiRequest<OneQuery<UsuarioDto>>(OneQuery, { method: "PATCH", url: `/users/${id}`, data: payload })
 
-/** Baja lógica: el empleado pierde el acceso y su historial se conserva. */
-export const darDeBajaEmpleado = (id: string) =>
-  apiRequest<CheckStatus>(CheckStatus, { method: "DELETE", url: `/users/${id}` })
+/** Baja lógica: el empleado pierde el acceso y su historial se conserva (el motivo es opcional). */
+export const darDeBajaEmpleado = (id: string, payload?: BajaUsuarioPayload) =>
+  apiRequest<CheckStatus>(CheckStatus, { method: "DELETE", url: `/users/${id}`, ...(payload?.motivo ? { data: payload } : {}) })
 
 /** Vuelve a enviar el correo con el enlace para activar la cuenta. */
 export const reenviarActivacion = (id: string) =>
@@ -77,3 +91,10 @@ export const actualizarMesa = (id: string, payload: ActualizarMesaPayload) =>
 
 /** Retira la mesa del plano; la API no lo permite si tiene comensales o pedidos en curso. */
 export const eliminarMesa = (id: string) => apiRequest<CheckStatus>(CheckStatus, { method: "DELETE", url: `/tables/${id}` })
+
+/** Áreas del local con su cantidad de mesas. */
+export const getAreas = () => apiRequest<CheckStatus<AreaDto[]>>(CheckStatus, { method: "GET", url: "/tables/areas" })
+
+/** Renombra un área en todas sus mesas a la vez. */
+export const renombrarArea = (payload: RenombrarAreaPayload) =>
+  apiRequest<OneQuery<RenombrarAreaResultadoDto>>(OneQuery, { method: "PATCH", url: "/tables/areas", data: payload })
