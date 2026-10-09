@@ -1,4 +1,5 @@
 import { z } from "zod"
+import { MENSAJE_NOMBRE_PERSONA, MENSAJE_TEXTO_LIBRE, NOMBRE_PERSONA, esTextoLibreValido } from "@/shared/utils/texto"
 
 import type { ModuloCatalogoDto, RolDetalleDto, RolResumenDto } from "@/dtos/roles"
 import type { CargoDto, EstadoUsuario, UsuarioDto } from "@/dtos/usuarios"
@@ -64,7 +65,7 @@ export const empleadoFormSchema = z.object({
     .trim()
     .min(3, "Ingresa el nombre completo.")
     .max(100, "Máximo 100 caracteres.")
-    .regex(/^[A-Za-zÁÉÍÓÚÜÑáéíóúüñ' ]+$/, "Solo se permiten letras y espacios."),
+    .regex(NOMBRE_PERSONA, MENSAJE_NOMBRE_PERSONA),
   email: z.string().trim().toLowerCase().email("Ingresa un correo válido.").max(150, "Máximo 150 caracteres."),
   idRol: z.string().min(1, "Selecciona el cargo."),
   // Ficha del empleado (opcional): las mismas reglas que valida la API
@@ -90,7 +91,7 @@ export const empleadoToFormValues = (empleado?: Empleado, rolPorDefecto = ""): E
 
 /** Motivo opcional al dar de baja a un empleado. */
 export const bajaFormSchema = z.object({
-  motivo: z.string().trim().max(255, "Máximo 255 caracteres."),
+  motivo: z.string().trim().max(255, "Máximo 255 caracteres.").refine(esTextoLibreValido, MENSAJE_TEXTO_LIBRE),
 })
 
 export type BajaFormValues = z.infer<typeof bajaFormSchema>

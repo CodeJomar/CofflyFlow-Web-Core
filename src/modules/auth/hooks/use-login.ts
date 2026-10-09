@@ -9,6 +9,7 @@ import { toastResponse } from "@/shared/utils/toast-response"
 import { permisoDeRuta, rutaInicial } from "@/shared/constants/navegacion"
 import { puedeCon } from "@/shared/constants/permisos"
 import { loginAction } from "../actions/auth.actions"
+import { marcarPestana } from "../pestana"
 import { loginSchema, type LoginValues } from "../schema"
 
 /**
@@ -59,6 +60,7 @@ export function useLogin(siguiente?: string) {
     })
 
     if (res.isOk()) {
+      marcarPestana()
       router.replace(destinoSeguro(siguiente, res.data.usuario.permisos))
       return
     }

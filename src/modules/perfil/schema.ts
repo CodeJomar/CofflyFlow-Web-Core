@@ -1,9 +1,15 @@
 import { z } from "zod"
+import { MENSAJE_NOMBRE_PERSONA, NOMBRE_PERSONA } from "@/shared/utils/texto"
 
 import { passwordNuevaSchema } from "@/modules/auth"
 
 export const datosPerfilSchema = z.object({
-  nombre: z.string().trim().min(2, "El nombre debe tener al menos 2 caracteres.").max(100, "El nombre no puede superar los 100 caracteres."),
+  nombre: z
+    .string()
+    .trim()
+    .min(2, "El nombre debe tener al menos 2 caracteres.")
+    .max(100, "El nombre no puede superar los 100 caracteres.")
+    .regex(NOMBRE_PERSONA, MENSAJE_NOMBRE_PERSONA),
 })
 
 export type DatosPerfilValues = z.infer<typeof datosPerfilSchema>

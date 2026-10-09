@@ -5,7 +5,8 @@ import { usePathname, useRouter } from "next/navigation"
 
 import { Spinner } from "@/shared/components/ui/spinner"
 import type { SesionUsuarioDto } from "@/dtos/auth"
-import { perfilAction } from "../actions/auth.actions"
+import { logoutAction, perfilAction } from "../actions/auth.actions"
+import { pestanaMarcada } from "../pestana"
 
 const SessionContext = React.createContext<SesionUsuarioDto | null>(null)
 const RefrescarSesionContext = React.createContext<(() => Promise<void>) | null>(null)
@@ -53,6 +54,12 @@ export function SessionProvider({ children }: { children: React.ReactNode }) {
 
   React.useEffect(() => {
     let cancelado = false
+
+    // Pestaña sin marca de inicio de sesión (nueva, enlace pegado o navegador reabierto): la sesión no se hereda.
+    if (!pestanaMarcada()) {
+      void logoutAction().finally(() => router.replace(`/login?siguiente=${encodeURIComponent(rutaActual.current)}`))
+      return
+    }
 
     const confirmarSesion = () =>
       perfilAction().then((res) => {

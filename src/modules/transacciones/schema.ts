@@ -1,4 +1,5 @@
 import { z } from "zod"
+import { MENSAJE_TEXTO_LIBRE, esTextoLibreValido } from "@/shared/utils/texto"
 
 import type { MetodoPago, TipoMovimiento, TipoMovimientoManual, TurnoActualDto } from "@/dtos/caja"
 import type { EstadoPedido } from "@/dtos/pedidos"
@@ -142,7 +143,12 @@ export const crearMovimientoSchema = (efectivoDisponibleCentimos: number) =>
   z
     .object({
       tipo: z.enum(["ingreso_manual", "retiro_manual"]),
-      concepto: z.string().trim().min(3, "Describe el motivo (mínimo 3 caracteres).").max(255, "Máximo 255 caracteres"),
+      concepto: z
+        .string()
+        .trim()
+        .min(3, "Describe el motivo (mínimo 3 caracteres).")
+        .max(255, "Máximo 255 caracteres")
+        .refine(esTextoLibreValido, MENSAJE_TEXTO_LIBRE),
       monto: textoMonto,
     })
     .superRefine((data, ctx) => {
@@ -239,7 +245,8 @@ export const anulacionSchema = z.object({
     .string()
     .trim()
     .min(5, "Indica el motivo de la anulación (mínimo 5 caracteres).")
-    .max(255, "Máximo 255 caracteres"),
+    .max(255, "Máximo 255 caracteres")
+    .refine(esTextoLibreValido, MENSAJE_TEXTO_LIBRE),
 })
 export type AnulacionValues = z.infer<typeof anulacionSchema>
 
@@ -248,7 +255,12 @@ export const crearDevolucionSchema = (maximoCentimos: number) =>
   z
     .object({
       monto: textoMonto,
-      motivo: z.string().trim().min(5, "Indica el motivo (mínimo 5 caracteres).").max(255, "Máximo 255 caracteres"),
+      motivo: z
+        .string()
+        .trim()
+        .min(5, "Indica el motivo (mínimo 5 caracteres).")
+        .max(255, "Máximo 255 caracteres")
+        .refine(esTextoLibreValido, MENSAJE_TEXTO_LIBRE),
     })
     .superRefine((data, ctx) => {
       const monto = centimosDeTexto(data.monto)

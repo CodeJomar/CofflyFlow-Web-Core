@@ -1,14 +1,30 @@
 "use client"
 
+import * as React from "react"
 import { useForm } from "react-hook-form"
 import { zodResolver } from "@hookform/resolvers/zod"
-import { KeyRound, Lock } from "lucide-react"
+import { Eye, EyeOff, KeyRound, Lock } from "lucide-react"
 
 import { FloatingInput } from "@/shared/components/composed/floating-input"
 import { Button } from "@/shared/components/ui/button"
 
 import { cambiarPasswordSchema, type CambiarPasswordValues } from "../schema"
 import { descripcionTarjeta, errorClass, tarjetaPerfil, tituloTarjeta } from "./estilos"
+
+/** Ojito para ver u ocultar lo escrito en un campo de contraseña. */
+function OjoPassword({ visible, onToggle }: { visible: boolean; onToggle: () => void }) {
+  return (
+    <button
+      type="button"
+      onClick={onToggle}
+      tabIndex={-1}
+      aria-label={visible ? "Ocultar contraseña" : "Mostrar contraseña"}
+      className="flex items-center justify-center text-slate-400 hover:text-slate-600 outline-none cursor-pointer"
+    >
+      {visible ? <EyeOff size={18} /> : <Eye size={18} />}
+    </button>
+  )
+}
 
 const VACIO: CambiarPasswordValues = { passwordActual: "", passwordNueva: "", confirmar: "" }
 
@@ -25,6 +41,8 @@ export function PasswordForm({
     reset,
     formState: { errors, isSubmitting },
   } = useForm<CambiarPasswordValues>({ resolver: zodResolver(cambiarPasswordSchema), defaultValues: VACIO })
+  const [ver, setVer] = React.useState({ actual: false, nueva: false, confirmar: false })
+  const alternar = (campo: keyof typeof ver) => setVer((v) => ({ ...v, [campo]: !v[campo] }))
 
   return (
     <form
@@ -43,7 +61,8 @@ export function PasswordForm({
         <FloatingInput
           id="perfil-password-actual"
           label="Contraseña actual"
-          type="password"
+          type={ver.actual ? "text" : "password"}
+          rightIcon={<OjoPassword visible={ver.actual} onToggle={() => alternar("actual")} />}
           leftIcon={<Lock size={18} />}
           {...register("passwordActual")}
           autoComplete="current-password"
@@ -58,7 +77,8 @@ export function PasswordForm({
           <FloatingInput
             id="perfil-password-nueva"
             label="Contraseña nueva"
-            type="password"
+            type={ver.nueva ? "text" : "password"}
+            rightIcon={<OjoPassword visible={ver.nueva} onToggle={() => alternar("nueva")} />}
             leftIcon={<KeyRound size={18} />}
             {...register("passwordNueva")}
             autoComplete="new-password"
@@ -71,7 +91,8 @@ export function PasswordForm({
           <FloatingInput
             id="perfil-password-confirmar"
             label="Confirmar contraseña nueva"
-            type="password"
+            type={ver.confirmar ? "text" : "password"}
+            rightIcon={<OjoPassword visible={ver.confirmar} onToggle={() => alternar("confirmar")} />}
             leftIcon={<KeyRound size={18} />}
             {...register("confirmar")}
             autoComplete="new-password"
