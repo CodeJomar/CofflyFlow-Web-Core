@@ -3,6 +3,7 @@
 import { ChefHat } from "lucide-react"
 import type { PedidoCreadoDto } from "@/dtos/pedidos"
 import { Button } from "@/shared/components/ui/button"
+import { PieModal } from "./pie-modal"
 import { formatearDinero } from "@/shared/utils/dinero"
 import { ModalMarco } from "./modal-marco"
 
@@ -41,10 +42,13 @@ export function ComandaDespachadaModal({ pedido, destino, onClose }: ComandaDesp
             </li>
           ))}
         </ul>
-        <Button id="pos-comanda-listo" type="button" size="sm" onClick={onClose} className="w-full">
+      </div>
+
+      <PieModal>
+        <Button id="pos-comanda-listo" type="button" size="md" onClick={onClose}>
           Listo
         </Button>
-      </div>
+      </PieModal>
     </ModalMarco>
   )
 }

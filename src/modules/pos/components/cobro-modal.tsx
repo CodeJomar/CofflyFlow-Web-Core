@@ -14,6 +14,7 @@ import { MAX_LINEAS_PAGO, METODO_PAGO_LABELS } from "../schema"
 import { type LineaPago, type PedidoACobrar, nuevaLinea } from "./cobro-tipos"
 import { useCobro } from "../hooks/use-cobro"
 import { ModalMarco, etiquetaCampo } from "./modal-marco"
+import { PieModal } from "./pie-modal"
 import { ResultadoCobro } from "./resultado-cobro"
 import { opcionClass } from "./estilos"
 import { BILLETES_SUGERIDOS, METODO_PAGO_ICONS } from "./config-metodos-pago"
@@ -113,12 +114,15 @@ export function CobroModal({ pedidos, onClose, onCobrado }: CobroModalProps) {
       subtitulo={pedido.etiqueta}
       onClose={cerrar}
       cerrarDeshabilitado={isSubmitting}
+      ancho={resultado ? "max-w-md" : "max-w-5xl"}
     >
       {resultado ? (
         <ResultadoCobro resultado={resultado} completo={completo} onOtroPago={registrarOtroPago} onCerrar={cerrar} />
       ) : (
         <>
-          <div className="flex flex-col gap-5 overflow-y-auto p-5">
+          <div className="grid min-h-0 flex-1 grid-cols-1 gap-5 overflow-y-auto p-5 lg:grid-cols-[360px_minmax(0,1fr)] lg:gap-6">
+            {/* Resumen: qué se cobra, cómo dividir la cuenta y cuánto se cobra ahora */}
+            <div className="flex flex-col gap-4">
             {pedidos.length > 1 && (
               <FloatingSelect
                 id="pos-pedido-cobro"
@@ -172,6 +176,28 @@ export function CobroModal({ pedidos, onClose, onCobrado }: CobroModalProps) {
               </button>
             </div>
 
+            <div className="flex items-center justify-between rounded-xl bg-slate-100 px-4 py-3 text-sm dark:bg-stone-800">
+              <span className="text-slate-600 dark:text-stone-300">Se cobra ahora</span>
+              <span className="font-bold tabular-nums text-slate-900 dark:text-stone-100">{formatearCentimos(aplicado)}</span>
+            </div>
+            {aplicado > 0 && aplicado < saldo && (
+              <p className="text-xs text-slate-500 dark:text-stone-400">
+                Quedarán {formatearCentimos(restante)} por cobrar: el pedido seguirá abierto hasta cubrir el total.
+              </p>
+            )}
+
+            {mensaje && (
+              <p
+                role="alert"
+                className="rounded-xl bg-red-50 px-4 py-2.5 text-sm font-medium text-red-700 dark:bg-red-500/15 dark:text-red-300"
+              >
+                {mensaje}
+              </p>
+            )}
+            </div>
+
+            {/* Pagos: cada línea con su método y monto (pago mixto) */}
+            <div className="flex min-h-0 flex-col gap-4">
             {/* Líneas de pago: cada una con su método y monto (pago mixto) */}
             <div className="flex flex-col gap-3">
               {lineas.map((linea, indice) => {
@@ -284,34 +310,17 @@ export function CobroModal({ pedidos, onClose, onCobrado }: CobroModalProps) {
               )}
             </div>
 
-            <div className="flex items-center justify-between rounded-xl bg-slate-100 px-4 py-3 text-sm dark:bg-stone-800">
-              <span className="text-slate-600 dark:text-stone-300">Se cobra ahora</span>
-              <span className="font-bold tabular-nums text-slate-900 dark:text-stone-100">{formatearCentimos(aplicado)}</span>
             </div>
-            {aplicado > 0 && aplicado < saldo && (
-              <p className="text-xs text-slate-500 dark:text-stone-400">
-                Quedarán {formatearCentimos(restante)} por cobrar: el pedido seguirá abierto hasta cubrir el total.
-              </p>
-            )}
-
-            {mensaje && (
-              <p
-                role="alert"
-                className="rounded-xl bg-red-50 px-4 py-2.5 text-sm font-medium text-red-700 dark:bg-red-500/15 dark:text-red-300"
-              >
-                {mensaje}
-              </p>
-            )}
           </div>
 
-          <div className="flex gap-2 border-t border-slate-100 p-5 dark:border-stone-800">
-            <Button type="button" variant="outline" size="sm" onClick={cerrar} disabled={isSubmitting} className="flex-1">
+          <PieModal>
+            <Button type="button" variant="neutral" size="md" onClick={cerrar} disabled={isSubmitting}>
               Cancelar
             </Button>
-            <Button id="pos-confirmar-cobro" type="button" size="sm" loading={isSubmitting} onClick={() => void confirmar()} className="flex-[2]">
+            <Button id="pos-confirmar-cobro" type="button" size="md" loading={isSubmitting} onClick={() => void confirmar()}>
               Confirmar {formatearCentimos(aplicado)}
             </Button>
-          </div>
+          </PieModal>
         </>
       )}
     </ModalMarco>

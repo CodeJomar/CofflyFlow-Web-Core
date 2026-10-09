@@ -5,6 +5,7 @@ import type { CobroResultadoDto } from "@/dtos/caja"
 import { Button } from "@/shared/components/ui/button"
 import { formatearDinero } from "@/shared/utils/dinero"
 import { METODO_PAGO_LABELS } from "../schema"
+import { PieModal } from "./pie-modal"
 
 export function ResultadoCobro({
   resultado,
@@ -18,6 +19,7 @@ export function ResultadoCobro({
   onCerrar: () => void
 }) {
   return (
+    <>
     <div className="flex flex-col items-center gap-4 p-6 text-center">
       <span className="flex size-20 items-center justify-center rounded-full bg-emerald-100 text-emerald-700 dark:bg-emerald-500/20 dark:text-emerald-300">
         <CircleCheck className="size-10" />
@@ -52,16 +54,18 @@ export function ResultadoCobro({
         )}
       </ul>
 
-      <div className="flex w-full gap-2">
-        {!completo && (
-          <Button type="button" variant="outline" size="sm" onClick={onOtroPago} className="flex-1">
-            Registrar otro pago
-          </Button>
-        )}
-        <Button type="button" size="sm" onClick={onCerrar} className="flex-1">
-          {completo ? "Listo" : "Cerrar"}
-        </Button>
-      </div>
     </div>
-  )
+
+    <PieModal>
+      {!completo && (
+        <Button type="button" variant="neutral" size="md" onClick={onOtroPago}>
+          Registrar otro pago
+        </Button>
+      )}
+      <Button type="button" size="md" onClick={onCerrar}>
+        {completo ? "Listo" : "Cerrar"}
+      </Button>
+    </PieModal>
+  </>
+)
 }

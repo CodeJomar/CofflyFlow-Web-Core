@@ -24,7 +24,7 @@ export function PosView() {
   const { catalogo, carrito, envio } = pos
 
   return (
-    <div className="flex flex-col gap-5 pb-2">
+    <div className="flex h-full min-h-0 flex-col gap-4 overflow-y-auto lg:overflow-hidden">
       <PosEncabezado
         enVivo={catalogo.enVivo}
         vistaActiva={pos.vistaActiva}
@@ -32,9 +32,9 @@ export function PosView() {
         totalMesas={catalogo.isLoading ? null : catalogo.mesas.length}
       />
 
-      {/* Grid de 12 columnas del POS (7:5 en lg, 8:4 en xl) */}
-      <div className="grid grid-cols-12 items-start gap-4 lg:gap-5">
-        <div className="col-span-12 flex flex-col lg:col-span-7 xl:col-span-8">
+      {/* Grid de 12 columnas del POS (7:5 en lg, 8:4 en xl); ocupa el alto disponible y cada lado maneja su propio contenido */}
+      <div className="grid min-h-0 flex-1 grid-cols-12 gap-4 lg:gap-5">
+        <div className="col-span-12 flex min-h-[520px] flex-col lg:col-span-7 lg:min-h-0 xl:col-span-8">
           {pos.vistaActiva === "catalogo" ? (
             <CatalogoPanel
               catalogo={catalogo}
@@ -60,7 +60,7 @@ export function PosView() {
           )}
         </div>
 
-        <div className="col-span-12 flex flex-col lg:col-span-5 xl:col-span-4">
+        <div className="col-span-12 flex min-h-[560px] flex-col lg:col-span-5 lg:min-h-0 xl:col-span-4">
           <TicketPanel
             items={carrito.items}
             totales={carrito.totales}

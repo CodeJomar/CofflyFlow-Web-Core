@@ -9,6 +9,7 @@ import { cn } from "@/shared/utils/cn"
 import { aCentimos, formatearCentimos } from "@/shared/utils/dinero"
 import { MAX_NOTA_PREPARACION, errorDeSeleccion, grupoExcluyente, grupoObligatorio, precioUnitarioCentimos, type ProductoPos, type SeleccionModificador } from "../schema"
 import { type ConfiguracionItem } from "../hooks/use-carrito"
+import { PieModal } from "./pie-modal"
 import { ModalMarco, etiquetaCampo } from "./modal-marco"
 import { opcionClass } from "./estilos"
 
@@ -124,16 +125,19 @@ export function PersonalizarProductoModal({ producto, onClose, onConfirmar }: Pe
         />
       </div>
 
-      <div className="flex items-center gap-3 border-t border-slate-100 p-5 dark:border-stone-800">
-        <div className="flex flex-col">
-          <span className="text-[11px] text-slate-500 dark:text-stone-400">Precio por unidad</span>
-          <span className="text-lg font-bold tabular-nums text-[#4C0107] dark:text-[#E7B7BC]">{formatearCentimos(unitario)}</span>
-        </div>
+      <div className="flex items-center justify-between gap-3 border-t border-slate-100 px-5 py-3 dark:border-stone-800">
+        <span className="text-xs text-slate-500 dark:text-stone-400">Precio por unidad</span>
+        <span className="text-lg font-bold tabular-nums text-[#4C0107] dark:text-[#E7B7BC]">{formatearCentimos(unitario)}</span>
+      </div>
+
+      <PieModal>
+        <Button type="button" variant="neutral" size="md" onClick={onClose}>
+          Cancelar
+        </Button>
         <Button
           id="pos-agregar-personalizado"
           type="button"
-          size="sm"
-          className="ml-auto flex-1"
+          size="md"
           onClick={() => {
             setIntento(true)
             if (valido) onConfirmar({ modificadores, notas: notas.trim() || undefined })
@@ -141,7 +145,7 @@ export function PersonalizarProductoModal({ producto, onClose, onConfirmar }: Pe
         >
           Agregar a la comanda
         </Button>
-      </div>
+      </PieModal>
     </ModalMarco>
   )
 }
