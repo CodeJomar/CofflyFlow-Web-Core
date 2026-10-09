@@ -119,7 +119,7 @@ export function ComandaCard({
             type="button"
             onClick={() => void onMarcarTodoListo(tarjeta)}
             disabled={ocupada || faltan === 0}
-            className="flex h-10 w-full items-center justify-center gap-1.5 rounded-xl bg-emerald-600 px-3 text-xs sm:text-sm font-semibold text-white shadow-xs transition-all hover:bg-emerald-700 disabled:cursor-not-allowed disabled:opacity-50 cursor-pointer dark:bg-emerald-500 dark:text-stone-950 dark:hover:bg-emerald-400"
+            className="flex h-10 w-full items-center justify-center gap-1.5 rounded-xl bg-[#4C0107] px-3 text-xs sm:text-sm font-semibold text-white shadow-xs transition-all hover:bg-[#4C0107]/90 disabled:cursor-not-allowed disabled:opacity-50 cursor-pointer dark:bg-white dark:text-black dark:hover:bg-slate-200"
           >
             <CheckCheck className="size-4 shrink-0" />
             <span className="truncate">{faltan === 0 ? "Todo listo" : `Marcar todo listo (${faltan})`}</span>
