@@ -2,21 +2,61 @@
 
 import * as React from "react"
 import Link from "next/link"
+import { useRouter } from "next/navigation"
 import { FloatingInput } from "@/shared/components/composed/floating-input"
 import { Button } from "@/shared/components/ui/button"
 import { Mail, Lock, Eye, EyeOff, Coffee } from "lucide-react"
+import { toast } from "@/shared/components/ui/toast"
 import { useLogin } from "../hooks/use-login"
+import { SesionActivaModal } from "../components/sesion-activa-modal"
 
 interface LoginViewProps {
   /** Ruta a la que volver tras iniciar sesión (la fija el Proxy al redirigir), vía ?siguiente= */
   siguiente?: string
-  /** La sesión se cerró por falta de actividad: se avisa al volver al login. */
-  porInactividad?: boolean
+  /** Por qué se volvió al login: se avisa con un toast (inactividad o sesión reemplazada desde otro navegador). */
+  motivo?: "inactividad" | "reemplazada"
 }
 
-export function LoginView({ siguiente, porInactividad }: LoginViewProps) {
+export function LoginView({ siguiente, motivo }: LoginViewProps) {
+  const router = useRouter()
   const [showPassword, setShowPassword] = React.useState(false)
-  const { form, submit, bloqueoSegundos } = useLogin(siguiente)
+
+  // Se volvió al login por un cierre de sesión: se explica con un toast y se limpia la dirección para no repetirlo al recargar.
+  const avisado = React.useRef(false)
+  React.useEffect(() => {
+    if (!motivo || avisado.current) return
+    avisado.current = true
+    if (motivo === "inactividad") {
+      toast.add({
+        type: "warning",
+        title: "Tu sesión se cerró por inactividad",
+        description: "Ingresa de nuevo para continuar.",
+        timeout: 8000,
+      })
+    } else {
+      toast.add({
+        type: "error",
+        title: "Tu sesión se cerró",
+        description: (
+          <>
+            Se inició sesión con tu cuenta en otro dispositivo o navegador. Si no fuiste tú,{" "}
+            <button
+              type="button"
+              onClick={() => router.push("/forgot-password")}
+              className="cursor-pointer font-semibold text-red-600 underline underline-offset-2 hover:text-red-700 dark:text-red-400 dark:hover:text-red-300"
+            >
+              cambia tu contraseña
+            </button>
+            .
+          </>
+        ),
+        timeout: 15000,
+      })
+    }
+    router.replace("/login")
+  }, [motivo, router])
+
+  const { form, submit, bloqueoSegundos, sesionActiva } = useLogin(siguiente)
   const {
     register,
     formState: { errors, isSubmitting },
@@ -37,11 +77,6 @@ export function LoginView({ siguiente, porInactividad }: LoginViewProps) {
         <p className="text-xs text-slate-500 font-medium">
           Acceso de Personal
         </p>
-        {porInactividad && (
-          <p role="status" className="mt-1 rounded-xl bg-amber-50 px-3 py-2 text-xs text-amber-800">
-            Tu sesión se cerró por inactividad. Ingresa de nuevo para continuar.
-          </p>
-        )}
       </div>
 
       {/* Formulario utilizando FloatingInput y Button base */}
@@ -103,6 +138,14 @@ export function LoginView({ siguiente, porInactividad }: LoginViewProps) {
           </span>
         </Button>
       </form>
+
+      <SesionActivaModal
+        open={sesionActiva.abierta}
+        enviando={sesionActiva.enviando}
+        onContinuar={() => void sesionActiva.continuar()}
+        onCancelar={sesionActiva.cancelar}
+        onNoSoyYo={sesionActiva.noSoyYo}
+      />
     </div>
   )
 }

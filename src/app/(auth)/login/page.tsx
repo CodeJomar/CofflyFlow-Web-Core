@@ -14,7 +14,7 @@ export default async function LoginPage({
   return (
     <LoginView
       siguiente={Array.isArray(siguiente) ? siguiente[0] : siguiente}
-      porInactividad={(Array.isArray(motivo) ? motivo[0] : motivo) === "inactividad"}
+      motivo={((m) => (m === "inactividad" || m === "reemplazada" ? m : undefined))(Array.isArray(motivo) ? motivo[0] : motivo)}
     />
   )
 }

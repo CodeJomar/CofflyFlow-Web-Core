@@ -3,6 +3,7 @@ import type { BaseResponse } from "@/dtos/core/baseResponse.dto"
 import type { ConstructorLike } from "@/dtos/core/helpers"
 import { env } from "@/env"
 import { conexion, esFalloDeConexion } from "@/lib/connection"
+import { MOTIVO_SESION_REEMPLAZADA, marcarSesionReemplazada, sesionReemplazada } from "./sesion-reemplazada"
 
 /**
  * Cliente tipado hacia la API NestJS.
@@ -34,12 +35,22 @@ api.interceptors.response.use(
 const RUTAS_SIN_RENOVACION = ["/auth/login", "/auth/refresh", "/auth/logout", "/auth/activar", "/auth/recuperar", "/auth/verificar-otp", "/auth/restablecer-password"]
 
 let renovacionEnCurso: Promise<boolean> | null = null
+let motivoRenovacion: string | undefined
+
+const motivoDe = (error: unknown): string | undefined =>
+  axios.isAxiosError(error) ? (error.response?.data as { motivo?: string } | undefined)?.motivo : undefined
 
 function renovarSesion(): Promise<boolean> {
   renovacionEnCurso ??= api
     .post("/auth/refresh", {})
-    .then(() => true)
-    .catch(() => false)
+    .then(() => {
+      motivoRenovacion = undefined
+      return true
+    })
+    .catch((error: unknown) => {
+      motivoRenovacion = motivoDe(error)
+      return false
+    })
     .finally(() => {
       renovacionEnCurso = null
     })
@@ -54,11 +65,22 @@ api.interceptors.response.use(undefined, async (error: unknown) => {
   const url = config.url ?? ""
   if (config._reintentado || RUTAS_SIN_RENOVACION.some((ruta) => url.startsWith(ruta))) throw error
 
+  // La cuenta se abrió en otro lugar: no se intenta renovar; el workspace cierra la sesión y avisa en el login.
+  if (motivoDe(error) === MOTIVO_SESION_REEMPLAZADA) {
+    marcarSesionReemplazada()
+    throw error
+  }
+
   config._reintentado = true
   if (await renovarSesion()) return api.request(config)
 
+  if (motivoRenovacion === MOTIVO_SESION_REEMPLAZADA) {
+    marcarSesionReemplazada()
+    throw error
+  }
+
   // La sesión ya no se puede renovar (vencida o revocada): se vuelve al login.
-  if (typeof window !== "undefined" && !window.location.pathname.startsWith("/login")) {
+  if (typeof window !== "undefined" && !sesionReemplazada() && !window.location.pathname.startsWith("/login")) {
     window.location.replace(`/login?siguiente=${encodeURIComponent(window.location.pathname)}`)
   }
   throw error
